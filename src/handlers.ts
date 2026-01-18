@@ -28,15 +28,40 @@ async function safeReply(msg: Message, text: string): Promise<void> {
 
 export async function handleMessage(msg: Message): Promise<void> {
   try {
-    const text = msg.body.trim();
+    let text = msg.body.trim();
+    const isGroup = msg.from.endsWith('@g.us');
+    
+    // For groups: only respond if bot is mentioned or message starts with #
+    if (isGroup) {
+      const mentions = await msg.getMentions();
+      const botInfo = await client.info;
+      const botNumber = botInfo?.wid?._serialized;
+      const isBotMentioned = mentions.some((m) => m.id._serialized === botNumber);
+      
+      // In groups, require bot mention OR # prefix
+      if (!isBotMentioned && !text.startsWith('#')) {
+        return;
+      }
+      
+      // Remove bot mention from text if present (e.g., "@Bot #workout..." → "#workout...")
+      if (isBotMentioned) {
+        text = text.replace(/@\d+\s*/g, '').trim();
+        console.log(`👥 Group message with bot mention, cleaned text: ${text}`);
+      }
+    }
 
     if (!text.startsWith('#')) return;
 
     // Security: Only allow whitelisted phone numbers
+    // In groups, msg.author is the sender; in DMs, msg.from is the sender
     const sender = msg.author ?? msg.from;
     if (!isAllowedUser(sender)) {
       console.log(`🚫 Blocked message from unauthorized user: ${sender}`);
       return;
+    }
+    
+    if (isGroup) {
+      console.log(`👥 Processing group message from ${sender}`);
     }
 
     if (text === '#workouts' || text === '#list') {
