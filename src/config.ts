@@ -16,7 +16,6 @@ export const isAllowedUser = (phoneNumber: string): boolean => {
   const number = phoneNumber.replace(/@.*$/, '');
   
   console.log(`📞 Checking sender: ${phoneNumber} → extracted: ${number}`);
-  console.log(`📋 Allowed numbers: [${Array.from(ALLOWED_NUMBERS).join(', ')}]`);
   
   if (ALLOWED_NUMBERS.size === 0) {
     console.warn('⚠️ No ALLOWED_NUMBERS configured. Rejecting all messages.');

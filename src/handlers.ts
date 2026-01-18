@@ -51,7 +51,7 @@ export async function handleMessage(msg: Message): Promise<void> {
           `Halo! 👋 Aku bot workout tracker.\n\n` +
           `*Commands:*\n` +
           `• #workout - Simpan workout baru\n` +
-          `• #workouts - Lihat workout terakhir\n\n` +
+          `• #list - Lihat workout terakhir\n\n` +
           `Contoh:\n` +
           `#workout\n` +
           `date: 2026-01-18\n` +
@@ -94,7 +94,7 @@ export async function handleMessage(msg: Message): Promise<void> {
       console.log(`👥 Processing group message from ${sender}`);
     }
 
-    if (text === '#workouts' || text === '#list') {
+    if (text === '#list') {
       // List recent workouts
       const stmt = db.prepare(
         `SELECT date, type, reps, sets FROM workouts 
