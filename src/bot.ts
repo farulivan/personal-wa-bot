@@ -6,20 +6,34 @@ import path from 'path';
 
 const dataPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || '.wwebjs_auth';
 
-// Clear stale Chromium lock files from previous container runs
-const sessionPath = path.join(dataPath, 'session');
-const lockFiles = ['SingletonLock', 'SingletonSocket', 'SingletonCookie'];
-lockFiles.forEach((lockFile) => {
-  const lockPath = path.join(sessionPath, lockFile);
+// Clear ALL Chromium lock files recursively from the data directory
+function clearLockFiles(dir: string): void {
+  if (!fs.existsSync(dir)) return;
+  
+  const lockFileNames = ['SingletonLock', 'SingletonSocket', 'SingletonCookie', 'lockfile'];
+  
   try {
-    if (fs.existsSync(lockPath)) {
-      fs.unlinkSync(lockPath);
-      console.log(`🔓 Cleared stale lock: ${lockFile}`);
+    const items = fs.readdirSync(dir, { withFileTypes: true });
+    for (const item of items) {
+      const fullPath = path.join(dir, item.name);
+      if (item.isDirectory()) {
+        clearLockFiles(fullPath);
+      } else if (lockFileNames.includes(item.name)) {
+        try {
+          fs.unlinkSync(fullPath);
+          console.log(`🔓 Cleared lock: ${fullPath}`);
+        } catch {
+          // Ignore
+        }
+      }
     }
-  } catch (err) {
-    // Ignore errors - file might not exist or be a symlink
+  } catch {
+    // Ignore read errors
   }
-});
+}
+
+console.log('🧹 Clearing stale Chromium locks...');
+clearLockFiles(dataPath);
 
 export const client = new Client({
   authStrategy: new LocalAuth({ dataPath }),
@@ -30,6 +44,7 @@ export const client = new Client({
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
+      '--user-data-dir=/tmp/chromium-profile',
     ],
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
   },
