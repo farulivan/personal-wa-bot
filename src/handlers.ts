@@ -1,4 +1,5 @@
-import { Message } from 'whatsapp-web.js';
+import pkg from 'whatsapp-web.js';
+type Message = pkg.Message;
 import { parseKeyValue } from './parser.js';
 import { db } from './db.js';
 import { isAllowedUser } from './config.js';
