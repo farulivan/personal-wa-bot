@@ -8,14 +8,20 @@ import { client } from './bot.js';
 // Safe reply function that handles whatsapp-web.js compatibility issues
 async function safeReply(msg: Message, text: string): Promise<void> {
   try {
-    await msg.reply(text);
+    // Try getting the chat and sending directly
+    const chat = await msg.getChat();
+    await chat.sendMessage(text);
   } catch (err) {
-    // Fallback: use client.sendMessage if msg.reply fails
-    console.log('⚠️ msg.reply failed, using sendMessage fallback');
+    console.log('⚠️ chat.sendMessage failed, trying msg.reply');
     try {
-      await client.sendMessage(msg.from, text);
+      await msg.reply(text);
     } catch (err2) {
-      console.error('❌ Failed to send message:', err2);
+      console.log('⚠️ msg.reply failed, trying client.sendMessage');
+      try {
+        await client.sendMessage(msg.from, text);
+      } catch (err3) {
+        console.error('❌ All send methods failed:', err3);
+      }
     }
   }
 }
@@ -30,6 +36,35 @@ export async function handleMessage(msg: Message): Promise<void> {
     const sender = msg.author ?? msg.from;
     if (!isAllowedUser(sender)) {
       console.log(`🚫 Blocked message from unauthorized user: ${sender}`);
+      return;
+    }
+
+    if (text === '#workouts' || text === '#list') {
+      // List recent workouts
+      const stmt = db.prepare(
+        `SELECT date, type, reps, sets FROM workouts 
+         WHERE user = ? 
+         ORDER BY date DESC, created_at DESC 
+         LIMIT 10`
+      );
+      const rows = stmt.all(msg.author ?? msg.from) as Array<{
+        date: string;
+        type: string;
+        reps: number;
+        sets: number;
+      }>;
+
+      if (rows.length === 0) {
+        await safeReply(msg, '📋 No workouts found');
+        return;
+      }
+
+      const list = rows
+        .map((r) => `• ${r.date} | ${r.type} | ${r.reps}×${r.sets}`)
+        .join('\n');
+      
+      console.log(`📋 Listed ${rows.length} workouts`);
+      await safeReply(msg, `📋 *Recent Workouts*\n\n${list}`);
       return;
     }
 
