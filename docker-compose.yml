@@ -1,0 +1,12 @@
+services:
+  wa-bot:
+    build: .
+    container_name: personal-wa-bot
+    restart: unless-stopped
+    volumes:
+      # Persist WhatsApp session data
+      - ./.wwebjs_auth:/app/.wwebjs_auth
+      # Persist SQLite database
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
