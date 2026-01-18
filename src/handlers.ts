@@ -29,15 +29,47 @@ async function safeReply(msg: Message, text: string): Promise<void> {
 export async function handleMessage(msg: Message): Promise<void> {
   try {
     let text = msg.body.trim();
+    const textLower = text.toLowerCase();
     const isGroup = msg.from.endsWith('@g.us');
+    const sender = msg.author ?? msg.from;
     
-    // For groups: only respond if bot is mentioned or message starts with #
+    // Check if bot is mentioned (for groups)
+    let isBotMentioned = false;
     if (isGroup) {
       const mentions = await msg.getMentions();
       const botInfo = await client.info;
       const botNumber = botInfo?.wid?._serialized;
-      const isBotMentioned = mentions.some((m) => m.id._serialized === botNumber);
+      isBotMentioned = mentions.some((m) => m.id._serialized === botNumber);
+    }
+    
+    // Handle "Halo" greeting when bot is mentioned
+    if (isBotMentioned && (textLower.includes('halo') || textLower.includes('hello') || textLower.includes('hi '))) {
+      console.log(`👋 Greeting from ${sender}`);
       
+      if (isAllowedUser(sender)) {
+        await safeReply(msg, 
+          `Halo! 👋 Aku bot workout tracker.\n\n` +
+          `*Commands:*\n` +
+          `• #workout - Simpan workout baru\n` +
+          `• #workouts - Lihat workout terakhir\n\n` +
+          `Contoh:\n` +
+          `#workout\n` +
+          `date: 2026-01-18\n` +
+          `type: push\n` +
+          `reps: 20\n` +
+          `sets: 4`
+        );
+      } else {
+        await safeReply(msg,
+          `Halo! 👋 Maaf, kamu belum terdaftar untuk menggunakan bot ini.\n\n` +
+          `Hubungi admin untuk mendaftarkan nomormu.`
+        );
+      }
+      return;
+    }
+    
+    // For groups: only respond if bot is mentioned or message starts with #
+    if (isGroup) {
       // In groups, require bot mention OR # prefix
       if (!isBotMentioned && !text.startsWith('#')) {
         return;
@@ -53,8 +85,6 @@ export async function handleMessage(msg: Message): Promise<void> {
     if (!text.startsWith('#')) return;
 
     // Security: Only allow whitelisted phone numbers
-    // In groups, msg.author is the sender; in DMs, msg.from is the sender
-    const sender = msg.author ?? msg.from;
     if (!isAllowedUser(sender)) {
       console.log(`🚫 Blocked message from unauthorized user: ${sender}`);
       return;
