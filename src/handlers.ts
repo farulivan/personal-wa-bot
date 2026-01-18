@@ -31,17 +31,17 @@ export async function handleMessage(msg: Message): Promise<void> {
       return;
     }
 
-    db.run(
+    const stmt = db.prepare(
       `INSERT INTO workouts (user, date, type, reps, sets, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        msg.author ?? msg.from,
-        data.date,
-        data.type,
-        Number(data.reps),
-        Number(data.sets),
-        new Date().toISOString(),
-      ]
+       VALUES (?, ?, ?, ?, ?, ?)`
+    );
+    stmt.run(
+      msg.author ?? msg.from,
+      data.date,
+      data.type,
+      Number(data.reps),
+      Number(data.sets),
+      new Date().toISOString()
     );
 
     await msg.reply('✅ Workout saved');

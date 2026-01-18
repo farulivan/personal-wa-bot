@@ -35,7 +35,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 
 # Install pnpm and dependencies (rebuild native modules)
-RUN npm install -g pnpm && pnpm install --frozen-lockfile && pnpm rebuild sqlite3
+RUN npm install -g pnpm && pnpm install --frozen-lockfile && pnpm rebuild better-sqlite3
 
 # Copy source code
 COPY . .
