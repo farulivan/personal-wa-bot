@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-# Install Chrome dependencies for Puppeteer
+# Install Chrome dependencies for Puppeteer + build tools for native modules (sqlite3)
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
@@ -19,6 +19,9 @@ RUN apt-get update && apt-get install -y \
     libxdamage1 \
     libxrandr2 \
     xdg-utils \
+    python3 \
+    make \
+    g++ \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
@@ -31,8 +34,8 @@ WORKDIR /app
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install pnpm and dependencies
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
+# Install pnpm and dependencies (rebuild native modules)
+RUN npm install -g pnpm && pnpm install --frozen-lockfile && pnpm rebuild sqlite3
 
 # Copy source code
 COPY . .
