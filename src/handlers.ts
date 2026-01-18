@@ -8,19 +8,19 @@ import { client } from './bot.js';
 // Safe reply function that handles whatsapp-web.js compatibility issues
 async function safeReply(msg: Message, text: string): Promise<void> {
   try {
-    // Try getting the chat and sending directly
-    const chat = await msg.getChat();
-    await chat.sendMessage(text);
+    // Try sendMessage with sendSeen disabled
+    await client.sendMessage(msg.from, text, { sendSeen: false });
   } catch (err) {
-    console.log('⚠️ chat.sendMessage failed, trying msg.reply');
+    console.log('⚠️ sendMessage with sendSeen:false failed, trying chat.sendMessage');
     try {
-      await msg.reply(text);
+      const chat = await msg.getChat();
+      await chat.sendMessage(text);
     } catch (err2) {
-      console.log('⚠️ msg.reply failed, trying client.sendMessage');
+      console.log('⚠️ chat.sendMessage failed, trying msg.reply');
       try {
-        await client.sendMessage(msg.from, text);
+        await msg.reply(text);
       } catch (err3) {
-        console.error('❌ All send methods failed:', err3);
+        console.error('❌ All send methods failed. Message content:', text);
       }
     }
   }
