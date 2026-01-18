@@ -31,11 +31,11 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
+# Copy package files and pnpm config
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Install pnpm and dependencies (rebuild native modules)
-RUN npm install -g pnpm && pnpm install --frozen-lockfile && pnpm rebuild better-sqlite3
+# Install pnpm and dependencies (pnpm@9 for native module compatibility)
+RUN npm install -g pnpm@9 && pnpm install --frozen-lockfile
 
 # Copy source code
 COPY . .
