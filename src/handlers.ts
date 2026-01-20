@@ -134,11 +134,35 @@ export async function handleMessage(msg: Message): Promise<void> {
         return;
       }
 
+      // Detect user's timezone from message timestamp
+      const msgTimestamp = msg.timestamp * 1000; // Convert to milliseconds
+      const msgDate = new Date(msgTimestamp);
+      const userTimezoneOffset = -msgDate.getTimezoneOffset(); // Minutes offset from UTC
+      
       const list = rows
         .map((r) => {
-          const date = r.created_at.split('T')[0]; // Extract YYYY-MM-DD
+          // Convert UTC timestamp to user's timezone
+          const workoutDate = new Date(r.created_at);
+          const userWorkoutDate = new Date(workoutDate.getTime() + userTimezoneOffset * 60000);
+          
+          // Get today and yesterday in user's timezone
+          const userNow = new Date(Date.now() + userTimezoneOffset * 60000);
+          const userToday = new Date(userNow.getFullYear(), userNow.getMonth(), userNow.getDate());
+          const userYesterday = new Date(userToday.getTime() - 86400000);
+          const workoutDateOnly = new Date(userWorkoutDate.getFullYear(), userWorkoutDate.getMonth(), userWorkoutDate.getDate());
+          
+          let dateStr: string;
+          if (workoutDateOnly.getTime() === userToday.getTime()) {
+            dateStr = 'Today';
+          } else if (workoutDateOnly.getTime() === userYesterday.getTime()) {
+            dateStr = 'Yesterday';
+          } else {
+            const [year, month, day] = r.created_at.split('T')[0].split('-');
+            dateStr = `${year}/${month}/${day}`;
+          }
+          
           const weightStr = r.weight === 0 ? 'bodyweight' : `${r.weight}kg`;
-          return `• ${date} - ${r.type}\n\n${r.reps} × ${r.sets} @ ${weightStr}`;
+          return `• ${dateStr} – ${r.type} | ${r.reps} × ${r.sets} @ ${weightStr}`;
         })
         .join('\n');
       
