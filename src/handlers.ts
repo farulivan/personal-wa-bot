@@ -54,10 +54,11 @@ export async function handleMessage(msg: Message): Promise<void> {
           `• #list - Lihat workout terakhir\n\n` +
           `Contoh:\n` +
           `#workout\n` +
-          `date: 2026-01-18\n` +
           `type: push\n` +
           `reps: 20\n` +
-          `sets: 4`
+          `sets: 4\n` +
+          `weight: 10\n\n` +
+          `(weight opsional, kosongkan untuk bodyweight)`
         );
       } else {
         await safeReply(msg,
@@ -94,19 +95,20 @@ export async function handleMessage(msg: Message): Promise<void> {
       console.log(`👥 Processing group message from ${sender}`);
     }
 
-    if (text === '#list') {
+    if (text === '#workouts' || text === '#list') {
       // List recent workouts
       const stmt = db.prepare(
-        `SELECT date, type, reps, sets FROM workouts 
+        `SELECT created_at, type, reps, sets, weight FROM workouts 
          WHERE user = ? 
-         ORDER BY date DESC, created_at DESC 
+         ORDER BY created_at DESC 
          LIMIT 10`
       );
       const rows = stmt.all(msg.author ?? msg.from) as Array<{
-        date: string;
+        created_at: string;
         type: string;
         reps: number;
         sets: number;
+        weight: number;
       }>;
 
       if (rows.length === 0) {
@@ -115,7 +117,11 @@ export async function handleMessage(msg: Message): Promise<void> {
       }
 
       const list = rows
-        .map((r) => `• ${r.date} | ${r.type} | ${r.reps}×${r.sets}`)
+        .map((r) => {
+          const date = r.created_at.split('T')[0]; // Extract YYYY-MM-DD
+          const weightStr = r.weight === 0 ? 'bodyweight' : `${r.weight}kg`;
+          return `• ${date} | ${r.type} | ${r.reps}×${r.sets} @ ${weightStr}`;
+        })
         .join('\n');
       
       console.log(`📋 Listed ${rows.length} workouts`);
@@ -126,33 +132,37 @@ export async function handleMessage(msg: Message): Promise<void> {
     if (text.startsWith('#workout')) {
       const data = parseKeyValue(text);
 
-      if (!data.date || !data.type || !data.reps || !data.sets) {
+      if (!data.type || !data.reps || !data.sets) {
         await safeReply(msg,
           '❌ Invalid format\n\n' +
           '#workout\n' +
-          'date: YYYY-MM-DD\n' +
           'type: push\n' +
           'reps: 20\n' +
-          'sets: 4'
+          'sets: 4\n' +
+          'weight: 10 (opsional)'
         );
         return;
       }
 
+      const now = new Date();
+      const weight = data.weight ? Number(data.weight) : 0;
+      const weightLabel = weight === 0 ? 'bodyweight' : `${weight}kg`;
+
       const stmt = db.prepare(
-        `INSERT INTO workouts (user, date, type, reps, sets, created_at)
+        `INSERT INTO workouts (user, type, reps, sets, weight, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`
       );
       stmt.run(
         msg.author ?? msg.from,
-        data.date,
         data.type,
         Number(data.reps),
         Number(data.sets),
-        new Date().toISOString()
+        weight,
+        now.toISOString()
       );
 
-      console.log('💾 Workout saved to database');
-      await safeReply(msg, '✅ Workout saved');
+      console.log(`💾 Workout saved: ${data.type} ${data.reps}×${data.sets} @ ${weightLabel}`);
+      await safeReply(msg, `✅ Workout saved\n${data.type} | ${data.reps}×${data.sets} @ ${weightLabel}`);
     }
   } catch (err) {
     console.error('❌ Error handling message:', err);
