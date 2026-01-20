@@ -209,8 +209,27 @@ export async function handleMessage(msg: Message): Promise<void> {
         now.toISOString()
       );
 
+      // Get user's local time from message timestamp
+      const msgTimestamp = msg.timestamp * 1000;
+      const msgDate = new Date(msgTimestamp);
+      const userTimezoneOffset = -msgDate.getTimezoneOffset();
+      const userNow = new Date(Date.now() + userTimezoneOffset * 60000);
+      const userHour = userNow.getUTCHours();
+
+      // Dynamic response based on time of day
+      let timeResponse: string;
+      if (userHour >= 5 && userHour < 11) {
+        timeResponse = 'Early grind 💯\nStarting the day right.';
+      } else if (userHour >= 11 && userHour < 16) {
+        timeResponse = 'Midday work 👊\nStaying consistent.';
+      } else if (userHour >= 16 && userHour < 21) {
+        timeResponse = 'After-hours effort 💪\nWay to show up.';
+      } else {
+        timeResponse = 'Late session 👀\nThat\'s commitment.';
+      }
+
       console.log(`💾 Workout saved: ${data.type} ${data.reps}×${data.sets} @ ${weightLabel}`);
-      await safeReply(msg, `Logged 💪\n${data.type}\n${data.reps} × ${data.sets} @ ${weightLabel}\n\nNice work.`);
+      await safeReply(msg, `Logged 💪\n${data.type}\n${data.reps} × ${data.sets} @ ${weightLabel}\n\n${timeResponse}`);
     }
   } catch (err) {
     console.error('❌ Error handling message:', err);
