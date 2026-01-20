@@ -44,7 +44,22 @@ export async function handleMessage(msg: Message): Promise<void> {
     
     // Handle "Halo" greeting when bot is mentioned
     if (isBotMentioned && (textLower.includes('halo') || textLower.includes('hello') || textLower.includes('hi '))) {
+      // Debug timezone detection
+      const msgTimestamp = msg.timestamp * 1000;
+      const msgDate = new Date(msgTimestamp);
+      const userTimezoneOffset = -msgDate.getTimezoneOffset();
+      const userNow = new Date(Date.now() + userTimezoneOffset * 60000);
+      const userHour = userNow.getUTCHours();
+      
       console.log(`👋 Greeting from ${sender}`);
+      console.log(`🕐 Debug timezone:`);
+      console.log(`   msg.timestamp: ${msg.timestamp}`);
+      console.log(`   msgDate: ${msgDate.toISOString()}`);
+      console.log(`   msgDate.getTimezoneOffset(): ${msgDate.getTimezoneOffset()}`);
+      console.log(`   userTimezoneOffset (minutes): ${userTimezoneOffset}`);
+      console.log(`   Date.now(): ${Date.now()}`);
+      console.log(`   userNow: ${userNow.toISOString()}`);
+      console.log(`   userHour: ${userHour}`);
       
       if (isAllowedUser(sender)) {
         // Randomize opening line
