@@ -5,6 +5,9 @@ import { db } from './db.js';
 import { isAllowedUser } from './config.js';
 import { client } from './bot.js';
 
+// User timezone offset in minutes (UTC+7 = 420 minutes)
+const USER_TIMEZONE_OFFSET = 420;
+
 // Safe reply function that handles whatsapp-web.js compatibility issues
 async function safeReply(msg: Message, text: string): Promise<void> {
   try {
@@ -44,22 +47,7 @@ export async function handleMessage(msg: Message): Promise<void> {
     
     // Handle "Halo" greeting when bot is mentioned
     if (isBotMentioned && (textLower.includes('halo') || textLower.includes('hello') || textLower.includes('hi '))) {
-      // Debug timezone detection
-      const msgTimestamp = msg.timestamp * 1000;
-      const msgDate = new Date(msgTimestamp);
-      const userTimezoneOffset = -msgDate.getTimezoneOffset();
-      const userNow = new Date(Date.now() + userTimezoneOffset * 60000);
-      const userHour = userNow.getUTCHours();
-      
       console.log(`👋 Greeting from ${sender}`);
-      console.log(`🕐 Debug timezone:`);
-      console.log(`   msg.timestamp: ${msg.timestamp}`);
-      console.log(`   msgDate: ${msgDate.toISOString()}`);
-      console.log(`   msgDate.getTimezoneOffset(): ${msgDate.getTimezoneOffset()}`);
-      console.log(`   userTimezoneOffset (minutes): ${userTimezoneOffset}`);
-      console.log(`   Date.now(): ${Date.now()}`);
-      console.log(`   userNow: ${userNow.toISOString()}`);
-      console.log(`   userHour: ${userHour}`);
       
       if (isAllowedUser(sender)) {
         // Randomize opening line
@@ -149,22 +137,17 @@ export async function handleMessage(msg: Message): Promise<void> {
         return;
       }
 
-      // Detect user's timezone from message timestamp
-      const msgTimestamp = msg.timestamp * 1000; // Convert to milliseconds
-      const msgDate = new Date(msgTimestamp);
-      const userTimezoneOffset = -msgDate.getTimezoneOffset(); // Minutes offset from UTC
-      
       const list = rows
         .map((r) => {
           // Convert UTC timestamp to user's timezone
           const workoutDate = new Date(r.created_at);
-          const userWorkoutDate = new Date(workoutDate.getTime() + userTimezoneOffset * 60000);
+          const userWorkoutDate = new Date(workoutDate.getTime() + USER_TIMEZONE_OFFSET * 60000);
           
           // Get today and yesterday in user's timezone
-          const userNow = new Date(Date.now() + userTimezoneOffset * 60000);
-          const userToday = new Date(userNow.getFullYear(), userNow.getMonth(), userNow.getDate());
+          const userNow = new Date(Date.now() + USER_TIMEZONE_OFFSET * 60000);
+          const userToday = new Date(userNow.getUTCFullYear(), userNow.getUTCMonth(), userNow.getUTCDate());
           const userYesterday = new Date(userToday.getTime() - 86400000);
-          const workoutDateOnly = new Date(userWorkoutDate.getFullYear(), userWorkoutDate.getMonth(), userWorkoutDate.getDate());
+          const workoutDateOnly = new Date(userWorkoutDate.getUTCFullYear(), userWorkoutDate.getUTCMonth(), userWorkoutDate.getUTCDate());
           
           let dateStr: string;
           if (workoutDateOnly.getTime() === userToday.getTime()) {
@@ -224,11 +207,8 @@ export async function handleMessage(msg: Message): Promise<void> {
         now.toISOString()
       );
 
-      // Get user's local time from message timestamp
-      const msgTimestamp = msg.timestamp * 1000;
-      const msgDate = new Date(msgTimestamp);
-      const userTimezoneOffset = -msgDate.getTimezoneOffset();
-      const userNow = new Date(Date.now() + userTimezoneOffset * 60000);
+      // Get user's local time using configured timezone
+      const userNow = new Date(Date.now() + USER_TIMEZONE_OFFSET * 60000);
       const userHour = userNow.getUTCHours();
 
       // Dynamic response based on time of day
