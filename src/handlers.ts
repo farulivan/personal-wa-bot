@@ -47,23 +47,36 @@ export async function handleMessage(msg: Message): Promise<void> {
       console.log(`👋 Greeting from ${sender}`);
       
       if (isAllowedUser(sender)) {
+        // Randomize opening line
+        const openings = [
+          `Yo! 👊`,
+          `What's up 👊 Ready to log a workout?`,
+          `Hey. Let's put today's work on the board 💪`
+        ];
+        
+        const randomOpening = openings[Math.floor(Math.random() * openings.length)];
+        
         await safeReply(msg, 
-          `Halo! 👋 Aku bot workout tracker.\n\n` +
-          `*Commands:*\n` +
-          `• #workout - Simpan workout baru\n` +
-          `• #list - Lihat workout terakhir\n\n` +
-          `Contoh:\n` +
+          `${randomOpening}\n` +
+          `I'm your workout tracker.\n\n`+
+          `Log it. Track it. Get stronger.\n\n`+
+          `*What I can do:*\n` +
+          `• #workout - log a workout\n` +
+          `• #list - see your recent workouts\n\n` +
+          `*Example:*\n` +
           `#workout\n` +
-          `type: push\n` +
+          `type: bench press\n` +
           `reps: 20\n` +
           `sets: 4\n` +
-          `weight: 10\n\n` +
-          `(weight opsional, kosongkan untuk bodyweight)`
+          `weight: 10 (optional)\n\n` +
+          `(weight is in kg, leave it blank for bodyweight)`
         );
       } else {
         await safeReply(msg,
-          `Halo! 👋 Maaf, kamu belum terdaftar untuk menggunakan bot ini.\n\n` +
-          `Hubungi admin untuk mendaftarkan nomormu.`
+          `Hey 👋\n` +
+          `Looks like you're not registered yet.\n\n` +
+          `Ask the admin to add your number,\n` +
+          `then you're good to go 💪`
         );
       }
       return;
@@ -95,7 +108,7 @@ export async function handleMessage(msg: Message): Promise<void> {
       console.log(`👥 Processing group message from ${sender}`);
     }
 
-    if (text === '#workouts' || text === '#list') {
+    if (text === '#list') {
       // List recent workouts
       const stmt = db.prepare(
         `SELECT created_at, type, reps, sets, weight FROM workouts 
@@ -112,7 +125,12 @@ export async function handleMessage(msg: Message): Promise<void> {
       }>;
 
       if (rows.length === 0) {
-        await safeReply(msg, '📋 No workouts found');
+        await safeReply(msg,
+          `Nothing logged yet 👀\n\n` +
+          `Start with:\n` +
+          `#workout\n\n` +
+          `Let's get the first one in 💪`
+        );
         return;
       }
 
@@ -120,12 +138,15 @@ export async function handleMessage(msg: Message): Promise<void> {
         .map((r) => {
           const date = r.created_at.split('T')[0]; // Extract YYYY-MM-DD
           const weightStr = r.weight === 0 ? 'bodyweight' : `${r.weight}kg`;
-          return `• ${date} | ${r.type} | ${r.reps}×${r.sets} @ ${weightStr}`;
+          return `• ${date} - ${r.type}\n\n${r.reps} × ${r.sets} @ ${weightStr}`;
         })
         .join('\n');
       
       console.log(`📋 Listed ${rows.length} workouts`);
-      await safeReply(msg, `📋 *Recent Workouts*\n\n${list}`);
+      await safeReply(msg,
+        `Recent work 💪\n\n` +
+        `${list}`
+      );
       return;
     }
 
@@ -134,12 +155,15 @@ export async function handleMessage(msg: Message): Promise<void> {
 
       if (!data.type || !data.reps || !data.sets) {
         await safeReply(msg,
-          '❌ Invalid format\n\n' +
+          'Hmm 🤔 that didn\'t go through.\n\n' +
+          'Use this format:\n' +
           '#workout\n' +
-          'type: push\n' +
+          'type: push up\n' +
           'reps: 20\n' +
           'sets: 4\n' +
-          'weight: 10 (opsional)'
+          'weight: 10 (optional)\n\n' +
+          `(weight is in kg, leave it blank for bodyweight)\n\n` +
+          `Try again 💪`
         );
         return;
       }
@@ -162,7 +186,7 @@ export async function handleMessage(msg: Message): Promise<void> {
       );
 
       console.log(`💾 Workout saved: ${data.type} ${data.reps}×${data.sets} @ ${weightLabel}`);
-      await safeReply(msg, `✅ Workout saved\n${data.type} | ${data.reps}×${data.sets} @ ${weightLabel}`);
+      await safeReply(msg, `Logged 💪\n${data.type}\n${data.reps} × ${data.sets} @ ${weightLabel}\n\nNice work.`);
     }
   } catch (err) {
     console.error('❌ Error handling message:', err);
