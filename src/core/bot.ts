@@ -3,15 +3,14 @@ const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode-terminal';
 import fs from 'fs';
 import path from 'path';
-
-const dataPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || '.wwebjs_auth';
+import { appConfig } from '../config/app.config.js';
 
 // Clear ALL Chromium lock files recursively from the data directory
 function clearLockFiles(dir: string): void {
   if (!fs.existsSync(dir)) return;
-  
+
   const lockFileNames = ['SingletonLock', 'SingletonSocket', 'SingletonCookie', 'lockfile'];
-  
+
   try {
     const items = fs.readdirSync(dir, { withFileTypes: true });
     for (const item of items) {
@@ -33,10 +32,10 @@ function clearLockFiles(dir: string): void {
 }
 
 console.log('🧹 Clearing stale Chromium locks...');
-clearLockFiles(dataPath);
+clearLockFiles(appConfig.authPath);
 
 export const client = new Client({
-  authStrategy: new LocalAuth({ dataPath }),
+  authStrategy: new LocalAuth({ dataPath: appConfig.authPath }),
   puppeteer: {
     headless: true,
     args: [
@@ -46,14 +45,14 @@ export const client = new Client({
       '--disable-gpu',
       '--user-data-dir=/tmp/chromium-profile',
     ],
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    executablePath: appConfig.puppeteerPath,
   },
 });
 
 client.on('qr', (qr) => {
   console.log('\n📱 Scan this QR code with WhatsApp:\n');
   qrcode.generate(qr, { small: true });
-  
+
   // Also provide a URL-based QR code that renders better in web logs
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
   console.log('\n🔗 Or open this URL to scan the QR code:');
