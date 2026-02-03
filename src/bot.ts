@@ -3,6 +3,7 @@ const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode-terminal';
 import fs from 'fs';
 import path from 'path';
+import { debug, log, error } from './logger.js';
 
 const dataPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || '.wwebjs_auth';
 
@@ -21,7 +22,7 @@ function clearLockFiles(dir: string): void {
       } else if (lockFileNames.includes(item.name)) {
         try {
           fs.unlinkSync(fullPath);
-          console.log(`🔓 Cleared lock: ${fullPath}`);
+          debug(`🔓 Cleared lock: ${fullPath}`);
         } catch {
           // Ignore
         }
@@ -32,7 +33,7 @@ function clearLockFiles(dir: string): void {
   }
 }
 
-console.log('🧹 Clearing stale Chromium locks...');
+debug('🧹 Clearing stale Chromium locks...');
 clearLockFiles(dataPath);
 
 export const client = new Client({
@@ -50,17 +51,33 @@ export const client = new Client({
   },
 });
 
+client.on('loading_screen', (percent, message) => {
+  debug('⏳ Loading:', percent + '%', message);
+});
+
 client.on('qr', (qr) => {
-  console.log('\n📱 Scan this QR code with WhatsApp:\n');
+  log('\n📱 Scan this QR code with WhatsApp:\n');
   qrcode.generate(qr, { small: true });
   
   // Also provide a URL-based QR code that renders better in web logs
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
-  console.log('\n🔗 Or open this URL to scan the QR code:');
-  console.log(qrUrl);
-  console.log('\n');
+  log('\n🔗 Or open this URL to scan the QR code:');
+  log(qrUrl);
+  log('\n');
+});
+
+client.on('authenticated', () => {
+  debug('🔐 Client authenticated');
+});
+
+client.on('auth_failure', (msg) => {
+  error('❌ Authentication failure:', msg);
+});
+
+client.on('disconnected', (reason) => {
+  log('🔌 Client disconnected:', reason);
 });
 
 client.on('ready', () => {
-  console.log('🤖 WhatsApp bot ready');
+  log('🤖 WhatsApp bot ready');
 });

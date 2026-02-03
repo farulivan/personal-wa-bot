@@ -4,37 +4,50 @@ import { parseKeyValue } from './parser.js';
 import { db } from './db.js';
 import { isAllowedUser } from './config.js';
 import { client } from './bot.js';
+import { debug, error } from './logger.js';
 
 // User timezone offset in minutes (UTC+7 = 420 minutes)
 const USER_TIMEZONE_OFFSET = 420;
 
 // Safe reply function that handles whatsapp-web.js compatibility issues
 async function safeReply(msg: Message, text: string): Promise<void> {
+  debug('📤 safeReply called, sending to:', msg.from);
+  debug('📤 Message preview:', text.substring(0, 50) + '...');
   try {
     // Try sendMessage with sendSeen disabled
     await client.sendMessage(msg.from, text, { sendSeen: false });
+    debug('✅ Message sent successfully via sendMessage');
   } catch (err) {
-    console.log('⚠️ sendMessage with sendSeen:false failed, trying chat.sendMessage');
+    debug('⚠️ sendMessage error:', err);
+    debug('⚠️ sendMessage with sendSeen:false failed, trying chat.sendMessage');
     try {
       const chat = await msg.getChat();
       await chat.sendMessage(text);
     } catch (err2) {
-      console.log('⚠️ chat.sendMessage failed, trying msg.reply');
+      debug('⚠️ chat.sendMessage failed, trying msg.reply');
       try {
         await msg.reply(text);
       } catch (err3) {
-        console.error('❌ All send methods failed. Message content:', text);
+        error('❌ All send methods failed. Message content:', text);
       }
     }
   }
 }
 
 export async function handleMessage(msg: Message): Promise<void> {
+  debug('\n📨 ========== MESSAGE RECEIVED ==========');
+  debug('📨 From:', msg.from);
+  debug('📨 Author:', msg.author);
+  debug('📨 Body:', msg.body?.substring(0, 100));
+  debug('📨 ========================================\n');
+  
   try {
     let text = msg.body.trim();
     const textLower = text.toLowerCase();
     const isGroup = msg.from.endsWith('@g.us');
     const sender = msg.author ?? msg.from;
+    
+    debug('🔍 Parsed: text="' + text.substring(0, 50) + '", isGroup=' + isGroup + ', sender=' + sender);
     
     // Check if bot is mentioned (for groups)
     let isBotMentioned = false;
@@ -47,7 +60,7 @@ export async function handleMessage(msg: Message): Promise<void> {
     
     // Handle "Halo" greeting when bot is mentioned
     if (isBotMentioned && (textLower.includes('halo') || textLower.includes('hello') || textLower.includes('hi '))) {
-      console.log(`👋 Greeting from ${sender}`);
+      debug(`👋 Greeting from ${sender}`);
       
       if (isAllowedUser(sender)) {
         // Randomize opening line
@@ -95,23 +108,32 @@ export async function handleMessage(msg: Message): Promise<void> {
       // Remove bot mention from text if present (e.g., "@Bot #workout..." → "#workout...")
       if (isBotMentioned) {
         text = text.replace(/@\d+\s*/g, '').trim();
-        console.log(`👥 Group message with bot mention, cleaned text: ${text}`);
+        debug(`👥 Group message with bot mention, cleaned text: ${text}`);
       }
     }
 
-    if (!text.startsWith('#')) return;
-
-    // Security: Only allow whitelisted phone numbers
-    if (!isAllowedUser(sender)) {
-      console.log(`🚫 Blocked message from unauthorized user: ${sender}`);
+    if (!text.startsWith('#')) {
+      debug('⏭️ Skipping: message does not start with #');
       return;
     }
+    debug('✅ Message starts with #, processing command...');
+
+    // Security: Only allow whitelisted phone numbers
+    debug('🔐 Checking if user is allowed...');
+    if (!isAllowedUser(sender)) {
+      debug(`🚫 Blocked message from unauthorized user: ${sender}`);
+      return;
+    }
+    debug('✅ User is allowed, continuing...');
     
     if (isGroup) {
-      console.log(`👥 Processing group message from ${sender}`);
+      debug(`👥 Processing group message from ${sender}`);
     }
 
+    debug('🎯 Checking command: "' + text + '"');
+    
     if (text === '#list') {
+      debug('📋 Handling #list command...');
       // List recent workouts
       const stmt = db.prepare(
         `SELECT created_at, type, reps, sets, weight FROM workouts 
@@ -164,7 +186,7 @@ export async function handleMessage(msg: Message): Promise<void> {
         })
         .join('\n');
       
-      console.log(`📋 Listed ${rows.length} workouts`);
+      debug(`📋 Listed ${rows.length} workouts`);
       await safeReply(msg,
         `Recent work 💪\n\n` +
         `${list}`
@@ -173,6 +195,7 @@ export async function handleMessage(msg: Message): Promise<void> {
     }
 
     if (text.startsWith('#workout')) {
+      debug('🏋️ Handling #workout command...');
       const data = parseKeyValue(text);
 
       if (!data.type || !data.reps || !data.sets) {
@@ -223,10 +246,10 @@ export async function handleMessage(msg: Message): Promise<void> {
         timeResponse = 'Late session 👀\nThat\'s commitment.';
       }
 
-      console.log(`💾 Workout saved: ${data.type} ${data.reps}×${data.sets} @ ${weightLabel}`);
+      debug(`💾 Workout saved: ${data.type} ${data.reps}×${data.sets} @ ${weightLabel}`);
       await safeReply(msg, `Logged 💪\n${data.type}\n${data.reps} × ${data.sets} @ ${weightLabel}\n\n${timeResponse}`);
     }
   } catch (err) {
-    console.error('❌ Error handling message:', err);
+    error('❌ Error handling message:', err);
   }
 }
