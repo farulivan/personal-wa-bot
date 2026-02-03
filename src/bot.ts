@@ -6,16 +6,6 @@ import path from 'path';
 import { debug, log, error } from './logger.js';
 
 const dataPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || '.wwebjs_auth';
-const shouldResetAuth = process.env.RESET_AUTH === 'true' || process.env.RESET_AUTH === '1';
-
-function removeAuthData(dir: string): void {
-  if (!fs.existsSync(dir)) return;
-  try {
-    fs.rmSync(dir, { recursive: true, force: true });
-  } catch (err) {
-    error('❌ Failed to remove auth data:', err);
-  }
-}
 
 // Clear ALL Chromium lock files recursively from the data directory
 function clearLockFiles(dir: string): void {
@@ -45,11 +35,6 @@ function clearLockFiles(dir: string): void {
 
 debug('🧹 Clearing stale Chromium locks...');
 clearLockFiles(dataPath);
-
-if (shouldResetAuth) {
-  log('♻️ RESET_AUTH enabled. Removing auth data to force new QR pairing...');
-  removeAuthData(dataPath);
-}
 
 export const client = new Client({
   authStrategy: new LocalAuth({ dataPath }),

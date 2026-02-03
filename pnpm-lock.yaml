@@ -15,8 +15,8 @@ importers:
         specifier: ^0.12.0
         version: 0.12.0
       whatsapp-web.js:
-        specifier: ^1.34.4
-        version: 1.34.4(encoding@0.1.13)(typescript@5.9.3)
+        specifier: ^1.34.6
+        version: 1.34.6(encoding@0.1.13)(typescript@5.9.3)
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.13
@@ -734,8 +734,8 @@ packages:
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
 
-  whatsapp-web.js@1.34.4:
-    resolution: {integrity: sha512-UUOfuuGtYs0dEnHSkScIbquuN4k9n81kVh9YpWXATdE0V5USScGn65b/fAqHShLuSO5ZAuSwv/zcNvSIwdTABA==}
+  whatsapp-web.js@1.34.6:
+    resolution: {integrity: sha512-+zgLBqARcVfuCG7b80c7Gkt+4Yh8w+oDWx7lL2gTA6nlaykHBne7NwJ5yGe2r7O9IYraIzs6HiCzNGKfu9AUBg==}
     engines: {node: '>=18.0.0'}
 
   whatwg-url@5.0.0:
@@ -1622,7 +1622,7 @@ snapshots:
 
   webidl-conversions@3.0.1: {}
 
-  whatsapp-web.js@1.34.4(encoding@0.1.13)(typescript@5.9.3):
+  whatsapp-web.js@1.34.6(encoding@0.1.13)(typescript@5.9.3):
     dependencies:
       '@pedroslopez/moduleraid': 5.0.2
       fluent-ffmpeg: 2.1.3
