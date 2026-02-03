@@ -6,6 +6,16 @@ import path from 'path';
 import { debug, log, error } from './logger.js';
 
 const dataPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || '.wwebjs_auth';
+const shouldResetAuth = process.env.RESET_AUTH === 'true' || process.env.RESET_AUTH === '1';
+
+function removeAuthData(dir: string): void {
+  if (!fs.existsSync(dir)) return;
+  try {
+    fs.rmSync(dir, { recursive: true, force: true });
+  } catch (err) {
+    error('❌ Failed to remove auth data:', err);
+  }
+}
 
 // Clear ALL Chromium lock files recursively from the data directory
 function clearLockFiles(dir: string): void {
@@ -36,6 +46,11 @@ function clearLockFiles(dir: string): void {
 debug('🧹 Clearing stale Chromium locks...');
 clearLockFiles(dataPath);
 
+if (shouldResetAuth) {
+  log('♻️ RESET_AUTH enabled. Removing auth data to force new QR pairing...');
+  removeAuthData(dataPath);
+}
+
 export const client = new Client({
   authStrategy: new LocalAuth({ dataPath }),
   puppeteer: {
@@ -55,6 +70,10 @@ client.on('loading_screen', (percent, message) => {
   debug('⏳ Loading:', percent + '%', message);
 });
 
+client.on('change_state', (state) => {
+  debug('🔄 State changed:', state);
+});
+
 client.on('qr', (qr) => {
   log('\n📱 Scan this QR code with WhatsApp:\n');
   qrcode.generate(qr, { small: true });
@@ -68,6 +87,10 @@ client.on('qr', (qr) => {
 
 client.on('authenticated', () => {
   debug('🔐 Client authenticated');
+});
+
+client.on('message', () => {
+  debug('📩 Incoming message event received');
 });
 
 client.on('auth_failure', (msg) => {
