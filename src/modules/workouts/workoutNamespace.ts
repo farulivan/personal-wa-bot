@@ -77,18 +77,27 @@ function toWorkoutLogResponse(
   return `Logged 💪\n${workoutType}\n${reps} × ${sets} @ ${weightLabel}\n\n${timeResponse}`;
 }
 
-async function handleWorkoutList(ctx: Parameters<NamespaceHandler>[0]): Promise<string> {
+function parsePageNumber(firstLine: string): number {
+  const tokens = firstLine.trim().split(/\s+/).filter(Boolean);
+  const pageToken = tokens.find((t) => /^\d+$/.test(t));
+  return pageToken ? Math.max(1, Number(pageToken)) : 1;
+}
+
+async function handleWorkoutList(
+  ctx: Parameters<NamespaceHandler>[0],
+  invocation: CommandInvocation
+): Promise<string> {
   const now = ctx.now();
-  const stmt = ctx.db.prepare(
-    `SELECT created_at, type, reps, sets, weight FROM workouts 
-     WHERE user = ? 
-     ORDER BY created_at DESC 
-     LIMIT ?`
-  );
+  const page = parsePageNumber(invocation.firstLine);
+  const offset = (page - 1) * WORKOUT_LIST_LIMIT;
 
-  const rows = stmt.all(ctx.sender, WORKOUT_LIST_LIMIT) as WorkoutRow[];
+  const totalRow = ctx.db.prepare(
+    `SELECT COUNT(*) AS total FROM workouts WHERE user = ?`
+  ).get(ctx.sender) as { total: number };
 
-  if (rows.length === 0) {
+  const totalPages = Math.max(1, Math.ceil(totalRow.total / WORKOUT_LIST_LIMIT));
+
+  if (totalRow.total === 0) {
     return (
       `Nothing logged yet 👀\n\n` +
       `Start with:\n` +
@@ -97,9 +106,24 @@ async function handleWorkoutList(ctx: Parameters<NamespaceHandler>[0]): Promise<
     );
   }
 
-  const list = formatWorkoutList(rows, ctx.timezoneOffsetMinutes, now);
-  const streaks = computeStreaks(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
+  if (page > totalPages) {
+    return (
+      `That's all the history 👀\n` +
+      `You're on page ${page} but the last page is ${totalPages}.\n\n` +
+      `Try: #workout --list${totalPages > 1 ? ` ${totalPages}` : ''}`
+    );
+  }
 
+  const rows = ctx.db.prepare(
+    `SELECT created_at, type, reps, sets, weight FROM workouts 
+     WHERE user = ? 
+     ORDER BY created_at DESC 
+     LIMIT ? OFFSET ?`
+  ).all(ctx.sender, WORKOUT_LIST_LIMIT, offset) as WorkoutRow[];
+
+  const list = formatWorkoutList(rows, ctx.timezoneOffsetMinutes, now);
+
+  const streaks = computeStreaks(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
   let streakSection = '';
   if (streaks.current > 0 || streaks.best > 0) {
     streakSection = `\n\n🔥 Streak: ${streaks.current} day${streaks.current !== 1 ? 's' : ''}`;
@@ -108,8 +132,16 @@ async function handleWorkoutList(ctx: Parameters<NamespaceHandler>[0]): Promise<
     }
   }
 
-  debug(`📋 Listed ${rows.length} workouts`);
-  return `Recent work 💪\n\n${list}${streakSection}`;
+  let pageFooter = '';
+  if (totalPages > 1) {
+    pageFooter = `\n\n📄 Page ${page} of ${totalPages}`;
+    if (page < totalPages) {
+      pageFooter += ` — #workout --list ${page + 1} for next`;
+    }
+  }
+
+  debug(`📋 Listed ${rows.length} workouts (page ${page}/${totalPages})`);
+  return `Recent work 💪\n\n${list}${streakSection}${pageFooter}`;
 }
 
 async function handleWorkoutLog(
@@ -184,7 +216,7 @@ export function createWorkoutNamespaceHandler(): NamespaceHandler {
     if (invocation.namespace !== WORKOUT_NAMESPACE) return null;
 
     if (invocation.subcommand === 'list') {
-      return handleWorkoutList(ctx);
+      return handleWorkoutList(ctx, invocation);
     }
 
     return handleWorkoutLog(ctx, invocation);
