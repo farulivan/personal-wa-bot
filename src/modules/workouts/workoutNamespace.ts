@@ -2,6 +2,8 @@ import type { NamespaceHandler } from '../../app/commandRouter.js';
 import type { CommandInvocation } from '../../app/parseCommand.js';
 import { parseKeyValue } from '../../app/parseKeyValue.js';
 import { debug } from '../../logger.js';
+import { computeStreaks, getTodayWorkoutCount } from './workoutStreaks.js';
+import { MIN_WORKOUTS_FOR_STREAK, WORKOUT_LIST_LIMIT } from '../../app/constants.js';
 
 const WORKOUT_NAMESPACE = 'workout';
 
@@ -81,10 +83,10 @@ async function handleWorkoutList(ctx: Parameters<NamespaceHandler>[0]): Promise<
     `SELECT created_at, type, reps, sets, weight FROM workouts 
      WHERE user = ? 
      ORDER BY created_at DESC 
-     LIMIT 10`
+     LIMIT ?`
   );
 
-  const rows = stmt.all(ctx.sender) as WorkoutRow[];
+  const rows = stmt.all(ctx.sender, WORKOUT_LIST_LIMIT) as WorkoutRow[];
 
   if (rows.length === 0) {
     return (
@@ -96,8 +98,18 @@ async function handleWorkoutList(ctx: Parameters<NamespaceHandler>[0]): Promise<
   }
 
   const list = formatWorkoutList(rows, ctx.timezoneOffsetMinutes, now);
+  const streaks = computeStreaks(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
+
+  let streakSection = '';
+  if (streaks.current > 0 || streaks.best > 0) {
+    streakSection = `\n\n🔥 Streak: ${streaks.current} day${streaks.current !== 1 ? 's' : ''}`;
+    if (streaks.best > streaks.current) {
+      streakSection += ` | Best: ${streaks.best} days`;
+    }
+  }
+
   debug(`📋 Listed ${rows.length} workouts`);
-  return `Recent work 💪\n\n${list}`;
+  return `Recent work 💪\n\n${list}${streakSection}`;
 }
 
 async function handleWorkoutLog(
@@ -148,7 +160,23 @@ async function handleWorkoutLog(
     `💾 Workout saved: ${type} ${Number(data.reps)}×${Number(data.sets)} @ ${weight === 0 ? 'bodyweight' : `${weight}kg`}`
   );
 
-  return toWorkoutLogResponse(type, Number(data.reps), Number(data.sets), weight, ctx.timezoneOffsetMinutes, now);
+  const logResponse = toWorkoutLogResponse(type, Number(data.reps), Number(data.sets), weight, ctx.timezoneOffsetMinutes, now);
+
+  const todayCount = getTodayWorkoutCount(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
+  const remaining = MIN_WORKOUTS_FOR_STREAK - todayCount;
+
+  let streakNote = '';
+  if (remaining > 0) {
+    streakNote = `\n\n${remaining} more to go today to keep the streak alive 🔥`;
+  } else if (remaining === 0) {
+    const streaks = computeStreaks(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
+    streakNote = `\n\n🔥 Day counted! Streak: ${streaks.current} day${streaks.current !== 1 ? 's' : ''}. Keep it rolling.`;
+  } else {
+    // Already qualified earlier, just acknowledge
+    streakNote = `\n\n🔥 Already locked in today. Extra reps never hurt.`;
+  }
+
+  return logResponse + streakNote;
 }
 
 export function createWorkoutNamespaceHandler(): NamespaceHandler {
