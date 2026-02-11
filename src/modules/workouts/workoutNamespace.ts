@@ -3,8 +3,7 @@ import type { CommandInvocation } from '../../app/parseCommand.js';
 import { parseKeyValue } from '../../app/parseKeyValue.js';
 import { debug } from '../../logger.js';
 import { computeStreaks, getTodayWorkoutCount } from './workoutStreaks.js';
-
-const MIN_WORKOUTS_FOR_STREAK = 3;
+import { MIN_WORKOUTS_FOR_STREAK, WORKOUT_LIST_LIMIT } from '../../app/constants.js';
 
 const WORKOUT_NAMESPACE = 'workout';
 
@@ -84,10 +83,10 @@ async function handleWorkoutList(ctx: Parameters<NamespaceHandler>[0]): Promise<
     `SELECT created_at, type, reps, sets, weight FROM workouts 
      WHERE user = ? 
      ORDER BY created_at DESC 
-     LIMIT 10`
+     LIMIT ?`
   );
 
-  const rows = stmt.all(ctx.sender) as WorkoutRow[];
+  const rows = stmt.all(ctx.sender, WORKOUT_LIST_LIMIT) as WorkoutRow[];
 
   if (rows.length === 0) {
     return (

@@ -1,4 +1,4 @@
-const MIN_WORKOUTS_PER_DAY = 3;
+import { MIN_WORKOUTS_FOR_STREAK } from '../../app/constants.js';
 
 type DayCountRow = { day: string; cnt: number };
 
@@ -26,7 +26,7 @@ function getQualifyingDays(
      GROUP BY day
      HAVING cnt >= ?
      ORDER BY day DESC`
-  ).all(sender, MIN_WORKOUTS_PER_DAY) as DayCountRow[];
+  ).all(sender, MIN_WORKOUTS_FOR_STREAK) as DayCountRow[];
 
   return rows.map((r) => r.day);
 }

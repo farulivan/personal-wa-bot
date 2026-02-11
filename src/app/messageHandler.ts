@@ -6,9 +6,7 @@ import { db } from '../db.js';
 import { isAllowedUser } from '../config.js';
 import { client } from '../bot.js';
 import { debug, error } from '../logger.js';
-
-// User timezone offset in minutes (UTC+7 = 420 minutes)
-const USER_TIMEZONE_OFFSET = 420;
+import { USER_TIMEZONE_OFFSET } from './constants.js';
 
 // Safe reply function that handles whatsapp-web.js compatibility issues
 async function safeReply(msg: Message, text: string): Promise<void> {
