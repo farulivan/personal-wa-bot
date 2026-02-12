@@ -5,7 +5,7 @@ import { CommandRouter, type CommandContext } from './commandRouter.js';
 import { db } from '../db.js';
 import { isAllowedUser } from '../config.js';
 import { client } from '../bot.js';
-import { debug, error } from '../logger.js';
+import { debug, log, error } from '../logger.js';
 import { USER_TIMEZONE_OFFSET } from './constants.js';
 
 // Safe reply function that handles whatsapp-web.js compatibility issues
@@ -45,6 +45,8 @@ export function createMessageHandler(router: CommandRouter) {
       let text = msg.body.trim();
       const textLower = text.toLowerCase();
       const isGroup = msg.from.endsWith('@g.us');
+      // TODO: Remove this temporary log after getting the group chat ID
+      if (isGroup) log('🔎 GROUP CHAT ID:', msg.from);
       const sender = msg.author ?? msg.from;
       
       debug('🔍 Parsed: text="' + text.substring(0, 50) + '", isGroup=' + isGroup + ', sender=' + sender);

@@ -6,3 +6,9 @@ export const MIN_WORKOUTS_FOR_STREAK = 3;
 
 // Number of recent workouts to show in --list
 export const WORKOUT_LIST_LIMIT = 10;
+
+// Hour (0-23) in user timezone to send daily digest
+export const DAILY_DIGEST_HOUR = 8;
+
+// WhatsApp group chat ID for daily digest (set via env var)
+export const DIGEST_GROUP_ID = process.env.DIGEST_GROUP_ID || '';
