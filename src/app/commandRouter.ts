@@ -1,7 +1,8 @@
+import type { Database } from 'better-sqlite3';
 import type { CommandInvocation } from './parseCommand.js';
 
 export type CommandContext = {
-  db: any;
+  db: Database;
   sender: string;
   timezoneOffsetMinutes: number;
   now: () => Date;

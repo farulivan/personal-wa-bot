@@ -32,18 +32,15 @@ function buildStandingsMessage(standings: UserStreak[]): string {
   }
 
   // Sort by current streak descending, then best descending
-  const sorted = [...standings].sort((a, b) =>
-    b.current - a.current || b.best - a.best
-  );
+  const sorted = [...standings].sort((a, b) => b.current - a.current || b.best - a.best);
 
   const hasActiveStreaks = sorted.some((s) => s.current > 0);
 
   const lines = sorted.map((s, i) => {
     const rank = i + 1;
     const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '  ';
-    const streakStr = s.current > 0
-      ? `${s.current} day${s.current !== 1 ? 's' : ''}`
-      : 'no active streak';
+    const streakStr =
+      s.current > 0 ? `${s.current} day${s.current !== 1 ? 's' : ''}` : 'no active streak';
     const bestStr = s.best > 0 ? ` (best: ${s.best})` : '';
     return `${medal} ${s.name} — ${streakStr}${bestStr}`;
   });

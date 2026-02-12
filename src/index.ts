@@ -40,8 +40,11 @@ client.on('ready', () => {
   }
 });
 
-client.initialize().then(() => {
-  debug('✅ client.initialize() completed');
-}).catch((err) => {
-  error('❌ client.initialize() failed:', err);
-});
+client
+  .initialize()
+  .then(() => {
+    debug('✅ client.initialize() completed');
+  })
+  .catch((err) => {
+    error('❌ client.initialize() failed:', err);
+  });
