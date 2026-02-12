@@ -7,6 +7,36 @@ import { MIN_WORKOUTS_FOR_STREAK, WORKOUT_LIST_LIMIT } from '../../app/constants
 
 const WORKOUT_NAMESPACE = 'workout';
 
+type WeightResult =
+  | { ok: true; value: number }
+  | { ok: false; error: string };
+
+function parseWeight(raw: string): WeightResult {
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: true, value: 0 };
+
+  const match = trimmed.match(/^([\d,.]+)\s*(.*)$/);
+  if (!match) return { ok: true, value: 0 };
+
+  const numStr = match[1].replace(',', '.');
+  const unit = match[2].trim().toLowerCase();
+
+  if (unit && unit !== 'kg') {
+    return {
+      ok: false,
+      error:
+        `We only track in kg here ⚖️\n\n` +
+        `Got "${trimmed}" — convert that to kg and send it again.\n\n` +
+        `Quick math never hurt nobody 💪`,
+    };
+  }
+
+  const value = Number(numStr);
+  if (isNaN(value)) return { ok: true, value: 0 };
+
+  return { ok: true, value };
+}
+
 type WorkoutRow = {
   created_at: string;
   type: string;
@@ -172,7 +202,9 @@ async function handleWorkoutLog(
   }
 
   const now = ctx.now();
-  const weight = data.weight ? Number(data.weight) : 0;
+  const weightResult = parseWeight(data.weight || '');
+  if (!weightResult.ok) return weightResult.error;
+  const weight = weightResult.value;
 
   const stmt = ctx.db.prepare(
     `INSERT INTO workouts (user, type, reps, sets, weight, created_at)
