@@ -6,6 +6,7 @@ import { debug, log, error } from './logger.js';
 import { CommandRouter } from './app/commandRouter.js';
 import { createMessageHandler } from './app/messageHandler.js';
 import { startScheduler } from './app/scheduler.js';
+import { registerUserProfileSchema } from './app/userProfileSchema.js';
 import { registerWorkoutSchema } from './modules/workouts/workoutSchema.js';
 import { createWorkoutNamespaceHandler } from './modules/workouts/workoutNamespace.js';
 import { sendDailyStreakDigest } from './modules/workouts/workoutDigest.js';
@@ -16,6 +17,7 @@ import {
   DIGEST_GROUP_ID,
 } from './app/constants.js';
 
+registerUserProfileSchema(db);
 registerWorkoutSchema(db);
 
 const router = new CommandRouter();

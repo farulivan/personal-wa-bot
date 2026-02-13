@@ -7,6 +7,7 @@ import { isAllowedUser } from '../config.js';
 import { client } from '../bot.js';
 import { debug, error } from '../logger.js';
 import { USER_TIMEZONE_OFFSET } from './constants.js';
+import { upsertUserProfile } from './userProfile.js';
 
 // Safe reply function that handles whatsapp-web.js compatibility issues
 async function safeReply(msg: Message, text: string): Promise<void> {
@@ -137,6 +138,12 @@ export function createMessageHandler(router: CommandRouter) {
         return;
       }
       debug('✅ User is allowed, continuing...');
+
+      // Cache sender display name for digest
+      const notifyName = (msg as unknown as { _data?: { notifyName?: string } })._data?.notifyName;
+      if (notifyName) {
+        upsertUserProfile(db, sender, notifyName);
+      }
 
       if (isGroup) {
         debug(`👥 Processing group message from ${sender}`);
