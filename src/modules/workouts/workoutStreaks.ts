@@ -1,5 +1,6 @@
 import type { Database } from 'better-sqlite3';
 import { MIN_WORKOUTS_FOR_STREAK } from '../../app/constants.js';
+import { debug } from '../../logger.js';
 
 type DayCountRow = { day: string; cnt: number };
 
@@ -61,10 +62,12 @@ export function computeStreaks(
   now: Date
 ): StreakInfo {
   const days = getQualifyingDays(db, sender, timezoneOffsetMinutes);
-  if (days.length === 0) return { current: 0, best: 0 };
-
   const today = toUserDate(now, timezoneOffsetMinutes);
   const yesterday = toUserDate(new Date(now.getTime() - 86400000), timezoneOffsetMinutes);
+  debug(
+    `🔥 computeStreaks: sender="${sender}", today="${today}", yesterday="${yesterday}", qualifyingDays=[${days.slice(0, 10).join(', ')}] (${days.length} total)`
+  );
+  if (days.length === 0) return { current: 0, best: 0 };
 
   // Current streak: must include today or yesterday to be "active"
   let current = 0;

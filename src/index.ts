@@ -9,7 +9,12 @@ import { startScheduler } from './app/scheduler.js';
 import { registerWorkoutSchema } from './modules/workouts/workoutSchema.js';
 import { createWorkoutNamespaceHandler } from './modules/workouts/workoutNamespace.js';
 import { sendDailyStreakDigest } from './modules/workouts/workoutDigest.js';
-import { USER_TIMEZONE_OFFSET, DAILY_DIGEST_HOUR, DIGEST_GROUP_ID } from './app/constants.js';
+import {
+  USER_TIMEZONE_OFFSET,
+  DAILY_DIGEST_HOUR,
+  DAILY_DIGEST_MINUTE,
+  DIGEST_GROUP_ID,
+} from './app/constants.js';
 
 registerWorkoutSchema(db);
 
@@ -31,6 +36,7 @@ client.on('ready', () => {
       {
         name: 'Daily Streak Standings',
         hour: DAILY_DIGEST_HOUR,
+        minute: DAILY_DIGEST_MINUTE,
         timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
         run: () => sendDailyStreakDigest(DIGEST_GROUP_ID),
       },

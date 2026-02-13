@@ -12,10 +12,15 @@ type UserStreak = {
 };
 
 async function resolveUserName(number: string): Promise<string> {
+  const contactId = number.includes('@') ? number : `${number}@c.us`;
   try {
-    const contact = await client.getContactById(`${number}@c.us`);
-    return contact.pushname || contact.name || number;
-  } catch {
+    const contact = await client.getContactById(contactId);
+    debug(
+      `⏰ Contact resolved: id=${contactId}, pushname="${contact.pushname}", name="${contact.name}", shortName="${contact.shortName}", number="${contact.number}"`
+    );
+    return contact.pushname || contact.name || contact.shortName || contact.number || number;
+  } catch (err) {
+    debug(`⏰ Contact resolution failed for ${contactId}:`, err);
     return number;
   }
 }
@@ -65,11 +70,17 @@ export async function sendDailyStreakDigest(groupChatId: string): Promise<void> 
     return;
   }
 
+  const dbUsers = db.prepare(`SELECT DISTINCT user FROM workouts`).all() as { user: string }[];
+  debug(`⏰ ALLOWED_NUMBERS: [${numbers.join(', ')}]`);
+  debug(`⏰ DB workout users: [${dbUsers.map((r) => r.user).join(', ')}]`);
+
   const standings: UserStreak[] = [];
 
   for (const number of numbers) {
     const sender = `${number}@c.us`;
+    debug(`⏰ Computing streaks for sender="${sender}"`);
     const streaks = computeStreaks(db, sender, USER_TIMEZONE_OFFSET, now);
+    debug(`⏰ Streaks result: current=${streaks.current}, best=${streaks.best}`);
     const name = await resolveUserName(number);
     standings.push({ name, current: streaks.current, best: streaks.best });
   }
