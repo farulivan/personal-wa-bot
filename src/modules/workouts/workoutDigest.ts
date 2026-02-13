@@ -2,7 +2,6 @@ import { client } from '../../bot.js';
 import { db } from '../../db.js';
 import { USER_TIMEZONE_OFFSET } from '../../app/constants.js';
 import { computeStreaks } from './workoutStreaks.js';
-import { getDisplayName } from '../../app/userProfile.js';
 import { debug, error } from '../../logger.js';
 
 type UserStreak = {
@@ -17,21 +16,9 @@ function isValidStr(val: unknown): val is string {
 
 async function resolveUserName(sender: string): Promise<string> {
   const fallback = sender.replace(/@.*$/, '');
-
-  // 1. Check cached name from DB (populated on every user interaction)
-  const cached = getDisplayName(db, sender);
-  if (cached) {
-    debug(`⏰ Name from cache: ${sender} → "${cached}"`);
-    return cached;
-  }
-
-  // 2. Try getContactById as fallback (works for @c.us, may fail for @lid)
   const contactId = sender.includes('@') ? sender : `${sender}@c.us`;
   try {
     const contact = await client.getContactById(contactId);
-    debug(
-      `⏰ Contact resolved: id=${contactId}, pushname="${contact.pushname}", name="${contact.name}", shortName="${contact.shortName}", number="${contact.number}"`
-    );
     if (isValidStr(contact.pushname)) return contact.pushname;
     if (isValidStr(contact.name)) return contact.name;
     if (isValidStr(contact.shortName)) return contact.shortName;
@@ -84,7 +71,6 @@ export async function sendDailyStreakDigest(groupChatId: string): Promise<void> 
 
   // Query actual users from DB — guarantees sender format matches stored data
   const dbUsers = db.prepare(`SELECT DISTINCT user FROM workouts`).all() as { user: string }[];
-  debug(`⏰ DB workout users: [${dbUsers.map((r) => r.user).join(', ')}]`);
 
   if (dbUsers.length === 0) {
     debug('⏰ Digest: no workout users in DB, skipping');
@@ -94,9 +80,7 @@ export async function sendDailyStreakDigest(groupChatId: string): Promise<void> 
   const standings: UserStreak[] = [];
 
   for (const { user: sender } of dbUsers) {
-    debug(`⏰ Computing streaks for sender="${sender}"`);
     const streaks = computeStreaks(db, sender, USER_TIMEZONE_OFFSET, now);
-    debug(`⏰ Streaks result: current=${streaks.current}, best=${streaks.best}`);
     const name = await resolveUserName(sender);
     standings.push({ name, current: streaks.current, best: streaks.best });
   }

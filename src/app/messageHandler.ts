@@ -7,19 +7,13 @@ import { isAllowedUser } from '../config.js';
 import { client } from '../bot.js';
 import { debug, error } from '../logger.js';
 import { USER_TIMEZONE_OFFSET } from './constants.js';
-import { upsertUserProfile } from './userProfile.js';
 
 // Safe reply function that handles whatsapp-web.js compatibility issues
 async function safeReply(msg: Message, text: string): Promise<void> {
-  debug('📤 safeReply called, sending to:', msg.from);
-  debug('📤 Message preview:', text.substring(0, 50) + '...');
   try {
-    // Try sendMessage with sendSeen disabled
     await client.sendMessage(msg.from, text, { sendSeen: false });
-    debug('✅ Message sent successfully via sendMessage');
-  } catch (err) {
-    debug('⚠️ sendMessage error:', err);
-    debug('⚠️ sendMessage with sendSeen:false failed, trying chat.sendMessage');
+  } catch (_err) {
+    debug('⚠️ sendMessage failed, trying chat.sendMessage');
     try {
       const chat = await msg.getChat();
       await chat.sendMessage(text);
@@ -36,21 +30,13 @@ async function safeReply(msg: Message, text: string): Promise<void> {
 
 export function createMessageHandler(router: CommandRouter) {
   return async function handleMessage(msg: Message): Promise<void> {
-    debug('\n📨 ========== MESSAGE RECEIVED ==========');
-    debug('📨 From:', msg.from);
-    debug('📨 Author:', msg.author);
-    debug('📨 Body:', msg.body?.substring(0, 100));
-    debug('📨 ========================================\n');
-
     try {
       let text = msg.body.trim();
       const textLower = text.toLowerCase();
       const isGroup = msg.from.endsWith('@g.us');
       const sender = msg.author ?? msg.from;
 
-      debug(
-        '🔍 Parsed: text="' + text.substring(0, 50) + '", isGroup=' + isGroup + ', sender=' + sender
-      );
+      debug(`📨 from=${msg.from}, sender=${sender}, isGroup=${isGroup}`);
 
       // Check if bot is mentioned (for groups)
       let isBotMentioned = false;
@@ -116,15 +102,12 @@ export function createMessageHandler(router: CommandRouter) {
         // Remove bot mention from text if present (e.g., "@Bot #workout..." → "#workout...")
         if (isBotMentioned) {
           text = text.replace(/@\d+\s*/g, '').trim();
-          debug(`👥 Group message with bot mention, cleaned text: ${text}`);
         }
       }
 
       if (!text.startsWith('#')) {
-        debug('⏭️ Skipping: message does not start with #');
         return;
       }
-      debug('✅ Message starts with #, processing command...');
 
       // Legacy alias: migrate `#list` -> `#workout --list`
       if (textLower === '#list') {
@@ -132,30 +115,17 @@ export function createMessageHandler(router: CommandRouter) {
       }
 
       // Security: Only allow whitelisted phone numbers
-      debug('🔐 Checking if user is allowed...');
       if (!isAllowedUser(sender)) {
-        debug(`🚫 Blocked message from unauthorized user: ${sender}`);
+        debug(`🚫 Blocked: ${sender}`);
         return;
       }
-      debug('✅ User is allowed, continuing...');
-
-      // Cache sender display name for digest
-      const notifyName = (msg as unknown as { _data?: { notifyName?: string } })._data?.notifyName;
-      if (notifyName) {
-        upsertUserProfile(db, sender, notifyName);
-      }
-
-      if (isGroup) {
-        debug(`👥 Processing group message from ${sender}`);
-      }
-
-      debug('🎯 Checking command: "' + text + '"');
 
       const invocation = parseCommand(text);
       if (!invocation) {
-        debug('⏭️ Skipping: could not parse command invocation');
         return;
       }
+
+      debug(`🎯 Command: ${invocation.namespace} --${invocation.subcommand}`);
 
       const ctx: CommandContext = {
         db,
