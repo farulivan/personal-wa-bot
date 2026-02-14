@@ -2,33 +2,11 @@ import type pkg from 'whatsapp-web.js';
 type Message = pkg.Message;
 import { parseCommand } from './parseCommand.js';
 import type { CommandRouter, CommandContext } from './commandRouter.js';
-import { db } from '../db.js';
 import { isAllowedUser } from '../config.js';
-import { client } from '../bot.js';
 import { debug, error } from '../logger.js';
-import { USER_TIMEZONE_OFFSET } from './constants.js';
+import type { AppContext } from './appContext.js';
 
-// Safe reply function that handles whatsapp-web.js compatibility issues
-async function safeReply(msg: Message, text: string): Promise<void> {
-  try {
-    await client.sendMessage(msg.from, text, { sendSeen: false });
-  } catch (_err) {
-    debug('⚠️ sendMessage failed, trying chat.sendMessage');
-    try {
-      const chat = await msg.getChat();
-      await chat.sendMessage(text);
-    } catch (_err2) {
-      debug('⚠️ chat.sendMessage failed, trying msg.reply');
-      try {
-        await msg.reply(text);
-      } catch (_err3) {
-        error('❌ All send methods failed. Message content:', text);
-      }
-    }
-  }
-}
-
-export function createMessageHandler(router: CommandRouter) {
+export function createMessageHandler(router: CommandRouter, appContext: AppContext) {
   return async function handleMessage(msg: Message): Promise<void> {
     try {
       let text = msg.body.trim();
@@ -42,7 +20,7 @@ export function createMessageHandler(router: CommandRouter) {
       let isBotMentioned = false;
       if (isGroup) {
         const mentions = await msg.getMentions();
-        const botInfo = await client.info;
+        const botInfo = await appContext.client.info;
         const botNumber = botInfo?.wid?._serialized;
         isBotMentioned = mentions.some((m) => m.id._serialized === botNumber);
       }
@@ -64,7 +42,7 @@ export function createMessageHandler(router: CommandRouter) {
 
           const randomOpening = openings[Math.floor(Math.random() * openings.length)];
 
-          await safeReply(
+          await appContext.messageGateway.reply(
             msg,
             `${randomOpening}\n` +
               `I'm your workout tracker.\n\n` +
@@ -81,7 +59,7 @@ export function createMessageHandler(router: CommandRouter) {
               `(weight is in kg, leave it blank for bodyweight)`
           );
         } else {
-          await safeReply(
+          await appContext.messageGateway.reply(
             msg,
             `Hey 👋\n` +
               `Looks like you're not registered yet.\n\n` +
@@ -128,16 +106,16 @@ export function createMessageHandler(router: CommandRouter) {
       debug(`🎯 Command: ${invocation.namespace} --${invocation.subcommand}`);
 
       const ctx: CommandContext = {
-        db,
+        db: appContext.db,
         sender,
-        timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+        timezoneOffsetMinutes: appContext.config.userTimezoneOffsetMinutes,
         now: () => new Date(),
       };
 
       const responseText = await router.route(ctx, invocation);
 
       if (responseText) {
-        await safeReply(msg, responseText);
+        await appContext.messageGateway.reply(msg, responseText);
       }
     } catch (err) {
       error('❌ Error handling message:', err);

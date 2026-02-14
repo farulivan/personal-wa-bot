@@ -4,6 +4,7 @@ import { parseKeyValue } from '../../app/parseKeyValue.js';
 import { debug } from '../../logger.js';
 import { computeStreaks, getTodayWorkoutCount } from './workoutStreaks.js';
 import { MIN_WORKOUTS_FOR_STREAK, WORKOUT_LIST_LIMIT } from '../../app/constants.js';
+import type { WorkoutRepository, WorkoutRow } from './infra/workoutRepository.js';
 
 const WORKOUT_NAMESPACE = 'workout';
 
@@ -34,14 +35,6 @@ function parseWeight(raw: string): WeightResult {
 
   return { ok: true, value };
 }
-
-type WorkoutRow = {
-  created_at: string;
-  type: string;
-  reps: number;
-  sets: number;
-  weight: number;
-};
 
 function formatWorkoutList(rows: WorkoutRow[], timezoneOffsetMinutes: number, now: Date): string {
   return rows
@@ -113,19 +106,18 @@ function parsePageNumber(firstLine: string): number {
 
 async function handleWorkoutList(
   ctx: Parameters<NamespaceHandler>[0],
-  invocation: CommandInvocation
+  invocation: CommandInvocation,
+  workoutRepository: WorkoutRepository
 ): Promise<string> {
   const now = ctx.now();
   const page = parsePageNumber(invocation.firstLine);
   const offset = (page - 1) * WORKOUT_LIST_LIMIT;
 
-  const totalRow = ctx.db
-    .prepare(`SELECT COUNT(*) AS total FROM workouts WHERE user = ?`)
-    .get(ctx.sender) as { total: number };
+  const total = workoutRepository.countByUser(ctx.sender);
 
-  const totalPages = Math.max(1, Math.ceil(totalRow.total / WORKOUT_LIST_LIMIT));
+  const totalPages = Math.max(1, Math.ceil(total / WORKOUT_LIST_LIMIT));
 
-  if (totalRow.total === 0) {
+  if (total === 0) {
     return (
       `Nothing logged yet 👀\n\n` +
       `Start with:\n` +
@@ -142,14 +134,7 @@ async function handleWorkoutList(
     );
   }
 
-  const rows = ctx.db
-    .prepare(
-      `SELECT created_at, type, reps, sets, weight FROM workouts 
-     WHERE user = ? 
-     ORDER BY created_at DESC 
-     LIMIT ? OFFSET ?`
-    )
-    .all(ctx.sender, WORKOUT_LIST_LIMIT, offset) as WorkoutRow[];
+  const rows = workoutRepository.listByUser(ctx.sender, WORKOUT_LIST_LIMIT, offset);
 
   const list = formatWorkoutList(rows, ctx.timezoneOffsetMinutes, now);
 
@@ -176,7 +161,8 @@ async function handleWorkoutList(
 
 async function handleWorkoutLog(
   ctx: Parameters<NamespaceHandler>[0],
-  invocation: CommandInvocation
+  invocation: CommandInvocation,
+  workoutRepository: WorkoutRepository
 ): Promise<string> {
   const data = parseKeyValue(invocation.rawText);
 
@@ -206,12 +192,14 @@ async function handleWorkoutLog(
   if (!weightResult.ok) return weightResult.error;
   const weight = weightResult.value;
 
-  const stmt = ctx.db.prepare(
-    `INSERT INTO workouts (user, type, reps, sets, weight, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  );
-
-  stmt.run(ctx.sender, type, Number(data.reps), Number(data.sets), weight, now.toISOString());
+  workoutRepository.insertWorkoutLog({
+    user: ctx.sender,
+    type,
+    reps: Number(data.reps),
+    sets: Number(data.sets),
+    weight,
+    createdAtIso: now.toISOString(),
+  });
 
   debug(
     `💾 Workout saved: ${type} ${Number(data.reps)}×${Number(data.sets)} @ ${weight === 0 ? 'bodyweight' : `${weight}kg`}`
@@ -243,14 +231,16 @@ async function handleWorkoutLog(
   return logResponse + streakNote;
 }
 
-export function createWorkoutNamespaceHandler(): NamespaceHandler {
+export function createWorkoutNamespaceHandler(
+  workoutRepository: WorkoutRepository
+): NamespaceHandler {
   return async (ctx, invocation) => {
     if (invocation.namespace !== WORKOUT_NAMESPACE) return null;
 
     if (invocation.subcommand === 'list') {
-      return handleWorkoutList(ctx, invocation);
+      return handleWorkoutList(ctx, invocation, workoutRepository);
     }
 
-    return handleWorkoutLog(ctx, invocation);
+    return handleWorkoutLog(ctx, invocation, workoutRepository);
   };
 }
