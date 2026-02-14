@@ -10,9 +10,9 @@ const dataPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || '.wwebjs_auth';
 // Clear ALL Chromium lock files recursively from the data directory
 function clearLockFiles(dir: string): void {
   if (!fs.existsSync(dir)) return;
-  
+
   const lockFileNames = ['SingletonLock', 'SingletonSocket', 'SingletonCookie', 'lockfile'];
-  
+
   try {
     const items = fs.readdirSync(dir, { withFileTypes: true });
     for (const item of items) {
@@ -62,7 +62,7 @@ client.on('change_state', (state) => {
 client.on('qr', (qr) => {
   log('\n📱 Scan this QR code with WhatsApp:\n');
   qrcode.generate(qr, { small: true });
-  
+
   // Also provide a URL-based QR code that renders better in web logs
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
   log('\n🔗 Or open this URL to scan the QR code:');

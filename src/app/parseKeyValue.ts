@@ -7,7 +7,7 @@ export function parseKeyValue(text: string): Record<string, string> {
   const data: Record<string, string> = {};
 
   for (const line of lines) {
-    const [rawKey, value] = line.split(':').map(s => s.trim());
+    const [rawKey, value] = line.split(':').map((s) => s.trim());
     if (rawKey && value) {
       const key = KEY_ALIASES[rawKey.toLowerCase()] || rawKey.toLowerCase();
       data[key] = value;

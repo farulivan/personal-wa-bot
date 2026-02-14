@@ -1,3 +1,4 @@
+import type { Database } from 'better-sqlite3';
 import { MIN_WORKOUTS_FOR_STREAK } from '../../app/constants.js';
 
 type DayCountRow = { day: string; cnt: number };
@@ -12,38 +13,38 @@ function toUserDate(utcDate: Date, timezoneOffsetMinutes: number): string {
 }
 
 // Get qualifying days (>= MIN_WORKOUTS_PER_DAY) sorted descending
-function getQualifyingDays(
-  db: any,
-  sender: string,
-  timezoneOffsetMinutes: number
-): string[] {
+function getQualifyingDays(db: Database, sender: string, timezoneOffsetMinutes: number): string[] {
   // SQLite: shift created_at by timezone offset, extract date, count per day
   const offsetSeconds = timezoneOffsetMinutes * 60;
-  const rows = db.prepare(
-    `SELECT date(created_at, '+${offsetSeconds} seconds') AS day, COUNT(*) AS cnt
+  const rows = db
+    .prepare(
+      `SELECT date(created_at, '+${offsetSeconds} seconds') AS day, COUNT(*) AS cnt
      FROM workouts
      WHERE user = ?
      GROUP BY day
      HAVING cnt >= ?
      ORDER BY day DESC`
-  ).all(sender, MIN_WORKOUTS_FOR_STREAK) as DayCountRow[];
+    )
+    .all(sender, MIN_WORKOUTS_FOR_STREAK) as DayCountRow[];
 
   return rows.map((r) => r.day);
 }
 
 // Count workouts for today (user's local date)
 export function getTodayWorkoutCount(
-  db: any,
+  db: Database,
   sender: string,
   timezoneOffsetMinutes: number,
   now: Date
 ): number {
   const today = toUserDate(now, timezoneOffsetMinutes);
   const offsetSeconds = timezoneOffsetMinutes * 60;
-  const row = db.prepare(
-    `SELECT COUNT(*) AS cnt FROM workouts
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS cnt FROM workouts
      WHERE user = ? AND date(created_at, '+${offsetSeconds} seconds') = ?`
-  ).get(sender, today) as { cnt: number };
+    )
+    .get(sender, today) as { cnt: number };
   return row.cnt;
 }
 
@@ -54,7 +55,7 @@ export type StreakInfo = {
 
 // Compute current and best streak from qualifying days
 export function computeStreaks(
-  db: any,
+  db: Database,
   sender: string,
   timezoneOffsetMinutes: number,
   now: Date

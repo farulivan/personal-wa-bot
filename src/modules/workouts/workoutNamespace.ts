@@ -7,9 +7,7 @@ import { MIN_WORKOUTS_FOR_STREAK, WORKOUT_LIST_LIMIT } from '../../app/constants
 
 const WORKOUT_NAMESPACE = 'workout';
 
-type WeightResult =
-  | { ok: true; value: number }
-  | { ok: false; error: string };
+type WeightResult = { ok: true; value: number } | { ok: false; error: string };
 
 function parseWeight(raw: string): WeightResult {
   const trimmed = raw.trim();
@@ -45,18 +43,18 @@ type WorkoutRow = {
   weight: number;
 };
 
-function formatWorkoutList(
-  rows: WorkoutRow[],
-  timezoneOffsetMinutes: number,
-  now: Date
-): string {
+function formatWorkoutList(rows: WorkoutRow[], timezoneOffsetMinutes: number, now: Date): string {
   return rows
     .map((r) => {
       const workoutDate = new Date(r.created_at);
       const userWorkoutDate = new Date(workoutDate.getTime() + timezoneOffsetMinutes * 60000);
 
       const userNow = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
-      const userToday = new Date(userNow.getUTCFullYear(), userNow.getUTCMonth(), userNow.getUTCDate());
+      const userToday = new Date(
+        userNow.getUTCFullYear(),
+        userNow.getUTCMonth(),
+        userNow.getUTCDate()
+      );
       const userYesterday = new Date(userToday.getTime() - 86400000);
       const workoutDateOnly = new Date(
         userWorkoutDate.getUTCFullYear(),
@@ -121,9 +119,9 @@ async function handleWorkoutList(
   const page = parsePageNumber(invocation.firstLine);
   const offset = (page - 1) * WORKOUT_LIST_LIMIT;
 
-  const totalRow = ctx.db.prepare(
-    `SELECT COUNT(*) AS total FROM workouts WHERE user = ?`
-  ).get(ctx.sender) as { total: number };
+  const totalRow = ctx.db
+    .prepare(`SELECT COUNT(*) AS total FROM workouts WHERE user = ?`)
+    .get(ctx.sender) as { total: number };
 
   const totalPages = Math.max(1, Math.ceil(totalRow.total / WORKOUT_LIST_LIMIT));
 
@@ -144,12 +142,14 @@ async function handleWorkoutList(
     );
   }
 
-  const rows = ctx.db.prepare(
-    `SELECT created_at, type, reps, sets, weight FROM workouts 
+  const rows = ctx.db
+    .prepare(
+      `SELECT created_at, type, reps, sets, weight FROM workouts 
      WHERE user = ? 
      ORDER BY created_at DESC 
      LIMIT ? OFFSET ?`
-  ).all(ctx.sender, WORKOUT_LIST_LIMIT, offset) as WorkoutRow[];
+    )
+    .all(ctx.sender, WORKOUT_LIST_LIMIT, offset) as WorkoutRow[];
 
   const list = formatWorkoutList(rows, ctx.timezoneOffsetMinutes, now);
 
@@ -211,25 +211,25 @@ async function handleWorkoutLog(
      VALUES (?, ?, ?, ?, ?, ?)`
   );
 
-  stmt.run(
-    ctx.sender,
-    type,
-    Number(data.reps),
-    Number(data.sets),
-    weight,
-    now.toISOString()
-  );
+  stmt.run(ctx.sender, type, Number(data.reps), Number(data.sets), weight, now.toISOString());
 
   debug(
     `💾 Workout saved: ${type} ${Number(data.reps)}×${Number(data.sets)} @ ${weight === 0 ? 'bodyweight' : `${weight}kg`}`
   );
 
-  const logResponse = toWorkoutLogResponse(type, Number(data.reps), Number(data.sets), weight, ctx.timezoneOffsetMinutes, now);
+  const logResponse = toWorkoutLogResponse(
+    type,
+    Number(data.reps),
+    Number(data.sets),
+    weight,
+    ctx.timezoneOffsetMinutes,
+    now
+  );
 
   const todayCount = getTodayWorkoutCount(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
   const remaining = MIN_WORKOUTS_FOR_STREAK - todayCount;
 
-  let streakNote = '';
+  let streakNote: string;
   if (remaining > 0) {
     streakNote = `\n\n${remaining} more to go today to keep the streak alive 🔥`;
   } else if (remaining === 0) {

@@ -16,14 +16,14 @@ export const ALLOWED_NUMBERS: Set<string> = new Set(
 export const isAllowedUser = (phoneNumber: string): boolean => {
   // Extract number from WhatsApp ID format (e.g., "6281234567890@c.us" → "6281234567890")
   const number = phoneNumber.replace(/@.*$/, '');
-  
+
   debug(`📞 Checking sender: ${phoneNumber} → extracted: ${number}`);
-  
+
   if (ALLOWED_NUMBERS.size === 0) {
     debug('⚠️ No ALLOWED_NUMBERS configured. Rejecting all messages.');
     return false;
   }
-  
+
   const isAllowed = ALLOWED_NUMBERS.has(number);
   debug(`✅ Is allowed: ${isAllowed}`);
   return isAllowed;
