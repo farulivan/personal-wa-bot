@@ -12,6 +12,10 @@ import { registerWorkoutSchema } from './modules/workouts/workoutSchema.js';
 import { createWorkoutNamespaceHandler } from './modules/workouts/workoutNamespace.js';
 import { createDailyStreakDigestSender } from './modules/workouts/workoutDigest.js';
 import { SqliteWorkoutRepository } from './modules/workouts/infra/sqliteWorkoutRepository.js';
+import { registerSholatSchema } from './modules/sholat/sholatSchema.js';
+import { createSholatNamespaceHandler } from './modules/sholat/sholatNamespace.js';
+import { SqliteSholatRepository } from './modules/sholat/infra/sqliteSholatRepository.js';
+import { MyQuranSholatClient } from './modules/sholat/infra/myQuranSholatClient.js';
 import {
   USER_TIMEZONE_OFFSET,
   DAILY_DIGEST_HOUR,
@@ -20,12 +24,24 @@ import {
 } from './app/constants.js';
 
 registerWorkoutSchema(db);
+registerSholatSchema(db);
 
 const messageGateway = createMessageGateway(client);
 const workoutRepository = new SqliteWorkoutRepository(db);
+const sholatRepository = new SqliteSholatRepository(db);
+const sholatClient = new MyQuranSholatClient();
 
 const router = new CommandRouter();
 router.registerNamespace('workout', createWorkoutNamespaceHandler(workoutRepository));
+router.registerNamespace(
+  'sholat',
+  createSholatNamespaceHandler({
+    sholatRepository,
+    sholatClient,
+    defaultLocation: appConfig.sholatDefaultLocation,
+    defaultTimezone: appConfig.sholatTimezone,
+  })
+);
 
 const appContext = {
   db,
