@@ -1,14 +1,17 @@
 import { client } from './bot.js';
 import { db } from './db.js';
 import { debug, log, error } from './logger.js';
+import { appConfig } from './config/env.js';
 
 // --- Wire up modules ---
 import { CommandRouter } from './app/commandRouter.js';
 import { createMessageHandler } from './app/messageHandler.js';
 import { startScheduler } from './app/scheduler.js';
+import { createMessageGateway } from './adapters/whatsapp/messageGateway.js';
 import { registerWorkoutSchema } from './modules/workouts/workoutSchema.js';
 import { createWorkoutNamespaceHandler } from './modules/workouts/workoutNamespace.js';
-import { sendDailyStreakDigest } from './modules/workouts/workoutDigest.js';
+import { createDailyStreakDigestSender } from './modules/workouts/workoutDigest.js';
+import { SqliteWorkoutRepository } from './modules/workouts/infra/sqliteWorkoutRepository.js';
 import {
   USER_TIMEZONE_OFFSET,
   DAILY_DIGEST_HOUR,
@@ -18,10 +21,28 @@ import {
 
 registerWorkoutSchema(db);
 
-const router = new CommandRouter();
-router.registerNamespace('workout', createWorkoutNamespaceHandler());
+const messageGateway = createMessageGateway(client);
+const workoutRepository = new SqliteWorkoutRepository(db);
 
-const handleMessage = createMessageHandler(router);
+const router = new CommandRouter();
+router.registerNamespace('workout', createWorkoutNamespaceHandler(workoutRepository));
+
+const appContext = {
+  db,
+  client,
+  config: appConfig,
+  messageGateway,
+  workoutRepository,
+};
+
+const sendDailyStreakDigest = createDailyStreakDigestSender({
+  client,
+  db,
+  workoutRepository,
+  timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+});
+
+const handleMessage = createMessageHandler(router, appContext);
 
 // --- Start bot ---
 log('🚀 Starting bot initialization...');

@@ -33,6 +33,7 @@
     "@types/node": "^25.0.9",
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.1.8",
+    "jiti": "^2.6.1",
     "prettier": "^3.8.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.55.0"

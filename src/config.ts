@@ -1,16 +1,10 @@
 import { debug } from './logger.js';
+import { appConfig } from './config/env.js';
 
 // Allowed phone numbers that can interact with the bot
 // Format: comma-separated, e.g., "6281234567890,6289876543210"
 // Set via ALLOWED_NUMBERS environment variable
-const allowedNumbersEnv = process.env.ALLOWED_NUMBERS || '';
-
-export const ALLOWED_NUMBERS: Set<string> = new Set(
-  allowedNumbersEnv
-    .split(',')
-    .map((n) => n.trim())
-    .filter((n) => n.length > 0)
-);
+export const ALLOWED_NUMBERS: Set<string> = appConfig.allowedNumbers;
 
 // If no numbers configured, bot will reject all messages (safe default)
 export const isAllowedUser = (phoneNumber: string): boolean => {

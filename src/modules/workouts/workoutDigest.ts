@@ -1,8 +1,26 @@
-import { client } from '../../bot.js';
-import { db } from '../../db.js';
-import { USER_TIMEZONE_OFFSET } from '../../app/constants.js';
 import { computeStreaks } from './workoutStreaks.js';
 import { debug, error } from '../../logger.js';
+import type { Database } from 'better-sqlite3';
+import type { WorkoutRepository } from './infra/workoutRepository.js';
+
+type ContactLike = {
+  pushname?: string;
+  name?: string;
+  shortName?: string;
+  number?: string;
+};
+
+type WhatsAppClientLike = {
+  getContactById: (contactId: string) => Promise<ContactLike>;
+  sendMessage: (chatId: string, text: string) => Promise<unknown>;
+};
+
+type DigestDeps = {
+  client: WhatsAppClientLike;
+  db: Database;
+  workoutRepository: WorkoutRepository;
+  timezoneOffsetMinutes: number;
+};
 
 type UserStreak = {
   name: string;
@@ -14,7 +32,7 @@ function isValidStr(val: unknown): val is string {
   return typeof val === 'string' && val !== '' && val !== 'undefined';
 }
 
-async function resolveUserName(sender: string): Promise<string> {
+async function resolveUserName(client: WhatsAppClientLike, sender: string): Promise<string> {
   const fallback = sender.replace(/@.*$/, '');
   const contactId = sender.includes('@') ? sender : `${sender}@c.us`;
   try {
@@ -66,31 +84,33 @@ function buildStandingsMessage(standings: UserStreak[]): string {
   return `${header}\n\n${lines.join('\n')}${footer}`;
 }
 
-export async function sendDailyStreakDigest(groupChatId: string): Promise<void> {
-  const now = new Date();
+export function createDailyStreakDigestSender(deps: DigestDeps) {
+  return async function sendDailyStreakDigest(groupChatId: string): Promise<void> {
+    const now = new Date();
 
-  // Query actual users from DB — guarantees sender format matches stored data
-  const dbUsers = db.prepare(`SELECT DISTINCT user FROM workouts`).all() as { user: string }[];
+    // Query actual users from DB — guarantees sender format matches stored data
+    const users = deps.workoutRepository.listDistinctUsers();
 
-  if (dbUsers.length === 0) {
-    debug('⏰ Digest: no workout users in DB, skipping');
-    return;
-  }
+    if (users.length === 0) {
+      debug('⏰ Digest: no workout users in DB, skipping');
+      return;
+    }
 
-  const standings: UserStreak[] = [];
+    const standings: UserStreak[] = [];
 
-  for (const { user: sender } of dbUsers) {
-    const streaks = computeStreaks(db, sender, USER_TIMEZONE_OFFSET, now);
-    const name = await resolveUserName(sender);
-    standings.push({ name, current: streaks.current, best: streaks.best });
-  }
+    for (const sender of users) {
+      const streaks = computeStreaks(deps.db, sender, deps.timezoneOffsetMinutes, now);
+      const name = await resolveUserName(deps.client, sender);
+      standings.push({ name, current: streaks.current, best: streaks.best });
+    }
 
-  const message = buildStandingsMessage(standings);
+    const message = buildStandingsMessage(standings);
 
-  try {
-    await client.sendMessage(groupChatId, message);
-    debug(`⏰ Digest sent to ${groupChatId}`);
-  } catch (err) {
-    error('⏰ Failed to send digest:', err);
-  }
+    try {
+      await deps.client.sendMessage(groupChatId, message);
+      debug(`⏰ Digest sent to ${groupChatId}`);
+    } catch (err) {
+      error('⏰ Failed to send digest:', err);
+    }
+  };
 }
