@@ -2,6 +2,7 @@ import type { Database } from 'better-sqlite3';
 import { debug, error } from '../../logger.js';
 import type { QuranRepository } from './infra/quranRepository.js';
 import { computeQuranStreaks, hasReadToday } from './quranStreaks.js';
+import { normalizeUserId } from '../../app/normalizeUserId.js';
 
 type ContactLike = {
   pushname?: string;
@@ -112,7 +113,8 @@ async function getReminderTargets(deps: QuranReminderDeps, groupChatId: string):
 
     const participantIds = participants
       .map((participant) => participant.id?._serialized || '')
-      .filter((sender) => sender.endsWith('@c.us'));
+      .filter((sender) => sender.endsWith('@c.us'))
+      .map((sender) => normalizeUserId(sender));
 
     if (participantIds.length > 0) {
       return participantIds;
