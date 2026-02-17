@@ -24,6 +24,8 @@ import {
   USER_TIMEZONE_OFFSET,
   DAILY_DIGEST_HOUR,
   DAILY_DIGEST_MINUTE,
+  QURAN_REMINDER_HOUR,
+  QURAN_REMINDER_MINUTE,
   DIGEST_GROUP_ID,
 } from './app/constants.js';
 
@@ -93,8 +95,8 @@ client.on('ready', () => {
       },
       {
         name: 'Quran Night Reminder',
-        hour: 22,
-        minute: 0,
+        hour: QURAN_REMINDER_HOUR,
+        minute: QURAN_REMINDER_MINUTE,
         timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
         run: () => sendNightlyQuranReminder(DIGEST_GROUP_ID),
       },

@@ -45,7 +45,7 @@ export function hasReadToday(
       `SELECT 1
        FROM quran_daily_reads
        WHERE user = ?
-         AND date(created_at, '+${offsetSeconds} seconds') = ?
+         AND date(created_at, '+${offsetSeconds} seconds') = date(?)
          AND pages > 0
        LIMIT 1`
     )
