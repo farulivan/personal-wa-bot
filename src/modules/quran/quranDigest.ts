@@ -2,7 +2,6 @@ import type { Database } from 'better-sqlite3';
 import { debug, error } from '../../logger.js';
 import type { QuranRepository } from './infra/quranRepository.js';
 import { computeQuranStreaks, hasReadToday } from './quranStreaks.js';
-import { normalizeUserId } from '../../app/normalizeUserId.js';
 
 type ContactLike = {
   pushname?: string;
@@ -11,19 +10,8 @@ type ContactLike = {
   number?: string;
 };
 
-type GroupParticipantLike = {
-  id?: {
-    _serialized?: string;
-  };
-};
-
-type GroupChatLike = {
-  participants?: GroupParticipantLike[];
-};
-
 type WhatsAppClientLike = {
   getContactById: (contactId: string) => Promise<ContactLike>;
-  getChatById: (chatId: string) => Promise<unknown>;
   sendMessage: (chatId: string, text: string) => Promise<unknown>;
 };
 
@@ -91,47 +79,15 @@ function buildReminderMessage(reminders: UserReminder[]): string {
   );
 }
 
-function toGroupChatLike(value: unknown): GroupChatLike {
-  if (!value || typeof value !== 'object') {
-    return {};
-  }
-
-  const maybeParticipants = (value as { participants?: unknown }).participants;
-  if (!Array.isArray(maybeParticipants)) {
-    return {};
-  }
-
-  return {
-    participants: maybeParticipants as GroupParticipantLike[],
-  };
-}
-
-async function getReminderTargets(deps: QuranReminderDeps, groupChatId: string): Promise<string[]> {
-  try {
-    const chat = toGroupChatLike(await deps.client.getChatById(groupChatId));
-    const participants = Array.isArray(chat.participants) ? chat.participants : [];
-
-    const participantIds = participants
-      .map((participant) => participant.id?._serialized || '')
-      .filter((sender) => sender.endsWith('@c.us'))
-      .map((sender) => normalizeUserId(sender));
-
-    if (participantIds.length > 0) {
-      return participantIds;
-    }
-  } catch (err) {
-    debug(`📖 Quran reminder participant lookup failed for ${groupChatId}:`, err);
-  }
-
-  return deps.quranRepository.listDistinctUsers();
-}
-
 export function createQuranReminderSender(deps: QuranReminderDeps) {
   return async function sendQuranReminder(groupChatId: string): Promise<void> {
     const now = new Date();
-    debug(`📖 Quran reminder starting at ${now.toISOString()} (UTC), timezoneOffset=${deps.timezoneOffsetMinutes}min`);
-    
-    const users = await getReminderTargets(deps, groupChatId);
+    debug(
+      `📖 Quran reminder starting at ${now.toISOString()} (UTC), timezoneOffset=${deps.timezoneOffsetMinutes}min`
+    );
+
+    // Query actual users from DB — guarantees sender format matches stored data
+    const users = deps.quranRepository.listDistinctUsers();
     debug(`📖 Found ${users.length} reminder targets: ${users.join(', ')}`);
 
     if (users.length === 0) {
@@ -144,7 +100,7 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
     for (const sender of users) {
       const name = await resolveUserName(deps.client, sender);
       debug(`📖 Checking user: ${sender} (${name})`);
-      
+
       const hasRead = hasReadToday(deps.db, sender, deps.timezoneOffsetMinutes, now);
       const streaks = computeQuranStreaks(deps.db, sender, deps.timezoneOffsetMinutes, now);
 

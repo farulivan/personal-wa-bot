@@ -41,7 +41,9 @@ export function hasReadToday(
   const today = toUserDate(now, timezoneOffsetMinutes);
   const offsetSeconds = timezoneOffsetMinutes * 60;
 
-  debug(`📖 hasReadToday check: user=${user}, today=${today}, offset=${offsetSeconds}s, now=${now.toISOString()}`);
+  debug(
+    `📖 hasReadToday check: user=${user}, today=${today}, offset=${offsetSeconds}s, now=${now.toISOString()}`
+  );
 
   const query = `SELECT 1
        FROM quran_daily_reads
