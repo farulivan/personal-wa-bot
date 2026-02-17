@@ -17,6 +17,8 @@ export const appConfig = {
   dailyDigestHour: parseIntegerEnv('DAILY_DIGEST_HOUR', 8),
   dailyDigestMinute: parseIntegerEnv('DAILY_DIGEST_MINUTE', 0),
   digestGroupId: process.env.DIGEST_GROUP_ID || '',
+  sholatDefaultLocation: process.env.SHOLAT_DEFAULT_LOCATION || 'KAB. BOGOR',
+  sholatTimezone: process.env.SHOLAT_TIMEZONE || 'Asia/Jakarta',
   allowedNumbers: new Set(
     allowedNumbersEnv
       .split(',')
