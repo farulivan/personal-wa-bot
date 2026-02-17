@@ -127,7 +127,10 @@ async function getReminderTargets(deps: QuranReminderDeps, groupChatId: string):
 export function createQuranReminderSender(deps: QuranReminderDeps) {
   return async function sendQuranReminder(groupChatId: string): Promise<void> {
     const now = new Date();
+    debug(`📖 Quran reminder starting at ${now.toISOString()} (UTC), timezoneOffset=${deps.timezoneOffsetMinutes}min`);
+    
     const users = await getReminderTargets(deps, groupChatId);
+    debug(`📖 Found ${users.length} reminder targets: ${users.join(', ')}`);
 
     if (users.length === 0) {
       debug('📖 Quran reminder: no quran users in DB, skipping');
@@ -138,8 +141,12 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
 
     for (const sender of users) {
       const name = await resolveUserName(deps.client, sender);
+      debug(`📖 Checking user: ${sender} (${name})`);
+      
       const hasRead = hasReadToday(deps.db, sender, deps.timezoneOffsetMinutes, now);
       const streaks = computeQuranStreaks(deps.db, sender, deps.timezoneOffsetMinutes, now);
+
+      debug(`📖 User ${name}: hasRead=${hasRead}, currentStreak=${streaks.current}`);
 
       reminders.push({
         name,
@@ -149,6 +156,7 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
     }
 
     const message = buildReminderMessage(reminders);
+    debug(`📖 Reminder message built, sending to ${groupChatId}`);
 
     try {
       await deps.client.sendMessage(groupChatId, message);

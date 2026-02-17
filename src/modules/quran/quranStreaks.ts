@@ -1,4 +1,5 @@
 import type { Database } from 'better-sqlite3';
+import { debug } from '../../logger.js';
 
 type DayRow = { localDate: string };
 
@@ -40,16 +41,21 @@ export function hasReadToday(
   const today = toUserDate(now, timezoneOffsetMinutes);
   const offsetSeconds = timezoneOffsetMinutes * 60;
 
-  const row = db
-    .prepare(
-      `SELECT 1
+  debug(`📖 hasReadToday check: user=${user}, today=${today}, offset=${offsetSeconds}s, now=${now.toISOString()}`);
+
+  const query = `SELECT 1
        FROM quran_daily_reads
        WHERE user = ?
          AND date(created_at, '+${offsetSeconds} seconds') = date(?)
          AND pages > 0
-       LIMIT 1`
-    )
-    .get(user, today);
+       LIMIT 1`;
+
+  debug(`📖 Query: ${query}`);
+  debug(`📖 Params: user=${user}, today=${today}`);
+
+  const row = db.prepare(query).get(user, today);
+
+  debug(`📖 Query result: ${row ? 'FOUND' : 'NOT FOUND'}`);
 
   return Boolean(row);
 }
