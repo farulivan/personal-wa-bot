@@ -57,6 +57,23 @@ export class SqliteQuranRepository implements QuranRepository {
     return row ?? null;
   }
 
+  hasReadTodayByUser(user: string, timezoneOffsetMinutes: number, nowIsoUtc: string): boolean {
+    const offsetSeconds = timezoneOffsetMinutes * 60;
+
+    const row = this.db
+      .prepare(
+        `SELECT 1
+         FROM quran_daily_reads
+         WHERE user = ?
+           AND date(created_at, '+${offsetSeconds} seconds') = date(?, '+${offsetSeconds} seconds')
+           AND pages > 0
+         LIMIT 1`
+      )
+      .get(user, nowIsoUtc);
+
+    return Boolean(row);
+  }
+
   listDistinctUsers(): string[] {
     const rows = this.db.prepare(`SELECT DISTINCT user FROM quran_daily_reads`).all() as {
       user: string;

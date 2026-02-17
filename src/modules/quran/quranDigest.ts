@@ -1,7 +1,13 @@
 import type { Database } from 'better-sqlite3';
 import { debug, error } from '../../logger.js';
+import {
+  listNormalizedGroupMemberIds,
+  resolveNormalizedBotUserId,
+  type BotInfoClientLike,
+  type GroupMemberClientLike,
+} from '../../adapters/whatsapp/waId.js';
 import type { QuranRepository } from './infra/quranRepository.js';
-import { computeQuranStreaks, hasReadToday } from './quranStreaks.js';
+import { computeQuranStreaks } from './quranStreaks.js';
 
 type ContactLike = {
   pushname?: string;
@@ -13,7 +19,8 @@ type ContactLike = {
 type WhatsAppClientLike = {
   getContactById: (contactId: string) => Promise<ContactLike>;
   sendMessage: (chatId: string, text: string) => Promise<unknown>;
-};
+} & GroupMemberClientLike &
+  BotInfoClientLike;
 
 type QuranReminderDeps = {
   client: WhatsAppClientLike;
@@ -86,12 +93,24 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
       `📖 Quran reminder starting at ${now.toISOString()} (UTC), timezoneOffset=${deps.timezoneOffsetMinutes}min`
     );
 
-    // Query actual users from DB — guarantees sender format matches stored data
-    const users = deps.quranRepository.listDistinctUsers();
-    debug(`📖 Found ${users.length} reminder targets: ${users.join(', ')}`);
+    let users: string[];
+
+    try {
+      const [groupMemberIds, botUserId] = await Promise.all([
+        listNormalizedGroupMemberIds(deps.client, groupChatId),
+        resolveNormalizedBotUserId(deps.client),
+      ]);
+
+      users = botUserId ? groupMemberIds.filter((id) => id !== botUserId) : groupMemberIds;
+    } catch (err) {
+      error(`📖 Failed to load group members for ${groupChatId}:`, err);
+      return;
+    }
+
+    debug(`📖 Found ${users.length} reminder targets from group participants: ${users.join(', ')}`);
 
     if (users.length === 0) {
-      debug('📖 Quran reminder: no quran users in DB, skipping');
+      debug('📖 Quran reminder: no group participants found, skipping');
       return;
     }
 
@@ -101,7 +120,11 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
       const name = await resolveUserName(deps.client, sender);
       debug(`📖 Checking user: ${sender} (${name})`);
 
-      const hasRead = hasReadToday(deps.db, sender, deps.timezoneOffsetMinutes, now);
+      const hasRead = deps.quranRepository.hasReadTodayByUser(
+        sender,
+        deps.timezoneOffsetMinutes,
+        now.toISOString()
+      );
       const streaks = computeQuranStreaks(deps.db, sender, deps.timezoneOffsetMinutes, now);
 
       debug(`📖 User ${name}: hasRead=${hasRead}, currentStreak=${streaks.current}`);

@@ -21,5 +21,6 @@ export interface QuranRepository {
     timezoneOffsetMinutes: number,
     nowIsoUtc: string
   ): QuranDailyReadRow | null;
+  hasReadTodayByUser(user: string, timezoneOffsetMinutes: number, nowIsoUtc: string): boolean;
   listDistinctUsers(): string[];
 }
