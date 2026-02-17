@@ -50,7 +50,8 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
               `*What I can do:*\n` +
               `• #workout - log a workout\n` +
               `• #workout --list - see your recent workouts\n` +
-              `• #sholat --today - get today's prayer times\n\n` +
+              `• #sholat --today - get today's prayer times\n` +
+              `• #quran read 3 - log today's quran pages\n\n` +
               `*Example:*\n` +
               `#workout\n` +
               `type: bench press\n` +
