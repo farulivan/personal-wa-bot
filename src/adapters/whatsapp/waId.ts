@@ -22,6 +22,7 @@ export type ClientInfoLike = {
 
 export type GroupMemberClientLike = {
   getChatById: (chatId: string) => Promise<unknown>;
+  getContactLidAndPhone?: (userIds: string[]) => Promise<Array<{ lid: string; pn: string }>>;
 };
 
 export type BotInfoClientLike = {
@@ -50,6 +51,14 @@ function collectParticipantAliases(participant: ParticipantLike): string[] {
   return Array.from(new Set(aliases));
 }
 
+function collectParticipantSerializedIds(participant: ParticipantLike): string[] {
+  const ids = [participant.id?._serialized, participant.pn?._serialized, participant.lid?._serialized]
+    .filter((value): value is string => isValidStr(value))
+    .filter((value) => value.includes('@'));
+
+  return Array.from(new Set(ids));
+}
+
 export type GroupMemberIdentity = {
   primaryId: string;
   aliases: string[];
@@ -62,17 +71,65 @@ export async function listGroupMemberIdentities(
   const chat = (await client.getChatById(groupChatId)) as GroupChatLike;
   const participants = Array.isArray(chat.participants) ? chat.participants : [];
 
+  const linkedAliasesBySerializedId = new Map<string, Set<string>>();
+  const serializedSeeds: string[] = [];
+
+  for (const participant of participants) {
+    const serializedIds = collectParticipantSerializedIds(participant);
+    for (const serializedId of serializedIds) {
+      if (!linkedAliasesBySerializedId.has(serializedId)) {
+        linkedAliasesBySerializedId.set(serializedId, new Set([normalizeUserId(serializedId)]));
+        serializedSeeds.push(serializedId);
+      }
+    }
+  }
+
+  if (serializedSeeds.length > 0 && client.getContactLidAndPhone) {
+    try {
+      const lidAndPhoneRows = await client.getContactLidAndPhone(serializedSeeds);
+
+      for (let index = 0; index < serializedSeeds.length; index++) {
+        const seed = serializedSeeds[index];
+        const linked = linkedAliasesBySerializedId.get(seed);
+        if (!linked) continue;
+
+        const pair = lidAndPhoneRows[index];
+        if (!pair) continue;
+
+        const lid = toNormalizedId(pair.lid);
+        if (lid) linked.add(lid);
+
+        const pn = toNormalizedId(pair.pn);
+        if (pn) linked.add(pn);
+      }
+    } catch {
+      // Best-effort enrichment only. Fall back to participant fields.
+    }
+  }
+
   const identities: GroupMemberIdentity[] = [];
 
   for (const participant of participants) {
-    const aliases = collectParticipantAliases(participant);
-    if (aliases.length === 0) {
+    const aliases = new Set<string>(collectParticipantAliases(participant));
+    const serializedIds = collectParticipantSerializedIds(participant);
+
+    for (const serializedId of serializedIds) {
+      const linkedAliases = linkedAliasesBySerializedId.get(serializedId);
+      if (!linkedAliases) continue;
+
+      for (const alias of linkedAliases) {
+        aliases.add(alias);
+      }
+    }
+
+    const finalAliases = Array.from(aliases);
+    if (finalAliases.length === 0) {
       continue;
     }
 
     identities.push({
-      primaryId: aliases[0],
-      aliases,
+      primaryId: finalAliases[0],
+      aliases: finalAliases,
     });
   }
 
