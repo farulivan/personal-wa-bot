@@ -2,6 +2,12 @@ import { computeStreaks } from './workoutStreaks.js';
 import { debug, error } from '../../logger.js';
 import type { Database } from 'better-sqlite3';
 import type { WorkoutRepository } from './infra/workoutRepository.js';
+import {
+  listGroupMemberIdentities,
+  resolveNormalizedBotUserId,
+  type BotInfoClientLike,
+  type GroupMemberClientLike,
+} from '../../adapters/whatsapp/waId.js';
 
 type ContactLike = {
   pushname?: string;
@@ -13,7 +19,8 @@ type ContactLike = {
 type WhatsAppClientLike = {
   getContactById: (contactId: string) => Promise<ContactLike>;
   sendMessage: (chatId: string, text: string) => Promise<unknown>;
-};
+} & GroupMemberClientLike &
+  BotInfoClientLike;
 
 type DigestDeps = {
   client: WhatsAppClientLike;
@@ -28,21 +35,38 @@ type UserStreak = {
   best: number;
 };
 
+type DigestTarget = {
+  contactLookupId: string;
+  dbUserId: string;
+};
+
+function toDisplayName(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
 function isValidStr(val: unknown): val is string {
   return typeof val === 'string' && val !== '' && val !== 'undefined';
 }
 
 async function resolveUserName(client: WhatsAppClientLike, sender: string): Promise<string> {
   const fallback = sender.replace(/@.*$/, '');
-  const contactId = sender.includes('@') ? sender : `${sender}@c.us`;
-  try {
-    const contact = await client.getContactById(contactId);
-    if (isValidStr(contact.pushname)) return contact.pushname;
-    if (isValidStr(contact.name)) return contact.name;
-    if (isValidStr(contact.shortName)) return contact.shortName;
-    if (isValidStr(contact.number)) return contact.number;
-  } catch (err) {
-    debug(`⏰ Contact resolution failed for ${contactId}:`, err);
+  const contactIds = sender.includes('@') ? [sender] : [`${sender}@c.us`, `${sender}@lid`];
+
+  for (const contactId of contactIds) {
+    try {
+      const contact = await client.getContactById(contactId);
+      if (isValidStr(contact.pushname)) return contact.pushname;
+      if (isValidStr(contact.name)) return contact.name;
+      if (isValidStr(contact.shortName)) return contact.shortName;
+      if (isValidStr(contact.number)) return contact.number;
+    } catch {
+      // Continue with next contact ID candidate.
+    }
   }
 
   return fallback;
@@ -66,7 +90,7 @@ function buildStandingsMessage(standings: UserStreak[]): string {
 
   const lines = sorted.map((s, i) => {
     const rank = i + 1;
-    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '  ';
+    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '🔹';
     const streakStr =
       s.current > 0 ? `${s.current} day${s.current !== 1 ? 's' : ''}` : 'no active streak';
     const bestStr = s.best > 0 ? ` (best: ${s.best})` : '';
@@ -78,7 +102,7 @@ function buildStandingsMessage(standings: UserStreak[]): string {
     : `Morning check-in 👋\n\nHere's where everyone's at:`;
 
   const footer = hasActiveStreaks
-    ? `\n\nKeep showing up. Consistency wins.`
+    ? `\n\nKeep showing up. Consistency wins. 💪`
     : `\n\nNo active streaks today.\nWho's gonna start one? 💪`;
 
   return `${header}\n\n${lines.join('\n')}${footer}`;
@@ -88,19 +112,51 @@ export function createDailyStreakDigestSender(deps: DigestDeps) {
   return async function sendDailyStreakDigest(groupChatId: string): Promise<void> {
     const now = new Date();
 
-    // Query actual users from DB — guarantees sender format matches stored data
-    const users = deps.workoutRepository.listDistinctUsers();
+    let targets: DigestTarget[];
 
-    if (users.length === 0) {
-      debug('⏰ Digest: no workout users in DB, skipping');
+    try {
+      const [memberIdentities, botUserId, dbUsers] = await Promise.all([
+        listGroupMemberIdentities(deps.client, groupChatId),
+        resolveNormalizedBotUserId(deps.client),
+        Promise.resolve(deps.workoutRepository.listDistinctUsers()),
+      ]);
+
+      const groupMemberIdentities = botUserId
+        ? memberIdentities.filter((member) => !member.aliases.includes(botUserId))
+        : memberIdentities;
+
+      const knownUsers = new Set(dbUsers);
+      const targetsByDbUserId = new Map<string, DigestTarget>();
+
+      for (const member of groupMemberIdentities) {
+        const matchedDbId = member.aliases.find((alias) => knownUsers.has(alias));
+        const dbUserId = matchedDbId ?? member.primaryId;
+
+        if (!targetsByDbUserId.has(dbUserId)) {
+          targetsByDbUserId.set(dbUserId, {
+            contactLookupId: member.primaryId,
+            dbUserId,
+          });
+        }
+      }
+
+      targets = Array.from(targetsByDbUserId.values());
+    } catch (err) {
+      error(`⏰ Failed to load group participants for digest ${groupChatId}:`, err);
+      return;
+    }
+
+    if (targets.length === 0) {
+      debug('⏰ Digest: no valid group participants, skipping');
       return;
     }
 
     const standings: UserStreak[] = [];
 
-    for (const sender of users) {
-      const streaks = computeStreaks(deps.db, sender, deps.timezoneOffsetMinutes, now);
-      const name = await resolveUserName(deps.client, sender);
+    for (const target of targets) {
+      const streaks = computeStreaks(deps.db, target.dbUserId, deps.timezoneOffsetMinutes, now);
+      const rawName = await resolveUserName(deps.client, target.contactLookupId);
+      const name = toDisplayName(rawName);
       standings.push({ name, current: streaks.current, best: streaks.best });
     }
 

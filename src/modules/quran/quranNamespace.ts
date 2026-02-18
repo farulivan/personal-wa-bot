@@ -100,7 +100,7 @@ function toReadLoggedResponse(pagesAdded: number, totalToday: number, streakDays
 
   return (
     `Alhamdulillah, tercatat ✅\n` +
-    `Tambah hari ini: ${pagesAdded} halaman\n` +
+    `Kamu barusan baca: ${pagesAdded} halaman\n` +
     `Total tilawah hari ini: ${totalToday} halaman\n\n` +
     `${streakLine}`
   );
