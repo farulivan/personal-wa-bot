@@ -47,16 +47,18 @@ function isValidStr(value: unknown): value is string {
 
 async function resolveUserName(client: WhatsAppClientLike, sender: string): Promise<string> {
   const fallback = sender.replace(/@.*$/, '');
-  const contactId = sender.includes('@') ? sender : `${sender}@c.us`;
+  const contactIds = sender.includes('@') ? [sender] : [`${sender}@c.us`, `${sender}@lid`];
 
-  try {
-    const contact = await client.getContactById(contactId);
-    if (isValidStr(contact.pushname)) return contact.pushname;
-    if (isValidStr(contact.name)) return contact.name;
-    if (isValidStr(contact.shortName)) return contact.shortName;
-    if (isValidStr(contact.number)) return contact.number;
-  } catch (err) {
-    debug(`📖 Quran reminder contact lookup failed for ${contactId}:`, err);
+  for (const contactId of contactIds) {
+    try {
+      const contact = await client.getContactById(contactId);
+      if (isValidStr(contact.pushname)) return contact.pushname;
+      if (isValidStr(contact.name)) return contact.name;
+      if (isValidStr(contact.shortName)) return contact.shortName;
+      if (isValidStr(contact.number)) return contact.number;
+    } catch (err) {
+      debug(`📖 Quran reminder contact lookup failed for ${contactId}:`, err);
+    }
   }
 
   return fallback;
@@ -118,15 +120,35 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
       return;
     }
 
+    const contactLookupByAlias = new Map<string, string>();
+    for (const member of groupMemberIdentities) {
+      for (const alias of member.aliases) {
+        if (!contactLookupByAlias.has(alias)) {
+          contactLookupByAlias.set(alias, member.primaryId);
+        }
+      }
+    }
+
     const targetsByDbUserId = new Map<string, ReminderTarget>();
+
+    // Source-of-truth for streak/read is DB users (same principle as workout digest).
+    for (const dbUserId of knownUsers) {
+      const contactLookupId = contactLookupByAlias.get(dbUserId) ?? dbUserId;
+      targetsByDbUserId.set(dbUserId, {
+        contactLookupId,
+        dbUserId,
+      });
+    }
+
+    // Keep participants with no DB record so reminder still nudges newcomers.
     for (const member of groupMemberIdentities) {
       const matchedDbId = member.aliases.find((alias) => knownUsers.has(alias));
-      const dbUserId = matchedDbId ?? member.primaryId;
+      if (matchedDbId) continue;
 
-      if (!targetsByDbUserId.has(dbUserId)) {
-        targetsByDbUserId.set(dbUserId, {
+      if (!targetsByDbUserId.has(member.primaryId)) {
+        targetsByDbUserId.set(member.primaryId, {
           contactLookupId: member.primaryId,
-          dbUserId,
+          dbUserId: member.primaryId,
         });
       }
     }
