@@ -1,9 +1,10 @@
 import type { Database } from 'better-sqlite3';
 import { debug, error } from '../../logger.js';
 import {
-  listNormalizedGroupMemberIds,
+  listGroupMemberIdentities,
   resolveNormalizedBotUserId,
   type BotInfoClientLike,
+  type GroupMemberIdentity,
   type GroupMemberClientLike,
 } from '../../adapters/whatsapp/waId.js';
 import type { QuranRepository } from './infra/quranRepository.js';
@@ -33,6 +34,11 @@ type UserReminder = {
   name: string;
   hasRead: boolean;
   currentStreak: number;
+};
+
+type ReminderTarget = {
+  contactLookupId: string;
+  dbUserId: string;
 };
 
 function isValidStr(value: unknown): value is string {
@@ -93,39 +99,65 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
       `📖 Quran reminder starting at ${now.toISOString()} (UTC), timezoneOffset=${deps.timezoneOffsetMinutes}min`
     );
 
-    let users: string[];
+    let groupMemberIdentities: GroupMemberIdentity[];
+    let knownUsers: Set<string>;
 
     try {
-      const [groupMemberIds, botUserId] = await Promise.all([
-        listNormalizedGroupMemberIds(deps.client, groupChatId),
+      const [memberIdentities, botUserId, dbUsers] = await Promise.all([
+        listGroupMemberIdentities(deps.client, groupChatId),
         resolveNormalizedBotUserId(deps.client),
+        Promise.resolve(deps.quranRepository.listDistinctUsers()),
       ]);
 
-      users = botUserId ? groupMemberIds.filter((id) => id !== botUserId) : groupMemberIds;
+      groupMemberIdentities = botUserId
+        ? memberIdentities.filter((member) => !member.aliases.includes(botUserId))
+        : memberIdentities;
+      knownUsers = new Set(dbUsers);
     } catch (err) {
       error(`📖 Failed to load group members for ${groupChatId}:`, err);
       return;
     }
 
-    debug(`📖 Found ${users.length} reminder targets from group participants: ${users.join(', ')}`);
+    const targetsByDbUserId = new Map<string, ReminderTarget>();
+    for (const member of groupMemberIdentities) {
+      const matchedDbId = member.aliases.find((alias) => knownUsers.has(alias));
+      const dbUserId = matchedDbId ?? member.primaryId;
 
-    if (users.length === 0) {
+      if (!targetsByDbUserId.has(dbUserId)) {
+        targetsByDbUserId.set(dbUserId, {
+          contactLookupId: member.primaryId,
+          dbUserId,
+        });
+      }
+    }
+
+    const targets = Array.from(targetsByDbUserId.values());
+
+    debug(
+      `📖 Found ${targets.length} reminder targets from group participants: ${targets
+        .map((target) => `${target.contactLookupId}=>${target.dbUserId}`)
+        .join(', ')}`
+    );
+
+    if (targets.length === 0) {
       debug('📖 Quran reminder: no group participants found, skipping');
       return;
     }
 
     const reminders: UserReminder[] = [];
 
-    for (const sender of users) {
-      const name = await resolveUserName(deps.client, sender);
-      debug(`📖 Checking user: ${sender} (${name})`);
+    for (const target of targets) {
+      const name = await resolveUserName(deps.client, target.contactLookupId);
+      debug(
+        `📖 Checking user: contactLookupId=${target.contactLookupId}, dbUserId=${target.dbUserId} (${name})`
+      );
 
       const hasRead = deps.quranRepository.hasReadTodayByUser(
-        sender,
+        target.dbUserId,
         deps.timezoneOffsetMinutes,
         now.toISOString()
       );
-      const streaks = computeQuranStreaks(deps.db, sender, deps.timezoneOffsetMinutes, now);
+      const streaks = computeQuranStreaks(deps.db, target.dbUserId, deps.timezoneOffsetMinutes, now);
 
       debug(`📖 User ${name}: hasRead=${hasRead}, currentStreak=${streaks.current}`);
 

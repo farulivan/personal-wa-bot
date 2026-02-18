@@ -2,10 +2,14 @@ import { normalizeUserId } from '../../app/normalizeUserId.js';
 
 export type SerializedId = {
   _serialized?: string;
+  user?: string;
+  server?: string;
 };
 
 export type ParticipantLike = {
   id?: SerializedId;
+  pn?: SerializedId;
+  lid?: SerializedId;
 };
 
 export type GroupChatLike = {
@@ -28,19 +32,59 @@ function isValidStr(value: unknown): value is string {
   return typeof value === 'string' && value !== '' && value !== 'undefined';
 }
 
+function toNormalizedId(value: unknown): string | null {
+  if (!isValidStr(value)) return null;
+  return normalizeUserId(value);
+}
+
+function collectParticipantAliases(participant: ParticipantLike): string[] {
+  const aliases = [
+    toNormalizedId(participant.id?._serialized),
+    toNormalizedId(participant.id?.user),
+    toNormalizedId(participant.pn?._serialized),
+    toNormalizedId(participant.pn?.user),
+    toNormalizedId(participant.lid?._serialized),
+    toNormalizedId(participant.lid?.user),
+  ].filter((value): value is string => value !== null);
+
+  return Array.from(new Set(aliases));
+}
+
+export type GroupMemberIdentity = {
+  primaryId: string;
+  aliases: string[];
+};
+
+export async function listGroupMemberIdentities(
+  client: GroupMemberClientLike,
+  groupChatId: string
+): Promise<GroupMemberIdentity[]> {
+  const chat = (await client.getChatById(groupChatId)) as GroupChatLike;
+  const participants = Array.isArray(chat.participants) ? chat.participants : [];
+
+  const identities: GroupMemberIdentity[] = [];
+
+  for (const participant of participants) {
+    const aliases = collectParticipantAliases(participant);
+    if (aliases.length === 0) {
+      continue;
+    }
+
+    identities.push({
+      primaryId: aliases[0],
+      aliases,
+    });
+  }
+
+  return identities;
+}
+
 export async function listNormalizedGroupMemberIds(
   client: GroupMemberClientLike,
   groupChatId: string
 ): Promise<string[]> {
-  const chat = (await client.getChatById(groupChatId)) as GroupChatLike;
-  const participants = Array.isArray(chat.participants) ? chat.participants : [];
-
-  const groupMemberIds = participants
-    .map((participant) => participant.id?._serialized)
-    .filter((value): value is string => isValidStr(value))
-    .map((value) => normalizeUserId(value));
-
-  return Array.from(new Set(groupMemberIds));
+  const identities = await listGroupMemberIdentities(client, groupChatId);
+  return Array.from(new Set(identities.map((identity) => identity.primaryId)));
 }
 
 export async function resolveNormalizedBotUserId(
