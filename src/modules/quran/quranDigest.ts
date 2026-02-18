@@ -41,6 +41,22 @@ type ReminderTarget = {
   dbUserId: string;
 };
 
+function toDisplayName(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function joinHumanNames(names: string[]): string {
+  if (names.length === 0) return '';
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} dan ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')}, dan ${names[names.length - 1]}`;
+}
+
 function isValidStr(value: unknown): value is string {
   return typeof value === 'string' && value !== '' && value !== 'undefined';
 }
@@ -56,8 +72,8 @@ async function resolveUserName(client: WhatsAppClientLike, sender: string): Prom
       if (isValidStr(contact.name)) return contact.name;
       if (isValidStr(contact.shortName)) return contact.shortName;
       if (isValidStr(contact.number)) return contact.number;
-    } catch (err) {
-      debug(`📖 Quran reminder contact lookup failed for ${contactId}:`, err);
+    } catch {
+      // continue fallback attempts silently
     }
   }
 
@@ -69,28 +85,52 @@ function buildReminderMessage(reminders: UserReminder[]): string {
     return `Pengingat tilawah 22:00 🌙\n\nBelum ada data #quran di grup ini. Yuk mulai dengan:\n#quran read 1`;
   }
 
+  const withDisplayNames = reminders.map((user) => ({
+    ...user,
+    displayName: toDisplayName(user.name),
+  }));
+
+  const readToday = withDisplayNames.filter((user) => user.hasRead);
   const notReadYet = reminders.filter((user) => !user.hasRead);
+  const notReadWithStreak = withDisplayNames.filter((user) => !user.hasRead && user.currentStreak > 0);
+  const notReadNoStreak = withDisplayNames.filter((user) => !user.hasRead && user.currentStreak <= 0);
+
+  const sections: string[] = [];
+
+  if (readToday.length > 0) {
+    sections.push(
+      `✅ MasyaAllah, ${joinHumanNames(readToday.map((user) => user.displayName))} sudah tilawah hari ini.` +
+        `\nKalau masih ada waktu malam ini, boleh ditambah lagi biar makin berkah 📖✨`
+    );
+  }
+
+  if (notReadWithStreak.length > 0) {
+    sections.push(
+      `🔥 ${joinHumanNames(notReadWithStreak.map((user) => user.displayName))} kemarin sudah baca, tapi hari ini belum.` +
+        `\nJangan sampai streak putus malam ini ya 🤲`
+    );
+  }
+
+  if (notReadNoStreak.length > 0) {
+    sections.push(
+      `🌱 ${joinHumanNames(notReadNoStreak.map((user) => user.displayName))} masih belum mulai dari kemarin.` +
+        `\nYuk buka 1-2 halaman dulu malam ini, pelan-pelan yang penting jalan ✨`
+    );
+  }
+
   if (notReadYet.length === 0) {
     return (
       `MasyaAllah tabarakallah 🤲\n\n` +
-      `Semua yang tercatat sudah tilawah hari ini.\n` +
+      `${sections.join('\n\n')}\n\n` +
       `Semoga Allah jaga istiqamah kita semua 📖✨`
     );
   }
 
-  const lines = notReadYet.map((user) => {
-    if (user.currentStreak > 0) {
-      return `• ${user.name} — streak ${user.currentStreak} hari masih on fire 🔥 (jangan putus malam ini)`;
-    }
-
-    return `• ${user.name} — belum mulai hari ini, yuk buka 1-2 halaman dulu ✨`;
-  });
-
   return (
     `Pengingat tilawah 22:00 🌙\n` +
-    `Masih ada 2 jam sebelum reset hari (00:00 GMT+7).\n\n` +
-    `${lines.join('\n')}\n\n` +
-    `Gas baca dulu, lalu catat dengan #quran read <jumlah_halaman> 📖`
+    `Masih ada 2 jam sebelum lose streak (00:00 GMT+7).\n\n` +
+    `${sections.join('\n\n')}\n\n` +
+    `Gas baca dulu, lalu catat dengan #quran read 📖`
   );
 }
 
@@ -116,12 +156,6 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
         : memberIdentities;
       knownUsers = new Set(dbUsers);
 
-      debug(
-        `📖 Group identities (${groupMemberIdentities.length}): ${groupMemberIdentities
-          .map((member) => `${member.primaryId}[${member.aliases.join('|')}]`)
-          .join(', ')}`
-      );
-      debug(`📖 DB users (${knownUsers.size}): ${Array.from(knownUsers).join(', ')}`);
     } catch (err) {
       error(`📖 Failed to load group members for ${groupChatId}:`, err);
       return;
@@ -135,10 +169,6 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
       const matchedDbId = member.aliases.find((alias) => knownUsers.has(alias));
       const dbUserId = matchedDbId ?? member.primaryId;
 
-      debug(
-        `📖 Participant ${member.primaryId} -> dbUserId ${dbUserId} (${matchedDbId ? 'alias-match' : 'fallback-self'}) aliases=[${member.aliases.join(', ')}]`
-      );
-
       if (!targetsByDbUserId.has(dbUserId)) {
         targetsByDbUserId.set(dbUserId, {
           contactLookupId: member.primaryId,
@@ -149,11 +179,7 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
 
     const targets = Array.from(targetsByDbUserId.values());
 
-    debug(
-      `📖 Found ${targets.length} reminder targets from group participants: ${targets
-        .map((target) => `${target.contactLookupId}=>${target.dbUserId}`)
-        .join(', ')}`
-    );
+    debug(`📖 Found ${targets.length} reminder targets from group participants`);
 
     if (targets.length === 0) {
       debug('📖 Quran reminder: no group participants found, skipping');
@@ -164,9 +190,6 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
 
     for (const target of targets) {
       const name = await resolveUserName(deps.client, target.contactLookupId);
-      debug(
-        `📖 Checking user: contactLookupId=${target.contactLookupId}, dbUserId=${target.dbUserId} (${name})`
-      );
 
       const hasRead = deps.quranRepository.hasReadTodayByUser(
         target.dbUserId,
@@ -174,8 +197,6 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
         now.toISOString()
       );
       const streaks = computeQuranStreaks(deps.db, target.dbUserId, deps.timezoneOffsetMinutes, now);
-
-      debug(`📖 User ${name}: hasRead=${hasRead}, currentStreak=${streaks.current}`);
 
       reminders.push({
         name,
