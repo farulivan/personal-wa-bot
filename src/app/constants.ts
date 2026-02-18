@@ -13,5 +13,9 @@ export const WORKOUT_LIST_LIMIT = appConfig.workoutListLimit;
 export const DAILY_DIGEST_HOUR = appConfig.dailyDigestHour;
 export const DAILY_DIGEST_MINUTE = appConfig.dailyDigestMinute;
 
+// Time in user timezone to send quran reminder (24h format)
+export const QURAN_REMINDER_HOUR = appConfig.quranReminderHour;
+export const QURAN_REMINDER_MINUTE = appConfig.quranReminderMinute;
+
 // WhatsApp group chat ID for daily digest (set via env var)
 export const DIGEST_GROUP_ID = appConfig.digestGroupId;

@@ -5,6 +5,7 @@ import type { CommandRouter, CommandContext } from './commandRouter.js';
 import { isAllowedUser } from '../config.js';
 import { debug, error } from '../logger.js';
 import type { AppContext } from './appContext.js';
+import { normalizeUserId } from './normalizeUserId.js';
 
 export function createMessageHandler(router: CommandRouter, appContext: AppContext) {
   return async function handleMessage(msg: Message): Promise<void> {
@@ -12,9 +13,10 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
       let text = msg.body.trim();
       const textLower = text.toLowerCase();
       const isGroup = msg.from.endsWith('@g.us');
-      const sender = msg.author ?? msg.from;
+      const rawSender = msg.author ?? msg.from;
+      const sender = normalizeUserId(rawSender);
 
-      debug(`📨 from=${msg.from}, sender=${sender}, isGroup=${isGroup}`);
+      debug(`📨 from=${msg.from}, rawSender=${rawSender}, sender=${sender}, isGroup=${isGroup}`);
 
       // Check if bot is mentioned (for groups)
       let isBotMentioned = false;
@@ -50,7 +52,8 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
               `*What I can do:*\n` +
               `• #workout - log a workout\n` +
               `• #workout --list - see your recent workouts\n` +
-              `• #sholat --today - get today's prayer times\n\n` +
+              `• #sholat --today - get today's prayer times\n` +
+              `• #quran read 3 - log today's quran pages\n\n` +
               `*Example:*\n` +
               `#workout\n` +
               `type: bench press\n` +

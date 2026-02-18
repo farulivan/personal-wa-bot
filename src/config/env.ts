@@ -16,6 +16,8 @@ export const appConfig = {
   workoutListLimit: parseIntegerEnv('WORKOUT_LIST_LIMIT', 10),
   dailyDigestHour: parseIntegerEnv('DAILY_DIGEST_HOUR', 8),
   dailyDigestMinute: parseIntegerEnv('DAILY_DIGEST_MINUTE', 0),
+  quranReminderHour: parseIntegerEnv('QURAN_REMINDER_HOUR', 22),
+  quranReminderMinute: parseIntegerEnv('QURAN_REMINDER_MINUTE', 0),
   digestGroupId: process.env.DIGEST_GROUP_ID || '',
   sholatDefaultLocation: process.env.SHOLAT_DEFAULT_LOCATION || 'KAB. BOGOR',
   sholatTimezone: process.env.SHOLAT_TIMEZONE || 'Asia/Jakarta',
