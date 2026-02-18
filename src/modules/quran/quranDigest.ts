@@ -115,6 +115,13 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
         ? memberIdentities.filter((member) => !member.aliases.includes(botUserId))
         : memberIdentities;
       knownUsers = new Set(dbUsers);
+
+      debug(
+        `📖 Group identities (${groupMemberIdentities.length}): ${groupMemberIdentities
+          .map((member) => `${member.primaryId}[${member.aliases.join('|')}]`)
+          .join(', ')}`
+      );
+      debug(`📖 DB users (${knownUsers.size}): ${Array.from(knownUsers).join(', ')}`);
     } catch (err) {
       error(`📖 Failed to load group members for ${groupChatId}:`, err);
       return;
@@ -134,6 +141,11 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
     // Source-of-truth for streak/read is DB users (same principle as workout digest).
     for (const dbUserId of knownUsers) {
       const contactLookupId = contactLookupByAlias.get(dbUserId) ?? dbUserId;
+
+      debug(
+        `📖 Mapping DB user ${dbUserId} -> contact lookup ${contactLookupId} (${contactLookupByAlias.has(dbUserId) ? 'alias-match' : 'fallback-self'})`
+      );
+
       targetsByDbUserId.set(dbUserId, {
         contactLookupId,
         dbUserId,
@@ -143,7 +155,16 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
     // Keep participants with no DB record so reminder still nudges newcomers.
     for (const member of groupMemberIdentities) {
       const matchedDbId = member.aliases.find((alias) => knownUsers.has(alias));
-      if (matchedDbId) continue;
+      if (matchedDbId) {
+        debug(
+          `📖 Participant ${member.primaryId} matched existing DB user ${matchedDbId} via aliases [${member.aliases.join(', ')}]`
+        );
+        continue;
+      }
+
+      debug(
+        `📖 Participant ${member.primaryId} has no DB match. aliases=[${member.aliases.join(', ')}]`
+      );
 
       if (!targetsByDbUserId.has(member.primaryId)) {
         targetsByDbUserId.set(member.primaryId, {
