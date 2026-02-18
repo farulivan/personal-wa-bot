@@ -127,49 +127,22 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
       return;
     }
 
-    const contactLookupByAlias = new Map<string, string>();
-    for (const member of groupMemberIdentities) {
-      for (const alias of member.aliases) {
-        if (!contactLookupByAlias.has(alias)) {
-          contactLookupByAlias.set(alias, member.primaryId);
-        }
-      }
-    }
-
     const targetsByDbUserId = new Map<string, ReminderTarget>();
 
-    // Source-of-truth for streak/read is DB users (same principle as workout digest).
-    for (const dbUserId of knownUsers) {
-      const contactLookupId = contactLookupByAlias.get(dbUserId) ?? dbUserId;
-
-      debug(
-        `📖 Mapping DB user ${dbUserId} -> contact lookup ${contactLookupId} (${contactLookupByAlias.has(dbUserId) ? 'alias-match' : 'fallback-self'})`
-      );
-
-      targetsByDbUserId.set(dbUserId, {
-        contactLookupId,
-        dbUserId,
-      });
-    }
-
-    // Keep participants with no DB record so reminder still nudges newcomers.
+    // Source-of-truth for reminder targets is current group participants.
+    // For each participant, map to DB user ID when an alias match exists.
     for (const member of groupMemberIdentities) {
       const matchedDbId = member.aliases.find((alias) => knownUsers.has(alias));
-      if (matchedDbId) {
-        debug(
-          `📖 Participant ${member.primaryId} matched existing DB user ${matchedDbId} via aliases [${member.aliases.join(', ')}]`
-        );
-        continue;
-      }
+      const dbUserId = matchedDbId ?? member.primaryId;
 
       debug(
-        `📖 Participant ${member.primaryId} has no DB match. aliases=[${member.aliases.join(', ')}]`
+        `📖 Participant ${member.primaryId} -> dbUserId ${dbUserId} (${matchedDbId ? 'alias-match' : 'fallback-self'}) aliases=[${member.aliases.join(', ')}]`
       );
 
-      if (!targetsByDbUserId.has(member.primaryId)) {
-        targetsByDbUserId.set(member.primaryId, {
+      if (!targetsByDbUserId.has(dbUserId)) {
+        targetsByDbUserId.set(dbUserId, {
           contactLookupId: member.primaryId,
-          dbUserId: member.primaryId,
+          dbUserId,
         });
       }
     }
