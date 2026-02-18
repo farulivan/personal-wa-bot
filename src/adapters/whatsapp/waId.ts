@@ -52,7 +52,11 @@ function collectParticipantAliases(participant: ParticipantLike): string[] {
 }
 
 function collectParticipantSerializedIds(participant: ParticipantLike): string[] {
-  const ids = [participant.id?._serialized, participant.pn?._serialized, participant.lid?._serialized]
+  const ids = [
+    participant.id?._serialized,
+    participant.pn?._serialized,
+    participant.lid?._serialized,
+  ]
     .filter((value): value is string => isValidStr(value))
     .filter((value) => value.includes('@'));
 

@@ -92,8 +92,12 @@ function buildReminderMessage(reminders: UserReminder[]): string {
 
   const readToday = withDisplayNames.filter((user) => user.hasRead);
   const notReadYet = reminders.filter((user) => !user.hasRead);
-  const notReadWithStreak = withDisplayNames.filter((user) => !user.hasRead && user.currentStreak > 0);
-  const notReadNoStreak = withDisplayNames.filter((user) => !user.hasRead && user.currentStreak <= 0);
+  const notReadWithStreak = withDisplayNames.filter(
+    (user) => !user.hasRead && user.currentStreak > 0
+  );
+  const notReadNoStreak = withDisplayNames.filter(
+    (user) => !user.hasRead && user.currentStreak <= 0
+  );
 
   const sections: string[] = [];
 
@@ -155,7 +159,6 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
         ? memberIdentities.filter((member) => !member.aliases.includes(botUserId))
         : memberIdentities;
       knownUsers = new Set(dbUsers);
-
     } catch (err) {
       error(`📖 Failed to load group members for ${groupChatId}:`, err);
       return;
@@ -196,7 +199,12 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
         deps.timezoneOffsetMinutes,
         now.toISOString()
       );
-      const streaks = computeQuranStreaks(deps.db, target.dbUserId, deps.timezoneOffsetMinutes, now);
+      const streaks = computeQuranStreaks(
+        deps.db,
+        target.dbUserId,
+        deps.timezoneOffsetMinutes,
+        now
+      );
 
       reminders.push({
         name,
