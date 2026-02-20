@@ -2,7 +2,8 @@ import type { NamespaceHandler } from '../../app/commandRouter.js';
 import type { CommandInvocation } from '../../app/parseCommand.js';
 import { debug } from '../../logger.js';
 import { computeQuranStreaks } from './quranStreaks.js';
-import type { QuranRepository } from './infra/quranRepository.js';
+import { QURAN_LIST_LIMIT } from '../../app/constants.js';
+import type { QuranHistoryRow, QuranRepository } from './infra/quranRepository.js';
 
 const QURAN_NAMESPACE = 'quran';
 const MAX_DAILY_PAGES_WITHOUT_APPROVAL = 50;
@@ -11,13 +12,66 @@ function tokenize(firstLine: string): string[] {
   return firstLine.trim().split(/\s+/).filter(Boolean);
 }
 
+function parsePageNumber(firstLine: string): number {
+  const tokens = tokenize(firstLine);
+  const pageToken = tokens.find((t) => /^\d+$/.test(t));
+  return pageToken ? Math.max(1, Number(pageToken)) : 1;
+}
+
+function toUserDate(utcIso: string, timezoneOffsetMinutes: number): string {
+  const utcDate = new Date(utcIso);
+  const local = new Date(utcDate.getTime() + timezoneOffsetMinutes * 60000);
+  const y = local.getUTCFullYear();
+  const m = String(local.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(local.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatQuranHistoryList(
+  rows: QuranHistoryRow[],
+  timezoneOffsetMinutes: number,
+  now: Date
+): string {
+  const today = toUserDate(now.toISOString(), timezoneOffsetMinutes);
+  const yesterday = toUserDate(
+    new Date(now.getTime() - 86400000).toISOString(),
+    timezoneOffsetMinutes
+  );
+
+  return rows
+    .map((row) => {
+      const readDate = toUserDate(row.createdAtUtc, timezoneOffsetMinutes);
+
+      let dateLabel: string;
+      if (readDate === today) {
+        dateLabel = 'Today';
+      } else if (readDate === yesterday) {
+        dateLabel = 'Yesterday';
+      } else {
+        const [year, month, day] = readDate.split('-');
+        dateLabel = `${year}/${month}/${day}`;
+      }
+
+      return `• ${dateLabel} — ${row.pages} halaman`;
+    })
+    .join('\n');
+}
+
 function helpMessage(): string {
   return (
-    `Bismillah, kita jaga konsistensi tilawah harian 🤲\n\n` +
-    `Perintah utama:\n` +
-    `• #quran read 3\n\n` +
-    `Artinya: hari ini baca 3 halaman.\n` +
-    `Kalau kirim lagi di hari yang sama, nilainya akan ditambahkan ke total hari ini.`
+    `Bismillah, yuk jaga konsistensi tilawah harian 🤲\n\n` +
+    `Perintah yang tersedia:\n\n` +
+    `1) Catat bacaan hari ini\n` +
+    `• #quran read 3\n` +
+    `• #quran log 3\n` +
+    `Fungsi: menambahkan 3 halaman ke catatan hari ini.\n` +
+    `Kalau kirim lagi di hari yang sama, otomatis dijumlahkan.\n\n` +
+    `2) Lihat riwayat bacaan\n` +
+    `• #quran --list\n` +
+    `Fungsi: tampilkan riwayat terbaru + total halaman yang sudah dibaca.\n\n` +
+    `3) Pindah halaman riwayat\n` +
+    `• #quran --list 2\n` +
+    `Fungsi: buka halaman ke-2 dari riwayat tilawah.`
   );
 }
 
@@ -141,6 +195,65 @@ async function handleQuranRead(
   return toReadLoggedResponse(parseResult.pages, totalToday, streaks.current);
 }
 
+async function handleQuranList(
+  ctx: Parameters<NamespaceHandler>[0],
+  invocation: CommandInvocation,
+  quranRepository: QuranRepository
+): Promise<string> {
+  const now = ctx.now();
+  const page = parsePageNumber(invocation.firstLine);
+  const offset = (page - 1) * QURAN_LIST_LIMIT;
+
+  const totalDays = quranRepository.countByUser(ctx.sender);
+  const totalPagesRead = quranRepository.sumPagesByUser(ctx.sender);
+  const totalPages = Math.max(1, Math.ceil(totalDays / QURAN_LIST_LIMIT));
+
+  if (totalDays === 0) {
+    return (
+      `Belum ada catatan tilawah 👀\n\n` +
+      `Mulai dengan:\n` +
+      `#quran read 1\n\n` +
+      `Bismillah, kita mulai dari 1 halaman hari ini 🤲`
+    );
+  }
+
+  if (page > totalPages) {
+    return (
+      `Riwayatnya sudah habis di situ 👀\n` +
+      `Kamu di halaman ${page}, padahal halaman terakhir ${totalPages}.\n\n` +
+      `Coba: #quran --list${totalPages > 1 ? ` ${totalPages}` : ''}`
+    );
+  }
+
+  const rows = quranRepository.listByUser(ctx.sender, QURAN_LIST_LIMIT, offset);
+  const list = formatQuranHistoryList(rows, ctx.timezoneOffsetMinutes, now);
+  const streaks = computeQuranStreaks(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
+
+  let streakSection = '';
+  if (streaks.current > 0 || streaks.best > 0) {
+    streakSection = `\n\n🔥 Streak: ${streaks.current} hari`;
+    if (streaks.best > streaks.current) {
+      streakSection += ` | Best: ${streaks.best} hari`;
+    }
+  }
+
+  let pageFooter = '';
+  if (totalPages > 1) {
+    pageFooter = `\n\n📄 Halaman ${page} dari ${totalPages}`;
+    if (page < totalPages) {
+      pageFooter += ` — #quran --list ${page + 1} untuk lanjut`;
+    }
+  }
+
+  debug(`📖 Listed ${rows.length} quran history rows (page ${page}/${totalPages})`);
+
+  return (
+    `Riwayat tilawah 📖\n` +
+    `Total: ${totalPagesRead} halaman (${totalDays} hari)\n\n` +
+    `${list}${streakSection}${pageFooter}`
+  );
+}
+
 export function createQuranNamespaceHandler(quranRepository: QuranRepository): NamespaceHandler {
   return async (ctx, invocation) => {
     if (invocation.namespace !== QURAN_NAMESPACE) return null;
@@ -155,6 +268,11 @@ export function createQuranNamespaceHandler(quranRepository: QuranRepository): N
       tokens.length === 1;
     if (isHelp) {
       return helpMessage();
+    }
+
+    const isList = invocation.subcommand === 'list' || actionToken === 'list';
+    if (isList) {
+      return handleQuranList(ctx, invocation, quranRepository);
     }
 
     if (actionToken !== 'read' && actionToken !== 'log') {

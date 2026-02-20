@@ -1,5 +1,10 @@
 import type { Database } from 'better-sqlite3';
-import type { NewQuranReadLog, QuranDailyReadRow, QuranRepository } from './quranRepository.js';
+import type {
+  NewQuranReadLog,
+  QuranDailyReadRow,
+  QuranHistoryRow,
+  QuranRepository,
+} from './quranRepository.js';
 
 export class SqliteQuranRepository implements QuranRepository {
   constructor(private readonly db: Database) {}
@@ -72,6 +77,36 @@ export class SqliteQuranRepository implements QuranRepository {
       .get(user, nowIsoUtc);
 
     return Boolean(row);
+  }
+
+  countByUser(user: string): number {
+    const row = this.db
+      .prepare(`SELECT COUNT(*) AS total FROM quran_daily_reads WHERE user = ?`)
+      .get(user) as { total: number };
+
+    return row.total;
+  }
+
+  sumPagesByUser(user: string): number {
+    const row = this.db
+      .prepare(`SELECT COALESCE(SUM(pages), 0) AS totalPages FROM quran_daily_reads WHERE user = ?`)
+      .get(user) as { totalPages: number };
+
+    return row.totalPages;
+  }
+
+  listByUser(user: string, limit: number, offset: number): QuranHistoryRow[] {
+    return this.db
+      .prepare(
+        `SELECT
+          pages,
+          created_at AS createdAtUtc
+        FROM quran_daily_reads
+        WHERE user = ?
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?`
+      )
+      .all(user, limit, offset) as QuranHistoryRow[];
   }
 
   listDistinctUsers(): string[] {

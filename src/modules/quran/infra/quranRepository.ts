@@ -14,6 +14,11 @@ export type QuranDailyReadRow = {
   updatedAtUtc: string;
 };
 
+export type QuranHistoryRow = {
+  pages: number;
+  createdAtUtc: string;
+};
+
 export interface QuranRepository {
   addDailyReadPages(input: NewQuranReadLog): void;
   findTodayByUser(
@@ -22,5 +27,8 @@ export interface QuranRepository {
     nowIsoUtc: string
   ): QuranDailyReadRow | null;
   hasReadTodayByUser(user: string, timezoneOffsetMinutes: number, nowIsoUtc: string): boolean;
+  countByUser(user: string): number;
+  sumPagesByUser(user: string): number;
+  listByUser(user: string, limit: number, offset: number): QuranHistoryRow[];
   listDistinctUsers(): string[];
 }
