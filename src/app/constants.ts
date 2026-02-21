@@ -9,6 +9,9 @@ export const MIN_WORKOUTS_FOR_STREAK = appConfig.minWorkoutsForStreak;
 // Number of recent workouts to show in --list
 export const WORKOUT_LIST_LIMIT = appConfig.workoutListLimit;
 
+// Number of recent quran daily reads to show in --list
+export const QURAN_LIST_LIMIT = appConfig.quranListLimit;
+
 // Time in user timezone to send daily digest (24h format)
 export const DAILY_DIGEST_HOUR = appConfig.dailyDigestHour;
 export const DAILY_DIGEST_MINUTE = appConfig.dailyDigestMinute;

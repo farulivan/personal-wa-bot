@@ -14,6 +14,7 @@ export const appConfig = {
   userTimezoneOffsetMinutes: parseIntegerEnv('USER_TIMEZONE_OFFSET_MINUTES', 420),
   minWorkoutsForStreak: parseIntegerEnv('MIN_WORKOUTS_FOR_STREAK', 3),
   workoutListLimit: parseIntegerEnv('WORKOUT_LIST_LIMIT', 10),
+  quranListLimit: parseIntegerEnv('QURAN_LIST_LIMIT', 10),
   dailyDigestHour: parseIntegerEnv('DAILY_DIGEST_HOUR', 8),
   dailyDigestMinute: parseIntegerEnv('DAILY_DIGEST_MINUTE', 0),
   quranReminderHour: parseIntegerEnv('QURAN_REMINDER_HOUR', 22),
