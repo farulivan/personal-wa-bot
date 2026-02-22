@@ -227,9 +227,7 @@ async function handleQuranList(
       QURAN_RAMADHAN_START_DATE,
       QURAN_RAMADHAN_END_DATE
     );
-    ramadhanSummary =
-      `\nRamadhan: ${ramadhanPagesRead} halaman` +
-      ` (${QURAN_RAMADHAN_START_DATE} s/d ${QURAN_RAMADHAN_END_DATE})`;
+    ramadhanSummary = `\nRamadhan: ${ramadhanPagesRead} halaman`;
   }
 
   if (totalDays === 0) {
