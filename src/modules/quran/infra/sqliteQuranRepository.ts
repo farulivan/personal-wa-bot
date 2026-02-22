@@ -95,6 +95,27 @@ export class SqliteQuranRepository implements QuranRepository {
     return row.totalPages;
   }
 
+  sumPagesByUserInDateRange(
+    user: string,
+    timezoneOffsetMinutes: number,
+    startDateInclusive: string,
+    endDateInclusive: string
+  ): number {
+    const offsetSeconds = timezoneOffsetMinutes * 60;
+
+    const row = this.db
+      .prepare(
+        `SELECT COALESCE(SUM(pages), 0) AS totalPages
+         FROM quran_daily_reads
+         WHERE user = ?
+           AND date(created_at, '+${offsetSeconds} seconds') >= date(?)
+           AND date(created_at, '+${offsetSeconds} seconds') <= date(?)`
+      )
+      .get(user, startDateInclusive, endDateInclusive) as { totalPages: number };
+
+    return row.totalPages;
+  }
+
   listByUser(user: string, limit: number, offset: number): QuranHistoryRow[] {
     return this.db
       .prepare(

@@ -2,7 +2,12 @@ import type { NamespaceHandler } from '../../app/commandRouter.js';
 import type { CommandInvocation } from '../../app/parseCommand.js';
 import { debug } from '../../logger.js';
 import { computeQuranStreaks } from './quranStreaks.js';
-import { QURAN_LIST_LIMIT } from '../../app/constants.js';
+import {
+  QURAN_LIST_LIMIT,
+  QURAN_RAMADHAN_COUNT_ENABLED,
+  QURAN_RAMADHAN_END_DATE,
+  QURAN_RAMADHAN_START_DATE,
+} from '../../app/constants.js';
 import type { QuranHistoryRow, QuranRepository } from './infra/quranRepository.js';
 
 const QURAN_NAMESPACE = 'quran';
@@ -16,6 +21,10 @@ function parsePageNumber(firstLine: string): number {
   const tokens = tokenize(firstLine);
   const pageToken = tokens.find((t) => /^\d+$/.test(t));
   return pageToken ? Math.max(1, Number(pageToken)) : 1;
+}
+
+function isIsoDateOnly(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
 function toUserDate(utcIso: string, timezoneOffsetMinutes: number): string {
@@ -208,6 +217,21 @@ async function handleQuranList(
   const totalPagesRead = quranRepository.sumPagesByUser(ctx.sender);
   const totalPages = Math.max(1, Math.ceil(totalDays / QURAN_LIST_LIMIT));
 
+  let ramadhanSummary = '';
+  const hasRamadhanRange =
+    isIsoDateOnly(QURAN_RAMADHAN_START_DATE) && isIsoDateOnly(QURAN_RAMADHAN_END_DATE);
+  if (QURAN_RAMADHAN_COUNT_ENABLED && hasRamadhanRange) {
+    const ramadhanPagesRead = quranRepository.sumPagesByUserInDateRange(
+      ctx.sender,
+      ctx.timezoneOffsetMinutes,
+      QURAN_RAMADHAN_START_DATE,
+      QURAN_RAMADHAN_END_DATE
+    );
+    ramadhanSummary =
+      `\nRamadhan: ${ramadhanPagesRead} halaman` +
+      ` (${QURAN_RAMADHAN_START_DATE} s/d ${QURAN_RAMADHAN_END_DATE})`;
+  }
+
   if (totalDays === 0) {
     return (
       `Belum ada catatan tilawah 👀\n\n` +
@@ -249,7 +273,8 @@ async function handleQuranList(
 
   return (
     `Riwayat tilawah 📖\n` +
-    `Total: ${totalPagesRead} halaman (${totalDays} hari)\n\n` +
+    `Total: ${totalPagesRead} halaman (${totalDays} hari)` +
+    `${ramadhanSummary}\n\n` +
     `${list}${streakSection}${pageFooter}`
   );
 }

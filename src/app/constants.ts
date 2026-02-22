@@ -12,6 +12,11 @@ export const WORKOUT_LIST_LIMIT = appConfig.workoutListLimit;
 // Number of recent quran daily reads to show in --list
 export const QURAN_LIST_LIMIT = appConfig.quranListLimit;
 
+// Temporary Ramadhan counter settings for quran --list
+export const QURAN_RAMADHAN_COUNT_ENABLED = appConfig.quranRamadhanCountEnabled;
+export const QURAN_RAMADHAN_START_DATE = appConfig.quranRamadhanStartDate;
+export const QURAN_RAMADHAN_END_DATE = appConfig.quranRamadhanEndDate;
+
 // Time in user timezone to send daily digest (24h format)
 export const DAILY_DIGEST_HOUR = appConfig.dailyDigestHour;
 export const DAILY_DIGEST_MINUTE = appConfig.dailyDigestMinute;
