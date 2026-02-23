@@ -114,6 +114,9 @@ See `.env.example` for full template.
 | `MIN_WORKOUTS_FOR_STREAK` | `3` | Workouts/day required to count streak day. |
 | `WORKOUT_LIST_LIMIT` | `10` | Rows per page for `#workout --list`. |
 | `QURAN_LIST_LIMIT` | `10` | Rows per page for `#quran --list`. |
+| `QURAN_RAMADHAN_COUNT_ENABLED` | `false` | Temporary feature flag to show Ramadhan pages total in `#quran --list`. |
+| `QURAN_RAMADHAN_START_DATE` | unset | Ramadhan start date, inclusive (`YYYY-MM-DD`, local user date). |
+| `QURAN_RAMADHAN_END_DATE` | unset | Ramadhan end date, inclusive (`YYYY-MM-DD`, local user date). |
 | `SHOLAT_DEFAULT_LOCATION` | `KAB. BOGOR` | Fallback sholat location when not specified. |
 | `SHOLAT_TIMEZONE` | `Asia/Jakarta` | IANA timezone for sholat date calculation. |
 
@@ -139,6 +142,16 @@ If your users are in WIB (UTC+7):
 - A log at `2026-02-21T17:30:00.000Z` becomes local `2026-02-22 00:30` and belongs to **Feb 22** local day.
 
 Scheduled jobs also run against this same offset, so digest/reminder timing is consistent with user local time.
+
+### Ramadhan counter date range logic
+When `QURAN_RAMADHAN_COUNT_ENABLED=true`, `#quran --list` will show an extra Ramadhan total line.
+
+- Date range source: `QURAN_RAMADHAN_START_DATE` and `QURAN_RAMADHAN_END_DATE`
+- Format: strict `YYYY-MM-DD`
+- Range: inclusive start and inclusive end
+- Date comparison uses user-local day (`USER_TIMEZONE_OFFSET_MINUTES`), not raw UTC day
+
+If flag is off or date values are invalid/empty, the Ramadhan line is not shown.
 
 ---
 

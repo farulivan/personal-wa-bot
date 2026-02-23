@@ -29,6 +29,12 @@ export interface QuranRepository {
   hasReadTodayByUser(user: string, timezoneOffsetMinutes: number, nowIsoUtc: string): boolean;
   countByUser(user: string): number;
   sumPagesByUser(user: string): number;
+  sumPagesByUserInDateRange(
+    user: string,
+    timezoneOffsetMinutes: number,
+    startDateInclusive: string,
+    endDateInclusive: string
+  ): number;
   listByUser(user: string, limit: number, offset: number): QuranHistoryRow[];
   listDistinctUsers(): string[];
 }
