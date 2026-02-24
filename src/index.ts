@@ -50,7 +50,7 @@ router.registerNamespace(
     defaultTimezone: appConfig.sholatTimezone,
   })
 );
-router.registerNamespace('quran', createQuranNamespaceHandler(quranRepository));
+router.registerNamespace('quran', createQuranNamespaceHandler(quranRepository, client));
 
 const appContext = {
   db,

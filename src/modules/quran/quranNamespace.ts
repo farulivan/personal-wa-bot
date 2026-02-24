@@ -11,6 +11,49 @@ import {
 } from '../../app/constants.js';
 import type { QuranHistoryRow, QuranRepository } from './infra/quranRepository.js';
 
+type ContactLike = {
+  pushname?: string;
+  name?: string;
+  shortName?: string;
+  number?: string;
+};
+
+type WhatsAppClientLike = {
+  getContactById: (contactId: string) => Promise<ContactLike>;
+};
+
+function toDisplayName(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function isValidStr(value: unknown): value is string {
+  return typeof value === 'string' && value !== '' && value !== 'undefined';
+}
+
+async function resolveUserName(client: WhatsAppClientLike, sender: string): Promise<string> {
+  const fallback = sender.replace(/@.*$/, '');
+  const contactIds = sender.includes('@') ? [sender] : [`${sender}@c.us`, `${sender}@lid`];
+
+  for (const contactId of contactIds) {
+    try {
+      const contact = await client.getContactById(contactId);
+      if (isValidStr(contact.pushname)) return contact.pushname;
+      if (isValidStr(contact.name)) return contact.name;
+      if (isValidStr(contact.shortName)) return contact.shortName;
+      if (isValidStr(contact.number)) return contact.number;
+    } catch {
+      // continue fallback attempts silently
+    }
+  }
+
+  return fallback;
+}
+
 const QURAN_NAMESPACE = 'quran';
 const MAX_DAILY_PAGES_WITHOUT_APPROVAL = 50;
 const QURAN_LEADERBOARD_LIMIT = 10;
@@ -91,15 +134,13 @@ export function rankQuranLeaderboardEntries(
 
 export function renderQuranLeaderboardMessage(
   mode: QuranLeaderboardMode,
-  entries: QuranLeaderboardEntry[],
-  dateRangeLabel: string
+  entries: QuranLeaderboardEntry[]
 ): string {
   if (entries.length === 0) {
     if (mode === 'ramadhan') {
       return (
         `Ramadhan Leaderboard 🌙🏆\n\n` +
-        `Belum ada data tilawah di periode ini 👀\n` +
-        `Periode: ${dateRangeLabel}\n\n` +
+        `Belum ada data tilawah di periode ini 👀\n\n` +
         `Yuk mulai: #quran read 1`
       );
     }
@@ -113,24 +154,18 @@ export function renderQuranLeaderboardMessage(
 
   const title =
     mode === 'ramadhan' ? 'Ramadhan Leaderboard 🌙🏆' : 'Leaderboard Tilawah Bulan Ini 🏆';
-  const pagesLabel = mode === 'ramadhan' ? 'halaman Ramadhan' : 'halaman bulan ini';
-  const metricLine =
-    mode === 'ramadhan'
-      ? `Urutan: current streak → best streak → ${pagesLabel}`
-      : `Urutan: current streak → best streak → ${pagesLabel}`;
 
   const medals = ['🥇', '🥈', '🥉'];
   const list = entries
     .map((entry, index) => {
-      const prefix = medals[index] || `#${index + 1}`;
-      return (
-        `${prefix} ${entry.user}\n` +
-        `   🔥 Current: ${entry.currentStreak} hari | ⭐ Best: ${entry.bestStreak} hari | 📖 ${entry.pagesRead} ${pagesLabel}`
-      );
+      const prefix = medals[index] || '🌱';
+      const bestStreakPart =
+        entry.bestStreak > entry.currentStreak ? ` (Best ${entry.bestStreak} hari)` : '';
+      return `${prefix} ${entry.user}\n   🔥 Streak ${entry.currentStreak} hari${bestStreakPart} | 📖 ${entry.pagesRead} halaman`;
     })
     .join('\n');
 
-  return `${title}\n${metricLine}\nPeriode: ${dateRangeLabel}\n\n${list}`;
+  return `${title}\n\n${list}`;
 }
 
 function toUserDate(utcIso: string, timezoneOffsetMinutes: number): string {
@@ -389,7 +424,8 @@ async function handleQuranList(
 
 async function handleQuranLeaderboard(
   ctx: Parameters<NamespaceHandler>[0],
-  quranRepository: QuranRepository
+  quranRepository: QuranRepository,
+  client: WhatsAppClientLike
 ): Promise<string> {
   const now = ctx.now();
   const dateRangeMode = getDateRangeMode();
@@ -399,7 +435,7 @@ async function handleQuranLeaderboard(
       : getCurrentMonthDateRange(now, ctx.timezoneOffsetMinutes);
 
   const users = quranRepository.listDistinctUsers();
-  const entries: QuranLeaderboardEntry[] = users
+  const entriesWithMetrics = users
     .map((user) => {
       const streak = computeQuranStreaks(
         ctx.db,
@@ -417,7 +453,7 @@ async function handleQuranLeaderboard(
       );
 
       return {
-        user,
+        userId: user,
         currentStreak: streak.current,
         bestStreak: streak.best,
         pagesRead,
@@ -425,12 +461,21 @@ async function handleQuranLeaderboard(
     })
     .filter((entry) => entry.currentStreak > 0 || entry.bestStreak > 0 || entry.pagesRead > 0);
 
-  const rankedEntries = rankQuranLeaderboardEntries(entries);
-  const message = renderQuranLeaderboardMessage(
-    dateRangeMode.mode,
-    rankedEntries,
-    `${pageRange.startDateInclusive} s/d ${pageRange.endDateInclusive}`
+  const entries: QuranLeaderboardEntry[] = await Promise.all(
+    entriesWithMetrics.map(async (entry) => {
+      const rawName = await resolveUserName(client, entry.userId);
+      const displayName = toDisplayName(rawName);
+      return {
+        user: displayName,
+        currentStreak: entry.currentStreak,
+        bestStreak: entry.bestStreak,
+        pagesRead: entry.pagesRead,
+      };
+    })
   );
+
+  const rankedEntries = rankQuranLeaderboardEntries(entries);
+  const message = renderQuranLeaderboardMessage(dateRangeMode.mode, rankedEntries);
 
   debug(
     `📖 Quran leaderboard generated: mode=${dateRangeMode.mode}, entries=${rankedEntries.length}`
@@ -439,7 +484,10 @@ async function handleQuranLeaderboard(
   return message;
 }
 
-export function createQuranNamespaceHandler(quranRepository: QuranRepository): NamespaceHandler {
+export function createQuranNamespaceHandler(
+  quranRepository: QuranRepository,
+  client: WhatsAppClientLike
+): NamespaceHandler {
   return async (ctx, invocation) => {
     if (invocation.namespace !== QURAN_NAMESPACE) return null;
 
@@ -462,7 +510,7 @@ export function createQuranNamespaceHandler(quranRepository: QuranRepository): N
 
     const isLeaderboard = invocation.subcommand === 'leaderboard' || actionToken === 'leaderboard';
     if (isLeaderboard) {
-      return handleQuranLeaderboard(ctx, quranRepository);
+      return handleQuranLeaderboard(ctx, quranRepository, client);
     }
 
     if (actionToken !== 'read' && actionToken !== 'log') {
