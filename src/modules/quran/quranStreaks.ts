@@ -3,6 +3,11 @@ import { debug } from '../../logger.js';
 
 type DayRow = { localDate: string };
 
+export type QuranStreakDateRange = {
+  startDateInclusive: string;
+  endDateInclusive: string;
+};
+
 function toUserDate(utcDate: Date, timezoneOffsetMinutes: number): string {
   const local = new Date(utcDate.getTime() + timezoneOffsetMinutes * 60000);
   const y = local.getUTCFullYear();
@@ -11,18 +16,31 @@ function toUserDate(utcDate: Date, timezoneOffsetMinutes: number): string {
   return `${y}-${m}-${d}`;
 }
 
-function getReadDays(db: Database, user: string, timezoneOffsetMinutes: number): string[] {
+function getReadDays(
+  db: Database,
+  user: string,
+  timezoneOffsetMinutes: number,
+  range?: QuranStreakDateRange
+): string[] {
   const offsetSeconds = timezoneOffsetMinutes * 60;
 
-  const rows = db
-    .prepare(
-      `SELECT date(created_at, '+${offsetSeconds} seconds') AS localDate
+  let query = `SELECT date(created_at, '+${offsetSeconds} seconds') AS localDate
        FROM quran_daily_reads
-       WHERE user = ? AND pages > 0
+       WHERE user = ? AND pages > 0`;
+  const params: string[] = [user];
+
+  if (range) {
+    query += `
+       AND date(created_at, '+${offsetSeconds} seconds') >= date(?)
+       AND date(created_at, '+${offsetSeconds} seconds') <= date(?)`;
+    params.push(range.startDateInclusive, range.endDateInclusive);
+  }
+
+  query += `
        GROUP BY localDate
-       ORDER BY localDate DESC`
-    )
-    .all(user) as DayRow[];
+       ORDER BY localDate DESC`;
+
+  const rows = db.prepare(query).all(...params) as DayRow[];
 
   return rows.map((row) => row.localDate);
 }
@@ -66,9 +84,10 @@ export function computeQuranStreaks(
   db: Database,
   user: string,
   timezoneOffsetMinutes: number,
-  now: Date
+  now: Date,
+  range?: QuranStreakDateRange
 ): StreakInfo {
-  const days = getReadDays(db, user, timezoneOffsetMinutes);
+  const days = getReadDays(db, user, timezoneOffsetMinutes, range);
   if (days.length === 0) return { current: 0, best: 0 };
 
   const today = toUserDate(now, timezoneOffsetMinutes);
