@@ -4,21 +4,14 @@ import {
   listGroupMemberIdentities,
   resolveNormalizedBotUserId,
   type BotInfoClientLike,
-  type GroupMemberIdentity,
   type GroupMemberClientLike,
+  type GroupMemberIdentity,
 } from '../../adapters/whatsapp/waId.js';
 import type { QuranRepository } from './infra/quranRepository.js';
+import type { UserRepository } from '../users/infra/userRepository.js';
 import { computeQuranStreaks } from './quranStreaks.js';
 
-type ContactLike = {
-  pushname?: string;
-  name?: string;
-  shortName?: string;
-  number?: string;
-};
-
 type WhatsAppClientLike = {
-  getContactById: (contactId: string) => Promise<ContactLike>;
   sendMessage: (chatId: string, text: string) => Promise<unknown>;
 } & GroupMemberClientLike &
   BotInfoClientLike;
@@ -27,6 +20,7 @@ type QuranReminderDeps = {
   client: WhatsAppClientLike;
   db: Database;
   quranRepository: QuranRepository;
+  userRepository: UserRepository;
   timezoneOffsetMinutes: number;
 };
 
@@ -36,20 +30,6 @@ type UserReminder = {
   currentStreak: number;
 };
 
-type ReminderTarget = {
-  contactLookupId: string;
-  dbUserId: string;
-};
-
-function toDisplayName(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ');
-}
-
 function joinHumanNames(names: string[]): string {
   if (names.length === 0) return '';
   if (names.length === 1) return names[0];
@@ -57,67 +37,35 @@ function joinHumanNames(names: string[]): string {
   return `${names.slice(0, -1).join(', ')}, dan ${names[names.length - 1]}`;
 }
 
-function isValidStr(value: unknown): value is string {
-  return typeof value === 'string' && value !== '' && value !== 'undefined';
-}
-
-async function resolveUserName(client: WhatsAppClientLike, sender: string): Promise<string> {
-  const fallback = sender.replace(/@.*$/, '');
-  const contactIds = sender.includes('@') ? [sender] : [`${sender}@c.us`, `${sender}@lid`];
-
-  for (const contactId of contactIds) {
-    try {
-      const contact = await client.getContactById(contactId);
-      if (isValidStr(contact.pushname)) return contact.pushname;
-      if (isValidStr(contact.name)) return contact.name;
-      if (isValidStr(contact.shortName)) return contact.shortName;
-      if (isValidStr(contact.number)) return contact.number;
-    } catch {
-      // continue fallback attempts silently
-    }
-  }
-
-  return fallback;
-}
-
 function buildReminderMessage(reminders: UserReminder[]): string {
   if (reminders.length === 0) {
     return `Pengingat tilawah 22:00 🌙\n\nBelum ada data #quran di grup ini. Yuk mulai dengan:\n#quran read 1`;
   }
 
-  const withDisplayNames = reminders.map((user) => ({
-    ...user,
-    displayName: toDisplayName(user.name),
-  }));
-
-  const readToday = withDisplayNames.filter((user) => user.hasRead);
+  const readToday = reminders.filter((user) => user.hasRead);
   const notReadYet = reminders.filter((user) => !user.hasRead);
-  const notReadWithStreak = withDisplayNames.filter(
-    (user) => !user.hasRead && user.currentStreak > 0
-  );
-  const notReadNoStreak = withDisplayNames.filter(
-    (user) => !user.hasRead && user.currentStreak <= 0
-  );
+  const notReadWithStreak = reminders.filter((user) => !user.hasRead && user.currentStreak > 0);
+  const notReadNoStreak = reminders.filter((user) => !user.hasRead && user.currentStreak <= 0);
 
   const sections: string[] = [];
 
   if (readToday.length > 0) {
     sections.push(
-      `✅ MasyaAllah, ${joinHumanNames(readToday.map((user) => user.displayName))} sudah tilawah hari ini.` +
+      `✅ MasyaAllah, ${joinHumanNames(readToday.map((user) => user.name))} sudah tilawah hari ini.` +
         `\nKalau masih ada waktu malam ini, boleh ditambah lagi biar makin berkah 📖✨`
     );
   }
 
   if (notReadWithStreak.length > 0) {
     sections.push(
-      `🔥 ${joinHumanNames(notReadWithStreak.map((user) => user.displayName))} kemarin sudah baca, tapi hari ini belum.` +
+      `🔥 ${joinHumanNames(notReadWithStreak.map((user) => user.name))} kemarin sudah baca, tapi hari ini belum.` +
         `\nJangan sampai streak putus malam ini ya 🤲`
     );
   }
 
   if (notReadNoStreak.length > 0) {
     sections.push(
-      `🌱 ${joinHumanNames(notReadNoStreak.map((user) => user.displayName))} masih belum mulai dari kemarin.` +
+      `🌱 ${joinHumanNames(notReadNoStreak.map((user) => user.name))} masih belum mulai dari kemarin.` +
         `\nYuk buka 1-2 halaman dulu malam ini, pelan-pelan yang penting jalan ✨`
     );
   }
@@ -164,23 +112,17 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
       return;
     }
 
-    const targetsByDbUserId = new Map<string, ReminderTarget>();
+    const targetUserIds = new Set<string>();
 
     // Source-of-truth for reminder targets is current group participants.
     // For each participant, map to DB user ID when an alias match exists.
     for (const member of groupMemberIdentities) {
-      const matchedDbId = member.aliases.find((alias) => knownUsers.has(alias));
+      const matchedDbId = member.aliases.find((alias: string) => knownUsers.has(alias));
       const dbUserId = matchedDbId ?? member.primaryId;
-
-      if (!targetsByDbUserId.has(dbUserId)) {
-        targetsByDbUserId.set(dbUserId, {
-          contactLookupId: member.primaryId,
-          dbUserId,
-        });
-      }
+      targetUserIds.add(dbUserId);
     }
 
-    const targets = Array.from(targetsByDbUserId.values());
+    const targets = Array.from(targetUserIds);
 
     debug(`📖 Found ${targets.length} reminder targets from group participants`);
 
@@ -189,29 +131,20 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
       return;
     }
 
-    const reminders: UserReminder[] = [];
-
-    for (const target of targets) {
-      const name = await resolveUserName(deps.client, target.contactLookupId);
-
+    const reminders: UserReminder[] = targets.map((userId) => {
       const hasRead = deps.quranRepository.hasReadTodayByUser(
-        target.dbUserId,
+        userId,
         deps.timezoneOffsetMinutes,
         now.toISOString()
       );
-      const streaks = computeQuranStreaks(
-        deps.db,
-        target.dbUserId,
-        deps.timezoneOffsetMinutes,
-        now
-      );
+      const streaks = computeQuranStreaks(deps.db, userId, deps.timezoneOffsetMinutes, now);
 
-      reminders.push({
-        name,
+      return {
+        name: deps.userRepository.getDisplayName(userId),
         hasRead,
         currentStreak: streaks.current,
-      });
-    }
+      };
+    });
 
     const message = buildReminderMessage(reminders);
     debug(`📖 Reminder message built, sending to ${groupChatId}`);

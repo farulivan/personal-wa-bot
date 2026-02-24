@@ -10,49 +10,7 @@ import {
   QURAN_RAMADHAN_START_DATE,
 } from '../../app/constants.js';
 import type { QuranHistoryRow, QuranRepository } from './infra/quranRepository.js';
-
-type ContactLike = {
-  pushname?: string;
-  name?: string;
-  shortName?: string;
-  number?: string;
-};
-
-type WhatsAppClientLike = {
-  getContactById: (contactId: string) => Promise<ContactLike>;
-};
-
-function toDisplayName(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ');
-}
-
-function isValidStr(value: unknown): value is string {
-  return typeof value === 'string' && value !== '' && value !== 'undefined';
-}
-
-async function resolveUserName(client: WhatsAppClientLike, sender: string): Promise<string> {
-  const fallback = sender.replace(/@.*$/, '');
-  const contactIds = sender.includes('@') ? [sender] : [`${sender}@c.us`, `${sender}@lid`];
-
-  for (const contactId of contactIds) {
-    try {
-      const contact = await client.getContactById(contactId);
-      if (isValidStr(contact.pushname)) return contact.pushname;
-      if (isValidStr(contact.name)) return contact.name;
-      if (isValidStr(contact.shortName)) return contact.shortName;
-      if (isValidStr(contact.number)) return contact.number;
-    } catch {
-      // continue fallback attempts silently
-    }
-  }
-
-  return fallback;
-}
+import type { UserRepository } from '../users/infra/userRepository.js';
 
 const QURAN_NAMESPACE = 'quran';
 const MAX_DAILY_PAGES_WITHOUT_APPROVAL = 50;
@@ -425,7 +383,7 @@ async function handleQuranList(
 async function handleQuranLeaderboard(
   ctx: Parameters<NamespaceHandler>[0],
   quranRepository: QuranRepository,
-  client: WhatsAppClientLike
+  userRepository: UserRepository
 ): Promise<string> {
   const now = ctx.now();
   const dateRangeMode = getDateRangeMode();
@@ -461,18 +419,12 @@ async function handleQuranLeaderboard(
     })
     .filter((entry) => entry.currentStreak > 0 || entry.bestStreak > 0 || entry.pagesRead > 0);
 
-  const entries: QuranLeaderboardEntry[] = await Promise.all(
-    entriesWithMetrics.map(async (entry) => {
-      const rawName = await resolveUserName(client, entry.userId);
-      const displayName = toDisplayName(rawName);
-      return {
-        user: displayName,
-        currentStreak: entry.currentStreak,
-        bestStreak: entry.bestStreak,
-        pagesRead: entry.pagesRead,
-      };
-    })
-  );
+  const entries: QuranLeaderboardEntry[] = entriesWithMetrics.map((entry) => ({
+    user: userRepository.getDisplayName(entry.userId),
+    currentStreak: entry.currentStreak,
+    bestStreak: entry.bestStreak,
+    pagesRead: entry.pagesRead,
+  }));
 
   const rankedEntries = rankQuranLeaderboardEntries(entries);
   const message = renderQuranLeaderboardMessage(dateRangeMode.mode, rankedEntries);
@@ -486,7 +438,7 @@ async function handleQuranLeaderboard(
 
 export function createQuranNamespaceHandler(
   quranRepository: QuranRepository,
-  client: WhatsAppClientLike
+  userRepository: UserRepository
 ): NamespaceHandler {
   return async (ctx, invocation) => {
     if (invocation.namespace !== QURAN_NAMESPACE) return null;
@@ -510,7 +462,7 @@ export function createQuranNamespaceHandler(
 
     const isLeaderboard = invocation.subcommand === 'leaderboard' || actionToken === 'leaderboard';
     if (isLeaderboard) {
-      return handleQuranLeaderboard(ctx, quranRepository, client);
+      return handleQuranLeaderboard(ctx, quranRepository, userRepository);
     }
 
     if (actionToken !== 'read' && actionToken !== 'log') {
