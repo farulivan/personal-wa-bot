@@ -2,6 +2,7 @@ import type { NamespaceHandler } from '../../app/commandRouter.js';
 import type { CommandInvocation } from '../../app/parseCommand.js';
 import { debug } from '../../logger.js';
 import { computeQuranStreaks } from './quranStreaks.js';
+import type { QuranStreakDateRange } from './quranStreaks.js';
 import {
   QURAN_LIST_LIMIT,
   QURAN_RAMADHAN_COUNT_ENABLED,
@@ -9,9 +10,20 @@ import {
   QURAN_RAMADHAN_START_DATE,
 } from '../../app/constants.js';
 import type { QuranHistoryRow, QuranRepository } from './infra/quranRepository.js';
+import type { UserRepository } from '../users/infra/userRepository.js';
 
 const QURAN_NAMESPACE = 'quran';
 const MAX_DAILY_PAGES_WITHOUT_APPROVAL = 50;
+const QURAN_LEADERBOARD_LIMIT = 10;
+
+export type QuranLeaderboardMode = 'monthly' | 'ramadhan';
+
+export type QuranLeaderboardEntry = {
+  user: string;
+  currentStreak: number;
+  bestStreak: number;
+  pagesRead: number;
+};
 
 function tokenize(firstLine: string): string[] {
   return firstLine.trim().split(/\s+/).filter(Boolean);
@@ -24,7 +36,94 @@ function parsePageNumber(firstLine: string): number {
 }
 
 function isIsoDateOnly(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  return parsed.toISOString().slice(0, 10) === value;
+}
+
+function getDateRangeMode(): { mode: QuranLeaderboardMode; range?: QuranStreakDateRange } {
+  const hasRamadhanRange =
+    isIsoDateOnly(QURAN_RAMADHAN_START_DATE) && isIsoDateOnly(QURAN_RAMADHAN_END_DATE);
+  const isValidRamadhanRange =
+    hasRamadhanRange && QURAN_RAMADHAN_START_DATE <= QURAN_RAMADHAN_END_DATE;
+
+  if (QURAN_RAMADHAN_COUNT_ENABLED && isValidRamadhanRange) {
+    return {
+      mode: 'ramadhan',
+      range: {
+        startDateInclusive: QURAN_RAMADHAN_START_DATE,
+        endDateInclusive: QURAN_RAMADHAN_END_DATE,
+      },
+    };
+  }
+
+  return { mode: 'monthly' };
+}
+
+function getCurrentMonthDateRange(now: Date, timezoneOffsetMinutes: number): QuranStreakDateRange {
+  const local = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
+  const year = local.getUTCFullYear();
+  const month = local.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+  return {
+    startDateInclusive: `${year}-${String(month).padStart(2, '0')}-01`,
+    endDateInclusive: `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+  };
+}
+
+export function rankQuranLeaderboardEntries(
+  entries: QuranLeaderboardEntry[],
+  limit: number = QURAN_LEADERBOARD_LIMIT
+): QuranLeaderboardEntry[] {
+  return [...entries]
+    .sort(
+      (a, b) =>
+        b.currentStreak - a.currentStreak ||
+        b.bestStreak - a.bestStreak ||
+        b.pagesRead - a.pagesRead ||
+        a.user.localeCompare(b.user)
+    )
+    .slice(0, limit);
+}
+
+export function renderQuranLeaderboardMessage(
+  mode: QuranLeaderboardMode,
+  entries: QuranLeaderboardEntry[]
+): string {
+  if (entries.length === 0) {
+    if (mode === 'ramadhan') {
+      return (
+        `Ramadhan Leaderboard 🌙🏆\n\n` +
+        `Belum ada data tilawah di periode ini 👀\n\n` +
+        `Yuk mulai: #quran read 1`
+      );
+    }
+
+    return (
+      `Leaderboard Tilawah Bulan Ini 🏆\n\n` +
+      `Belum ada data tilawah bulan ini 👀\n\n` +
+      `Yuk mulai: #quran read 1`
+    );
+  }
+
+  const title =
+    mode === 'ramadhan' ? 'Ramadhan Leaderboard 🌙🏆' : 'Leaderboard Tilawah Bulan Ini 🏆';
+
+  const medals = ['🥇', '🥈', '🥉'];
+  const list = entries
+    .map((entry, index) => {
+      const prefix = medals[index] || '🌱';
+      const bestStreakPart =
+        entry.bestStreak > entry.currentStreak ? ` (Best ${entry.bestStreak} hari)` : '';
+      return `${prefix} ${entry.user}\n   🔥 Streak ${entry.currentStreak} hari${bestStreakPart} | 📖 ${entry.pagesRead} halaman`;
+    })
+    .join('\n');
+
+  return `${title}\n\n${list}`;
 }
 
 function toUserDate(utcIso: string, timezoneOffsetMinutes: number): string {
@@ -80,7 +179,10 @@ function helpMessage(): string {
     `Fungsi: tampilkan riwayat terbaru + total halaman yang sudah dibaca.\n\n` +
     `3) Pindah halaman riwayat\n` +
     `• #quran --list 2\n` +
-    `Fungsi: buka halaman ke-2 dari riwayat tilawah.`
+    `Fungsi: buka halaman ke-2 dari riwayat tilawah.\n\n` +
+    `4) Lihat leaderboard tilawah\n` +
+    `• #quran --leaderboard\n` +
+    `Fungsi: ranking berdasarkan current streak, best streak, lalu total halaman periode aktif.`
   );
 }
 
@@ -218,14 +320,13 @@ async function handleQuranList(
   const totalPages = Math.max(1, Math.ceil(totalDays / QURAN_LIST_LIMIT));
 
   let ramadhanSummary = '';
-  const hasRamadhanRange =
-    isIsoDateOnly(QURAN_RAMADHAN_START_DATE) && isIsoDateOnly(QURAN_RAMADHAN_END_DATE);
-  if (QURAN_RAMADHAN_COUNT_ENABLED && hasRamadhanRange) {
+  const dateRangeMode = getDateRangeMode();
+  if (dateRangeMode.mode === 'ramadhan' && dateRangeMode.range) {
     const ramadhanPagesRead = quranRepository.sumPagesByUserInDateRange(
       ctx.sender,
       ctx.timezoneOffsetMinutes,
-      QURAN_RAMADHAN_START_DATE,
-      QURAN_RAMADHAN_END_DATE
+      dateRangeMode.range.startDateInclusive,
+      dateRangeMode.range.endDateInclusive
     );
     ramadhanSummary = `\nRamadhan: ${ramadhanPagesRead} halaman`;
   }
@@ -277,7 +378,66 @@ async function handleQuranList(
   );
 }
 
-export function createQuranNamespaceHandler(quranRepository: QuranRepository): NamespaceHandler {
+async function handleQuranLeaderboard(
+  ctx: Parameters<NamespaceHandler>[0],
+  quranRepository: QuranRepository,
+  userRepository: UserRepository
+): Promise<string> {
+  const now = ctx.now();
+  const dateRangeMode = getDateRangeMode();
+  const pageRange =
+    dateRangeMode.mode === 'ramadhan' && dateRangeMode.range
+      ? dateRangeMode.range
+      : getCurrentMonthDateRange(now, ctx.timezoneOffsetMinutes);
+
+  const users = quranRepository.listDistinctUsers();
+  const entriesWithMetrics = users
+    .map((user) => {
+      const streak = computeQuranStreaks(
+        ctx.db,
+        user,
+        ctx.timezoneOffsetMinutes,
+        now,
+        dateRangeMode.mode === 'ramadhan' ? dateRangeMode.range : undefined
+      );
+
+      const pagesRead = quranRepository.sumPagesByUserInDateRange(
+        user,
+        ctx.timezoneOffsetMinutes,
+        pageRange.startDateInclusive,
+        pageRange.endDateInclusive
+      );
+
+      return {
+        userId: user,
+        currentStreak: streak.current,
+        bestStreak: streak.best,
+        pagesRead,
+      };
+    })
+    .filter((entry) => entry.currentStreak > 0 || entry.bestStreak > 0 || entry.pagesRead > 0);
+
+  const entries: QuranLeaderboardEntry[] = entriesWithMetrics.map((entry) => ({
+    user: userRepository.getDisplayName(entry.userId),
+    currentStreak: entry.currentStreak,
+    bestStreak: entry.bestStreak,
+    pagesRead: entry.pagesRead,
+  }));
+
+  const rankedEntries = rankQuranLeaderboardEntries(entries);
+  const message = renderQuranLeaderboardMessage(dateRangeMode.mode, rankedEntries);
+
+  debug(
+    `📖 Quran leaderboard generated: mode=${dateRangeMode.mode}, entries=${rankedEntries.length}`
+  );
+
+  return message;
+}
+
+export function createQuranNamespaceHandler(
+  quranRepository: QuranRepository,
+  userRepository: UserRepository
+): NamespaceHandler {
   return async (ctx, invocation) => {
     if (invocation.namespace !== QURAN_NAMESPACE) return null;
 
@@ -296,6 +456,11 @@ export function createQuranNamespaceHandler(quranRepository: QuranRepository): N
     const isList = invocation.subcommand === 'list' || actionToken === 'list';
     if (isList) {
       return handleQuranList(ctx, invocation, quranRepository);
+    }
+
+    const isLeaderboard = invocation.subcommand === 'leaderboard' || actionToken === 'leaderboard';
+    if (isLeaderboard) {
+      return handleQuranLeaderboard(ctx, quranRepository, userRepository);
     }
 
     if (actionToken !== 'read' && actionToken !== 'log') {

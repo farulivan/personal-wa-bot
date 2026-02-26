@@ -20,6 +20,8 @@ import { registerQuranSchema } from './modules/quran/quranSchema.js';
 import { createQuranNamespaceHandler } from './modules/quran/quranNamespace.js';
 import { SqliteQuranRepository } from './modules/quran/infra/sqliteQuranRepository.js';
 import { createQuranReminderSender } from './modules/quran/quranDigest.js';
+import { registerUserSchema } from './modules/users/userSchema.js';
+import { SqliteUserRepository } from './modules/users/infra/sqliteUserRepository.js';
 import {
   USER_TIMEZONE_OFFSET,
   DAILY_DIGEST_HOUR,
@@ -32,12 +34,14 @@ import {
 registerWorkoutSchema(db);
 registerSholatSchema(db);
 registerQuranSchema(db);
+registerUserSchema(db);
 
 const messageGateway = createMessageGateway(client);
 const workoutRepository = new SqliteWorkoutRepository(db);
 const sholatRepository = new SqliteSholatRepository(db);
 const sholatClient = new MyQuranSholatClient();
 const quranRepository = new SqliteQuranRepository(db);
+const userRepository = new SqliteUserRepository(db);
 
 const router = new CommandRouter();
 router.registerNamespace('workout', createWorkoutNamespaceHandler(workoutRepository));
@@ -50,7 +54,7 @@ router.registerNamespace(
     defaultTimezone: appConfig.sholatTimezone,
   })
 );
-router.registerNamespace('quran', createQuranNamespaceHandler(quranRepository));
+router.registerNamespace('quran', createQuranNamespaceHandler(quranRepository, userRepository));
 
 const appContext = {
   db,
@@ -58,12 +62,14 @@ const appContext = {
   config: appConfig,
   messageGateway,
   workoutRepository,
+  userRepository,
 };
 
 const sendDailyStreakDigest = createDailyStreakDigestSender({
   client,
   db,
   workoutRepository,
+  userRepository,
   timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
 });
 
@@ -71,6 +77,7 @@ const sendNightlyQuranReminder = createQuranReminderSender({
   client,
   db,
   quranRepository,
+  userRepository,
   timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
 });
 
