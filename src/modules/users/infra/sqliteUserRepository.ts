@@ -30,8 +30,32 @@ function toDisplayName(name: string): string {
     .join(' ');
 }
 
+function hasText(value: string | null | undefined): value is string {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
 export class SqliteUserRepository implements UserRepository {
   constructor(private db: Database) {}
+
+  private findBestByPhoneNumber(phoneNumber: string): UserRow | null {
+    const row = this.db
+      .prepare(
+        `SELECT *
+         FROM users
+         WHERE phone_number = ?
+         ORDER BY
+           CASE
+             WHEN pushname IS NOT NULL AND TRIM(pushname) <> '' THEN 0
+             WHEN contact_name IS NOT NULL AND TRIM(contact_name) <> '' THEN 1
+             ELSE 2
+           END,
+           updated_at DESC
+         LIMIT 1`
+      )
+      .get(phoneNumber) as DbUserRow | undefined;
+
+    return row ? toUserRow(row) : null;
+  }
 
   upsert(data: UpsertUserData): void {
     const now = new Date().toISOString();
@@ -97,13 +121,24 @@ export class SqliteUserRepository implements UserRepository {
   }
 
   getDisplayName(id: string): string {
-    const user = this.findById(id);
-    if (!user) return id.replace(/@.*$/, '');
+    const normalizedId = id.replace(/@.*$/, '');
+    const exactUser = this.findById(id);
+    const normalizedUser = normalizedId !== id ? this.findById(normalizedId) : null;
+    const byPhone = this.findBestByPhoneNumber(normalizedId);
+    const user = exactUser ?? normalizedUser ?? byPhone;
 
-    if (user.pushname) return toDisplayName(user.pushname);
-    if (user.contactName) return toDisplayName(user.contactName);
-    if (user.phoneNumber) return user.phoneNumber;
+    if (!user) return normalizedId;
 
-    return id.replace(/@.*$/, '');
+    if (hasText(user.pushname)) return toDisplayName(user.pushname);
+    if (hasText(user.contactName)) return toDisplayName(user.contactName);
+
+    if (byPhone) {
+      if (hasText(byPhone.pushname)) return toDisplayName(byPhone.pushname);
+      if (hasText(byPhone.contactName)) return toDisplayName(byPhone.contactName);
+    }
+
+    if (hasText(user.phoneNumber)) return user.phoneNumber;
+
+    return normalizedId;
   }
 }

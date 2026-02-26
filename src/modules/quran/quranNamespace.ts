@@ -328,9 +328,7 @@ async function handleQuranList(
       dateRangeMode.range.startDateInclusive,
       dateRangeMode.range.endDateInclusive
     );
-    ramadhanSummary =
-      `\nRamadhan: ${ramadhanPagesRead} halaman` +
-      ` (${dateRangeMode.range.startDateInclusive} s/d ${dateRangeMode.range.endDateInclusive})`;
+    ramadhanSummary = `\nRamadhan: ${ramadhanPagesRead} halaman`;
   }
 
   if (totalDays === 0) {
