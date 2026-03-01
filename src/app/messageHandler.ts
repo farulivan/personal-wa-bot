@@ -129,6 +129,8 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
       const ctx: CommandContext = {
         db: appContext.db,
         sender,
+        replyChatId: msg.from,
+        isGroupChat: isGroup,
         timezoneOffsetMinutes: appContext.config.userTimezoneOffsetMinutes,
         now: () => new Date(),
       };

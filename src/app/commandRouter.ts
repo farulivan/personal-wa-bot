@@ -4,6 +4,8 @@ import type { CommandInvocation } from './parseCommand.js';
 export type CommandContext = {
   db: Database;
   sender: string;
+  replyChatId: string;
+  isGroupChat: boolean;
   timezoneOffsetMinutes: number;
   now: () => Date;
 };
