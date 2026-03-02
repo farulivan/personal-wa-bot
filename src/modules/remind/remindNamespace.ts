@@ -5,7 +5,7 @@ import { debug } from '../../logger.js';
 import type { RemindRepository } from './infra/remindRepository.js';
 
 type ParsedReminderCommand = {
-  date: string;
+  dateInput: string;
   hour: number;
   minute: number;
   reminderText: string;
@@ -50,12 +50,12 @@ function helpMessage(): string {
   return (
     `I can help you set reminders clearly and reliably. ⏰\n\n` +
     `Main format:\n` +
-    `• #remind YYYY-MM-DD HH:MM <reminder text>\n\n` +
-    `Supported time formats:\n` +
-    `• #remind 2026-03-10 10 Team standup\n` +
+    `• #remind YYYY-MM-DD|today|tomorrow HH:MM <reminder text>\n\n` +
+    `Example:\n` +
     `• #remind 2026-03-10 10:30 Review document\n` +
+    `• #remind today 9am Join standup\n` +
+    `• #remind tomorrow 8:15 Prepare morning update\n` +
     `• #remind 2026-03-10 10pm Start wind-down routine\n` +
-    `• #remind 2026-03-10 10:21pm Send report\n\n` +
     `View your reminders:\n` +
     `• #remind --list\n` +
     `• #remind --list 2\n\n` +
@@ -160,21 +160,16 @@ function parseReminderCommand(
   firstLine: string
 ): { ok: true; value: ParsedReminderCommand } | { ok: false; message: string } {
   const normalized = firstLine.trim().replace(/\s+/g, ' ');
-  const match = normalized.match(/^#remind\s+(\d{4}-\d{2}-\d{2})\s+(\S+)\s+(.+)$/i);
+  const match = normalized.match(/^#remind\s+(\S+)\s+(\S+)\s+(.+)$/i);
 
   if (!match) {
     return {
       ok: false,
       message:
         `I couldn't parse that reminder format yet.\n\n` +
-        `Please use: #remind YYYY-MM-DD HH:MM <message>\n` +
-        `Example: #remind 2026-03-10 10:30 Review proposal`,
+        `Please use: #remind YYYY-MM-DD|today|tomorrow HH:MM <message>\n` +
+        `Examples: #remind 2026-03-10 10:30 Review proposal | #remind tomorrow 9am Team sync`,
     };
-  }
-
-  const dateResult = parseDateInput(match[1]);
-  if (!dateResult.ok) {
-    return dateResult;
   }
 
   const timeResult = parseTimeInput(match[2]);
@@ -202,12 +197,43 @@ function parseReminderCommand(
   return {
     ok: true,
     value: {
-      date: dateResult.normalized,
+      dateInput: match[1],
       hour: timeResult.hour,
       minute: timeResult.minute,
       reminderText,
     },
   };
+}
+
+function resolveDateInput(
+  rawDateInput: string,
+  now: Date,
+  timezoneOffsetMinutes: number
+): ParseDateResult {
+  const normalizedInput = rawDateInput.trim().toLowerCase();
+  if (normalizedInput !== 'today' && normalizedInput !== 'tomorrow') {
+    return parseDateInput(rawDateInput);
+  }
+
+  const userNow = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
+  const userMidnightUtcMs = Date.UTC(
+    userNow.getUTCFullYear(),
+    userNow.getUTCMonth(),
+    userNow.getUTCDate(),
+    0,
+    0,
+    0,
+    0
+  );
+  const dayOffset = normalizedInput === 'tomorrow' ? 1 : 0;
+  const targetLocalDate = new Date(userMidnightUtcMs + dayOffset * 24 * 60 * 60 * 1000);
+
+  const year = targetLocalDate.getUTCFullYear();
+  const month = targetLocalDate.getUTCMonth() + 1;
+  const day = targetLocalDate.getUTCDate();
+  const normalized = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+  return { ok: true, year, month, day, normalized };
 }
 
 function toScheduledUtcIso(
@@ -232,7 +258,8 @@ async function handleCreateReminder(
     return parsed.message;
   }
 
-  const dateResult = parseDateInput(parsed.value.date);
+  const now = ctx.now();
+  const dateResult = resolveDateInput(parsed.value.dateInput, now, ctx.timezoneOffsetMinutes);
   if (!dateResult.ok) {
     return dateResult.message;
   }
@@ -246,7 +273,6 @@ async function handleCreateReminder(
     ctx.timezoneOffsetMinutes
   );
 
-  const now = ctx.now();
   if (new Date(scheduledAt).getTime() <= now.getTime()) {
     return (
       `The reminder time must be in the future.\n` +
