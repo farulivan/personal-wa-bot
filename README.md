@@ -5,6 +5,7 @@ A TypeScript WhatsApp bot for personal daily tracking and reminders:
 - **Workout tracking** (`#workout`)
 - **Quran reading tracking** (`#quran`)
 - **Sholat schedule lookup** (`#sholat`)
+- **Personal reminders** (`#remind`)
 - **Daily scheduled digests** for workout streaks + Quran reminder
 
 ---
@@ -28,6 +29,17 @@ A TypeScript WhatsApp bot for personal daily tracking and reminders:
 - Fetch and cache daily sholat schedule
 - Location resolution with default fallback
 - Self-healing location catalog refresh when stale/invalid location ID is detected
+
+### Remind module
+- Create personal reminders in group or direct chat (`#remind`)
+- Flexible date/time parsing:
+  - Date: `YYYY-MM-DD`, `today`, `tomorrow`
+  - Time: `HH`, `HH:MM`, `HHam/pm`, `HH:MMam/pm`
+- UTC storage with user-local timezone input/output behavior
+- Paginated list (`#remind --list [page]`)
+- Safety limits:
+  - Max reminder text: 200 characters
+  - Max active reminders per user: 50
 
 ---
 
@@ -59,7 +71,7 @@ cp .env.example .env
 
 Fill required values in `.env`:
 - `ALLOWED_NUMBERS`
-- `DIGEST_GROUP_ID` (if you want scheduled digest/reminder)
+- `DIGEST_GROUP_ID` (if you want scheduled workout/quran group jobs)
 
 ### Build and run
 ```bash
@@ -114,6 +126,7 @@ See `.env.example` for full template.
 | `MIN_WORKOUTS_FOR_STREAK` | `3` | Workouts/day required to count streak day. |
 | `WORKOUT_LIST_LIMIT` | `10` | Rows per page for `#workout --list`. |
 | `QURAN_LIST_LIMIT` | `10` | Rows per page for `#quran --list`. |
+| `REMIND_LIST_LIMIT` | `10` | Rows per page for `#remind --list`. |
 | `QURAN_RAMADHAN_COUNT_ENABLED` | `false` | Temporary feature flag to show Ramadhan pages total in `#quran --list`. |
 | `QURAN_RAMADHAN_START_DATE` | unset | Ramadhan start date, inclusive (`YYYY-MM-DD`, local user date). |
 | `QURAN_RAMADHAN_END_DATE` | unset | Ramadhan end date, inclusive (`YYYY-MM-DD`, local user date). |
@@ -142,6 +155,8 @@ If your users are in WIB (UTC+7):
 - A log at `2026-02-21T17:30:00.000Z` becomes local `2026-02-22 00:30` and belongs to **Feb 22** local day.
 
 Scheduled jobs also run against this same offset, so digest/reminder timing is consistent with user local time.
+
+For `#remind`, user-entered date/time is interpreted using this timezone offset, then stored in UTC in database.
 
 ### Ramadhan counter date range logic
 When `QURAN_RAMADHAN_COUNT_ENABLED=true`, `#quran --list` will show an extra Ramadhan total line.
@@ -183,13 +198,21 @@ weight: 10
 - `#sholat --today --location kab. bogor`
 - `#sholat --today --location bandung`
 
+### Remind
+- `#remind 2026-03-10 10:30 Review proposal`
+- `#remind today 9am Join standup`
+- `#remind tomorrow 8:15 Prepare morning update`
+- `#remind --list`
+- `#remind --list 2`
+
 ---
 
 ## 8) Internal behavior (important)
 
 - Commands in group chats require bot mention **or** command prefix `#`.
 - User identity is normalized before persistence/checking (to avoid WA ID suffix mismatch).
-- Scheduled jobs run only when `DIGEST_GROUP_ID` is configured.
+- `#remind` background scheduler always runs after client is ready and checks due reminders periodically.
+- Workout digest + Quran reminder scheduled jobs run only when `DIGEST_GROUP_ID` is configured.
 - Quran/workout list responses are paginated and controlled by env limits.
 
 ---
@@ -225,8 +248,12 @@ Useful scripts:
 - Enable `DEBUG=true` and inspect logs
 
 ### Scheduler not running
-- Verify `DIGEST_GROUP_ID` is set
-- Confirm `USER_TIMEZONE_OFFSET_MINUTES` and schedule hour/minute values
+- For workout/quran scheduled group jobs:
+  - Verify `DIGEST_GROUP_ID` is set
+  - Confirm `USER_TIMEZONE_OFFSET_MINUTES` and schedule hour/minute values
+- For `#remind` delivery:
+  - Ensure bot client reached `ready` state
+  - Check DB has pending reminders (`sent_at IS NULL`) with `scheduled_at <= now`
 
 ### Authentication/session issues
 - Ensure auth path is writable (`.wwebjs_auth` or `RAILWAY_VOLUME_MOUNT_PATH`)

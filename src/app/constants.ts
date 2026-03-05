@@ -12,6 +12,9 @@ export const WORKOUT_LIST_LIMIT = appConfig.workoutListLimit;
 // Number of recent quran daily reads to show in --list
 export const QURAN_LIST_LIMIT = appConfig.quranListLimit;
 
+// Number of recent reminders to show in --list
+export const REMIND_LIST_LIMIT = appConfig.remindListLimit;
+
 // Temporary Ramadhan counter settings for quran --list
 export const QURAN_RAMADHAN_COUNT_ENABLED = appConfig.quranRamadhanCountEnabled;
 export const QURAN_RAMADHAN_START_DATE = appConfig.quranRamadhanStartDate;

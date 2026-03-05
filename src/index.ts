@@ -20,6 +20,10 @@ import { registerQuranSchema } from './modules/quran/quranSchema.js';
 import { createQuranNamespaceHandler } from './modules/quran/quranNamespace.js';
 import { SqliteQuranRepository } from './modules/quran/infra/sqliteQuranRepository.js';
 import { createQuranReminderSender } from './modules/quran/quranDigest.js';
+import { registerRemindSchema } from './modules/remind/remindSchema.js';
+import { createRemindNamespaceHandler } from './modules/remind/remindNamespace.js';
+import { SqliteRemindRepository } from './modules/remind/infra/sqliteRemindRepository.js';
+import { startReminderScheduler } from './modules/remind/remindScheduler.js';
 import { registerUserSchema } from './modules/users/userSchema.js';
 import { SqliteUserRepository } from './modules/users/infra/sqliteUserRepository.js';
 import {
@@ -34,6 +38,7 @@ import {
 registerWorkoutSchema(db);
 registerSholatSchema(db);
 registerQuranSchema(db);
+registerRemindSchema(db);
 registerUserSchema(db);
 
 const messageGateway = createMessageGateway(client);
@@ -41,6 +46,7 @@ const workoutRepository = new SqliteWorkoutRepository(db);
 const sholatRepository = new SqliteSholatRepository(db);
 const sholatClient = new MyQuranSholatClient();
 const quranRepository = new SqliteQuranRepository(db);
+const remindRepository = new SqliteRemindRepository(db);
 const userRepository = new SqliteUserRepository(db);
 
 const router = new CommandRouter();
@@ -55,6 +61,7 @@ router.registerNamespace(
   })
 );
 router.registerNamespace('quran', createQuranNamespaceHandler(quranRepository, userRepository));
+router.registerNamespace('remind', createRemindNamespaceHandler(remindRepository));
 
 const appContext = {
   db,
@@ -81,6 +88,8 @@ const sendNightlyQuranReminder = createQuranReminderSender({
   timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
 });
 
+let reminderSchedulerStarted = false;
+
 const handleMessage = createMessageHandler(router, appContext);
 
 // --- Start bot ---
@@ -91,6 +100,17 @@ client.on('message', async (msg) => {
 });
 
 client.on('ready', () => {
+  if (!reminderSchedulerStarted) {
+    startReminderScheduler({
+      client,
+      remindRepository,
+      userRepository,
+      timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+    });
+    reminderSchedulerStarted = true;
+    log('⏰ Reminder scheduler started');
+  }
+
   if (DIGEST_GROUP_ID) {
     startScheduler([
       {
