@@ -13,8 +13,11 @@ A TypeScript WhatsApp bot for personal daily tracking and reminders:
 ## 1) Features
 
 ### Workout module
-- Log workouts with reps/sets/weight
+- Explicit compact workout modes:
+  - Lift: `#workout lift <activity> <reps> <sets> [weight]`
+  - Cardio: `#workout cardio <activity> <duration> [distance]`
 - View paginated history (`#workout --list [page]`)
+- Mixed chronological history with mode badges (`[lift]`, `[cardio]`)
 - Streak tracking with configurable threshold (`MIN_WORKOUTS_FOR_STREAK`)
 - Daily digest leaderboard in group
 
@@ -173,18 +176,19 @@ If flag is off or date values are invalid/empty, the Ramadhan line is not shown.
 ## 7) Command reference
 
 ### Workout
-- `#workout` (with multiline payload)
+- `#workout lift push up 20reps 4sets 10kg`
+- `#workout lift pull up 8rep 5set` (bodyweight)
+- `#workout cardio run 30min 5km`
+- `#workout cardio brisk walk 1hour`
 - `#workout --list`
 - `#workout --list 2`
 
-Payload format:
-```text
-#workout
-type: push up
-reps: 20
-sets: 4
-weight: 10
-```
+Format notes:
+- Explicit mode is required: `lift` or `cardio`
+- Lift reps token accepts `rep` or `reps`; sets token accepts `set` or `sets`
+- Lift weight is optional; when provided use `kg` only (e.g. `10kg`)
+- Cardio duration token must be attached and use `min` or `hour` (e.g. `30min`, `1hour`)
+- Cardio distance token is optional and must use attached `km` (e.g. `5km`)
 
 ### Quran
 - `#quran read 3`
