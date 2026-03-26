@@ -15,7 +15,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
   listByUser(user: string, limit: number, offset: number): WorkoutRow[] {
     return this.db
       .prepare(
-        `SELECT created_at, type, reps, sets, weight FROM workouts 
+        `SELECT created_at, workout_mode, type, reps, sets, weight, duration_minutes, distance_km FROM workouts 
      WHERE user = ? 
      ORDER BY created_at DESC 
      LIMIT ? OFFSET ?`
@@ -25,11 +25,21 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
 
   insertWorkoutLog(log: NewWorkoutLog): void {
     const stmt = this.db.prepare(
-      `INSERT INTO workouts (user, type, reps, sets, weight, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO workouts (user, workout_mode, type, reps, sets, weight, duration_minutes, distance_km, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
 
-    stmt.run(log.user, log.type, log.reps, log.sets, log.weight, log.createdAtIso);
+    stmt.run(
+      log.user,
+      log.workoutMode,
+      log.type,
+      log.reps,
+      log.sets,
+      log.weight,
+      log.durationMinutes,
+      log.distanceKm,
+      log.createdAtIso
+    );
   }
 
   listDistinctUsers(): string[] {

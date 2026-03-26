@@ -1,6 +1,5 @@
 import type { NamespaceHandler } from '../../app/commandRouter.js';
 import type { CommandInvocation } from '../../app/parseCommand.js';
-import { parseKeyValue } from '../../app/parseKeyValue.js';
 import { debug } from '../../logger.js';
 import { computeStreaks, getTodayWorkoutCount } from './workoutStreaks.js';
 import { MIN_WORKOUTS_FOR_STREAK, WORKOUT_LIST_LIMIT } from '../../app/constants.js';
@@ -8,32 +7,245 @@ import type { WorkoutRepository, WorkoutRow } from './infra/workoutRepository.js
 
 const WORKOUT_NAMESPACE = 'workout';
 
-type WeightResult = { ok: true; value: number } | { ok: false; error: string };
+type LiftPayload = {
+  mode: 'lift';
+  activity: string;
+  reps: number;
+  sets: number;
+  weight: number;
+};
 
-function parseWeight(raw: string): WeightResult {
-  const trimmed = raw.trim();
-  if (!trimmed) return { ok: true, value: 0 };
+type CardioPayload = {
+  mode: 'cardio';
+  activity: string;
+  durationMinutes: number;
+  distanceKm: number;
+};
 
-  const match = trimmed.match(/^([\d,.]+)\s*(.*)$/);
-  if (!match) return { ok: true, value: 0 };
+type ParseWorkoutPayloadResult =
+  | { ok: true; payload: LiftPayload | CardioPayload }
+  | { ok: false; message: string };
 
-  const numStr = match[1].replace(',', '.');
-  const unit = match[2].trim().toLowerCase();
+type DurationParseResult = { ok: true; minutes: number } | { ok: false; message: string };
 
-  if (unit && unit !== 'kg') {
+type DistanceParseResult = { ok: true; distanceKm: number } | { ok: false; message: string };
+
+function tokenize(firstLine: string): string[] {
+  return firstLine.trim().split(/\s+/).filter(Boolean);
+}
+
+function isLegacyMultiline(rawText: string): boolean {
+  return /\n/.test(rawText) || /\btype\s*:|\breps\s*:|\bsets\s*:|\bweight\s*:/i.test(rawText);
+}
+
+function workoutHelpMessage(): string {
+  return (
+    `Use explicit workout mode now:\n\n` +
+    `• #workout lift <activity> <repsToken> <setsToken> [weightToken]\n` +
+    `  Example: #workout lift push up 20reps 4sets 10kg\n` +
+    `  Also valid: 20rep / 4set\n\n` +
+    `• #workout cardio <activity> <durationToken> [distanceToken]\n` +
+    `  Example: #workout cardio run 30min 5km\n` +
+    `  Duration units: min, hour\n` +
+    `  Distance unit: km\n\n` +
+    `• #workout --list\n` +
+    `• #workout --list 2`
+  );
+}
+
+function parsePositiveIntegerFromToken(token: string, regex: RegExp): number | null {
+  const match = token.toLowerCase().match(regex);
+  if (!match || !match[1]) return null;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0 || !Number.isInteger(value)) return null;
+  return value;
+}
+
+function parseWeightFromToken(token: string): WeightResult {
+  const match = token.toLowerCase().match(/^(\d+(?:[.,]\d+)?)kg$/);
+  if (!match || !match[1]) {
     return {
       ok: false,
-      error:
-        `We only track in kg here ⚖️\n\n` +
-        `Got "${trimmed}" — convert that to kg and send it again.\n\n` +
-        `Quick math never hurt nobody 💪`,
+      error: `Weight token must use kg format, e.g. 10kg.`,
     };
   }
 
-  const value = Number(numStr);
-  if (isNaN(value)) return { ok: true, value: 0 };
+  const value = Number(match[1].replace(',', '.'));
+  if (!Number.isFinite(value) || value < 0) {
+    return {
+      ok: false,
+      error: `Weight value is invalid. Use positive number with kg, e.g. 12kg.`,
+    };
+  }
 
   return { ok: true, value };
+}
+
+function parseDurationToken(token: string): DurationParseResult {
+  const match = token.toLowerCase().match(/^(\d+(?:[.,]\d+)?)(min|hour)$/);
+  if (!match || !match[1] || !match[2]) {
+    return {
+      ok: false,
+      message: `Duration must be attached token with min/hour, e.g. 30min or 1hour.`,
+    };
+  }
+
+  const value = Number(match[1].replace(',', '.'));
+  if (!Number.isFinite(value) || value <= 0) {
+    return {
+      ok: false,
+      message: `Duration must be greater than 0.`,
+    };
+  }
+
+  const unit = match[2];
+  const minutes = unit === 'hour' ? value * 60 : value;
+
+  return { ok: true, minutes };
+}
+
+function parseDistanceToken(token: string): DistanceParseResult {
+  const match = token.toLowerCase().match(/^(\d+(?:[.,]\d+)?)km$/);
+  if (!match || !match[1]) {
+    return {
+      ok: false,
+      message: `Distance must use km format, e.g. 5km.`,
+    };
+  }
+
+  const distanceKm = Number(match[1].replace(',', '.'));
+  if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
+    return {
+      ok: false,
+      message: `Distance must be greater than 0.`,
+    };
+  }
+
+  return { ok: true, distanceKm };
+}
+
+type WeightResult = { ok: true; value: number } | { ok: false; error: string };
+
+function parseLiftPayload(tokens: string[]): ParseWorkoutPayloadResult {
+  if (tokens.length < 5) {
+    return { ok: false, message: workoutHelpMessage() };
+  }
+
+  const hasWeightToken = tokens.length >= 6 && /kg$/i.test(tokens[tokens.length - 1]);
+  const repsTokenIndex = hasWeightToken ? tokens.length - 3 : tokens.length - 2;
+  const setsTokenIndex = hasWeightToken ? tokens.length - 2 : tokens.length - 1;
+
+  const reps = parsePositiveIntegerFromToken(tokens[repsTokenIndex], /^(\d+)rep(?:s)?$/i);
+  if (reps === null) {
+    return {
+      ok: false,
+      message: `Lift reps token is invalid. Use 20rep or 20reps.\n\n${workoutHelpMessage()}`,
+    };
+  }
+
+  const sets = parsePositiveIntegerFromToken(tokens[setsTokenIndex], /^(\d+)set(?:s)?$/i);
+  if (sets === null) {
+    return {
+      ok: false,
+      message: `Lift sets token is invalid. Use 4set or 4sets.\n\n${workoutHelpMessage()}`,
+    };
+  }
+
+  const activityTokens = tokens.slice(2, repsTokenIndex);
+  const activity = activityTokens.join(' ').trim();
+  if (!activity) {
+    return { ok: false, message: `Lift activity is required.\n\n${workoutHelpMessage()}` };
+  }
+
+  let weight = 0;
+  if (hasWeightToken) {
+    const parsedWeight = parseWeightFromToken(tokens[tokens.length - 1]);
+    if (!parsedWeight.ok) {
+      return { ok: false, message: `${parsedWeight.error}\n\n${workoutHelpMessage()}` };
+    }
+    weight = parsedWeight.value;
+  }
+
+  return {
+    ok: true,
+    payload: {
+      mode: 'lift',
+      activity,
+      reps,
+      sets,
+      weight,
+    },
+  };
+}
+
+function parseCardioPayload(tokens: string[]): ParseWorkoutPayloadResult {
+  if (tokens.length < 4) {
+    return { ok: false, message: workoutHelpMessage() };
+  }
+
+  const maybeDistanceToken = tokens[tokens.length - 1];
+  const maybeDurationToken =
+    tokens.length >= 5 && /km$/i.test(maybeDistanceToken)
+      ? tokens[tokens.length - 2]
+      : tokens[tokens.length - 1];
+
+  const hasDistance = maybeDurationToken !== tokens[tokens.length - 1];
+  const durationTokenIndex = hasDistance ? tokens.length - 2 : tokens.length - 1;
+
+  const durationResult = parseDurationToken(tokens[durationTokenIndex]);
+  if (!durationResult.ok) {
+    return { ok: false, message: `${durationResult.message}\n\n${workoutHelpMessage()}` };
+  }
+
+  let distanceKm = 0;
+  if (hasDistance) {
+    const distanceResult = parseDistanceToken(tokens[tokens.length - 1]);
+    if (!distanceResult.ok) {
+      return { ok: false, message: `${distanceResult.message}\n\n${workoutHelpMessage()}` };
+    }
+    distanceKm = distanceResult.distanceKm;
+  }
+
+  const activityTokens = tokens.slice(2, durationTokenIndex);
+  const activity = activityTokens.join(' ').trim();
+  if (!activity) {
+    return { ok: false, message: `Cardio activity is required.\n\n${workoutHelpMessage()}` };
+  }
+
+  return {
+    ok: true,
+    payload: {
+      mode: 'cardio',
+      activity,
+      durationMinutes: durationResult.minutes,
+      distanceKm,
+    },
+  };
+}
+
+function parseWorkoutPayload(invocation: CommandInvocation): ParseWorkoutPayloadResult {
+  if (isLegacyMultiline(invocation.rawText)) {
+    return {
+      ok: false,
+      message: `Workout format has been updated.\n\n${workoutHelpMessage()}`,
+    };
+  }
+
+  const tokens = tokenize(invocation.firstLine);
+  const mode = (tokens[1] || '').toLowerCase();
+
+  if (mode === 'lift') {
+    return parseLiftPayload(tokens);
+  }
+
+  if (mode === 'cardio') {
+    return parseCardioPayload(tokens);
+  }
+
+  return {
+    ok: false,
+    message: `Please choose an explicit mode: lift or cardio.\n\n${workoutHelpMessage()}`,
+  };
 }
 
 function formatWorkoutList(rows: WorkoutRow[], timezoneOffsetMinutes: number, now: Date): string {
@@ -65,8 +277,16 @@ function formatWorkoutList(rows: WorkoutRow[], timezoneOffsetMinutes: number, no
         dateStr = `${year}/${month}/${day}`;
       }
 
+      if (r.workout_mode === 'cardio') {
+        const durationStr = Number.isInteger(r.duration_minutes)
+          ? `${r.duration_minutes}min`
+          : `${r.duration_minutes.toFixed(1)}min`;
+        const distanceStr = r.distance_km > 0 ? ` | ${r.distance_km}km` : '';
+        return `• ${dateStr} – [cardio] ${r.type} | ${durationStr}${distanceStr}`;
+      }
+
       const weightStr = r.weight === 0 ? 'bodyweight' : `${r.weight}kg`;
-      return `• ${dateStr} – ${r.type} | ${r.reps} × ${r.sets} @ ${weightStr}`;
+      return `• ${dateStr} – [lift] ${r.type} | ${r.reps} × ${r.sets} @ ${weightStr}`;
     })
     .join('\n');
 }
@@ -98,8 +318,33 @@ function toWorkoutLogResponse(
   return `Logged 💪\n${workoutType}\n${reps} × ${sets} @ ${weightLabel}\n\n${timeResponse}`;
 }
 
+function toCardioLogResponse(
+  activity: string,
+  durationMinutes: number,
+  distanceKm: number,
+  timezoneOffsetMinutes: number,
+  now: Date
+): string {
+  const userNow = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
+  const userHour = userNow.getUTCHours();
+
+  let timeResponse: string;
+  if (userHour >= 5 && userHour < 11) {
+    timeResponse = 'Strong start 🚀\nCardio done before noon.';
+  } else if (userHour >= 11 && userHour < 16) {
+    timeResponse = 'Midday momentum 🏃\nKeep that engine warm.';
+  } else if (userHour >= 16 && userHour < 21) {
+    timeResponse = 'Evening push 🔥\nNice consistency.';
+  } else {
+    timeResponse = 'Late grind 🌙\nDiscipline on point.';
+  }
+
+  const distancePart = distanceKm > 0 ? ` | ${distanceKm}km` : '';
+  return `Logged 💪\n${activity}\n${durationMinutes}min${distancePart}\n\n${timeResponse}`;
+}
+
 function parsePageNumber(firstLine: string): number {
-  const tokens = firstLine.trim().split(/\s+/).filter(Boolean);
+  const tokens = tokenize(firstLine);
   const pageToken = tokens.find((t) => /^\d+$/.test(t));
   return pageToken ? Math.max(1, Number(pageToken)) : 1;
 }
@@ -121,7 +366,9 @@ async function handleWorkoutList(
     return (
       `Nothing logged yet 👀\n\n` +
       `Start with:\n` +
-      `#workout\n\n` +
+      `#workout lift push up 20reps 4sets 10kg\n` +
+      `or\n` +
+      `#workout cardio run 30min 5km\n\n` +
       `Let's get the first one in 💪`
     );
   }
@@ -164,55 +411,65 @@ async function handleWorkoutLog(
   invocation: CommandInvocation,
   workoutRepository: WorkoutRepository
 ): Promise<string> {
-  const data = parseKeyValue(invocation.rawText);
-
-  const implicitType =
-    invocation.subcommand !== 'log' && invocation.subcommand !== 'list'
-      ? invocation.subcommand
-      : '';
-
-  const type = data.type || implicitType;
-
-  if (!type || !data.reps || !data.sets) {
-    return (
-      "Hmm 🤔 that didn't go through.\n\n" +
-      'Use this format:\n' +
-      '#workout\n' +
-      'type: push up\n' +
-      'reps: 20\n' +
-      'sets: 4\n' +
-      'weight: 10 (optional)\n\n' +
-      `(weight is in kg, leave it blank for bodyweight)\n\n` +
-      `Try again 💪`
-    );
+  const parsed = parseWorkoutPayload(invocation);
+  if (!parsed.ok) {
+    return parsed.message;
   }
 
   const now = ctx.now();
-  const weightResult = parseWeight(data.weight || '');
-  if (!weightResult.ok) return weightResult.error;
-  const weight = weightResult.value;
+  const payload = parsed.payload;
 
-  workoutRepository.insertWorkoutLog({
-    user: ctx.sender,
-    type,
-    reps: Number(data.reps),
-    sets: Number(data.sets),
-    weight,
-    createdAtIso: now.toISOString(),
-  });
+  if (payload.mode === 'lift') {
+    workoutRepository.insertWorkoutLog({
+      user: ctx.sender,
+      workoutMode: 'lift',
+      type: payload.activity,
+      reps: payload.reps,
+      sets: payload.sets,
+      weight: payload.weight,
+      durationMinutes: 0,
+      distanceKm: 0,
+      createdAtIso: now.toISOString(),
+    });
 
-  debug(
-    `💾 Workout saved: ${type} ${Number(data.reps)}×${Number(data.sets)} @ ${weight === 0 ? 'bodyweight' : `${weight}kg`}`
-  );
+    debug(
+      `💾 Workout saved: [lift] ${payload.activity} ${payload.reps}×${payload.sets} @ ${payload.weight === 0 ? 'bodyweight' : `${payload.weight}kg`}`
+    );
+  } else {
+    workoutRepository.insertWorkoutLog({
+      user: ctx.sender,
+      workoutMode: 'cardio',
+      type: payload.activity,
+      reps: 0,
+      sets: 0,
+      weight: 0,
+      durationMinutes: payload.durationMinutes,
+      distanceKm: payload.distanceKm,
+      createdAtIso: now.toISOString(),
+    });
 
-  const logResponse = toWorkoutLogResponse(
-    type,
-    Number(data.reps),
-    Number(data.sets),
-    weight,
-    ctx.timezoneOffsetMinutes,
-    now
-  );
+    debug(
+      `💾 Workout saved: [cardio] ${payload.activity} ${payload.durationMinutes}min${payload.distanceKm > 0 ? ` ${payload.distanceKm}km` : ''}`
+    );
+  }
+
+  const logResponse =
+    payload.mode === 'lift'
+      ? toWorkoutLogResponse(
+          payload.activity,
+          payload.reps,
+          payload.sets,
+          payload.weight,
+          ctx.timezoneOffsetMinutes,
+          now
+        )
+      : toCardioLogResponse(
+          payload.activity,
+          payload.durationMinutes,
+          payload.distanceKm,
+          ctx.timezoneOffsetMinutes,
+          now
+        );
 
   const todayCount = getTodayWorkoutCount(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
   const remaining = MIN_WORKOUTS_FOR_STREAK - todayCount;
@@ -237,7 +494,14 @@ export function createWorkoutNamespaceHandler(
   return async (ctx, invocation) => {
     if (invocation.namespace !== WORKOUT_NAMESPACE) return null;
 
-    if (invocation.subcommand === 'list') {
+    const tokens = tokenize(invocation.firstLine);
+    const actionToken = (tokens[1] || '').toLowerCase();
+
+    if (invocation.subcommand === 'help' || actionToken === 'help') {
+      return workoutHelpMessage();
+    }
+
+    if (invocation.subcommand === 'list' || actionToken === 'list') {
       return handleWorkoutList(ctx, invocation, workoutRepository);
     }
 

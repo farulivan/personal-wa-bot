@@ -67,17 +67,15 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
               `I'm your workout tracker.\n\n` +
               `Log it. Track it. Get stronger.\n\n` +
               `*What I can do:*\n` +
-              `• #workout - log a workout\n` +
+              `• #workout lift ... - log lift workout\n` +
+              `• #workout cardio ... - log cardio workout\n` +
               `• #workout --list - see your recent workouts\n` +
               `• #sholat --today - get today's prayer times\n` +
               `• #quran read 3 - log today's quran pages\n\n` +
-              `*Example:*\n` +
-              `#workout\n` +
-              `type: bench press\n` +
-              `reps: 20\n` +
-              `sets: 4\n` +
-              `weight: 10 (optional)\n\n` +
-              `(weight is in kg, leave it blank for bodyweight)`
+              `*Examples:*\n` +
+              `#workout lift bench press 20reps 4sets 10kg\n` +
+              `#workout cardio run 30min 5km\n\n` +
+              `(lift accepts rep/reps and set/sets; weight is optional bodyweight)`
           );
         } else {
           await appContext.messageGateway.reply(
