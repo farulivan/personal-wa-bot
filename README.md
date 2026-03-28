@@ -24,6 +24,7 @@ A TypeScript WhatsApp bot for personal daily tracking and reminders:
 ### Quran module
 - Log daily pages (`#quran read <pages>` or `#quran log <pages>`)
 - Auto-accumulate multiple logs in the same day
+- Save and check reading mark (`#quran mark <page>`, `#quran mark`, `#quran --mark`)
 - View paginated history (`#quran --list [page]`)
 - Total pages read + streak info
 - Night reminder in group
@@ -193,6 +194,9 @@ Format notes:
 ### Quran
 - `#quran read 3`
 - `#quran log 3`
+- `#quran mark 145`
+- `#quran mark`
+- `#quran --mark`
 - `#quran --list`
 - `#quran --list 2`
 

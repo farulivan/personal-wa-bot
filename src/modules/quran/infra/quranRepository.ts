@@ -19,6 +19,13 @@ export type QuranHistoryRow = {
   createdAtUtc: string;
 };
 
+export type QuranMarkRow = {
+  user: string;
+  page: number;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+};
+
 export interface QuranRepository {
   addDailyReadPages(input: NewQuranReadLog): void;
   findTodayByUser(
@@ -35,6 +42,8 @@ export interface QuranRepository {
     startDateInclusive: string,
     endDateInclusive: string
   ): number;
+  upsertMark(user: string, page: number, createdAtUtc: string, updatedAtUtc: string): void;
+  findMarkByUser(user: string): QuranMarkRow | null;
   listByUser(user: string, limit: number, offset: number): QuranHistoryRow[];
   listDistinctUsers(): string[];
 }
