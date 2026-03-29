@@ -15,6 +15,7 @@ import type { UserRepository } from '../users/infra/userRepository.js';
 const QURAN_NAMESPACE = 'quran';
 const MAX_DAILY_PAGES_WITHOUT_APPROVAL = 50;
 const QURAN_LEADERBOARD_LIMIT = 10;
+const MAX_QURAN_PAGE = 604;
 
 export type QuranLeaderboardMode = 'monthly' | 'ramadhan';
 
@@ -182,8 +183,58 @@ function helpMessage(): string {
     `Fungsi: buka halaman ke-2 dari riwayat tilawah.\n\n` +
     `4) Lihat leaderboard tilawah\n` +
     `• #quran --leaderboard\n` +
-    `Fungsi: ranking berdasarkan current streak, best streak, lalu total halaman periode aktif.`
+    `Fungsi: ranking berdasarkan current streak, best streak, lalu total halaman periode aktif.\n\n` +
+    `5) Simpan dan cek mark bacaan\n` +
+    `• #quran mark 145\n` +
+    `• #quran mark\n` +
+    `• #quran --mark\n` +
+    `Fungsi: simpan posisi halaman terakhir dan cek mark aktif kamu.`
   );
+}
+
+function parseMarkPage(
+  rawValue: string
+): { ok: true; page: number } | { ok: false; message: string } {
+  const value = rawValue.trim();
+
+  if (!value) {
+    return {
+      ok: false,
+      message:
+        `Aku belum menangkap nomor halamannya 🙏\n\n` + `Contoh yang benar:\n` + `#quran mark 145`,
+    };
+  }
+
+  if (/^\d+(?:[.,]\d+)\b/.test(value)) {
+    return {
+      ok: false,
+      message:
+        `Mark hanya menerima angka bulat halaman ya 🙂\n\n` + `Contoh:\n` + `#quran mark 145`,
+    };
+  }
+
+  if (!/^\d+$/.test(value)) {
+    return {
+      ok: false,
+      message:
+        `Format mark belum sesuai. Gunakan angka halaman saja ya 🙌\n\n` +
+        `Contoh:\n` +
+        `#quran mark 145`,
+    };
+  }
+
+  const page = Number(value);
+  if (!Number.isFinite(page) || page < 1 || page > MAX_QURAN_PAGE) {
+    return {
+      ok: false,
+      message:
+        `Halaman Qur'an harus di rentang 1-${MAX_QURAN_PAGE}.\n\n` +
+        `Contoh:\n` +
+        `#quran mark 145`,
+    };
+  }
+
+  return { ok: true, page };
 }
 
 function parseReadInput(
@@ -303,7 +354,12 @@ async function handleQuranRead(
 
   debug(`📖 Quran read logged: +${parseResult.pages} page(s) by ${ctx.sender} at ${nowIsoUtc}`);
 
-  return toReadLoggedResponse(parseResult.pages, totalToday, streaks.current);
+  return (
+    toReadLoggedResponse(parseResult.pages, totalToday, streaks.current) +
+    `\n\n📍 Biar gak lupa posisi bacaan, simpan mark juga:\n` +
+    `#quran mark <halaman>\n` +
+    `Cek cepat mark kamu: #quran mark`
+  );
 }
 
 async function handleQuranList(
@@ -317,6 +373,7 @@ async function handleQuranList(
 
   const totalDays = quranRepository.countByUser(ctx.sender);
   const totalPagesRead = quranRepository.sumPagesByUser(ctx.sender);
+  const currentMark = quranRepository.findMarkByUser(ctx.sender);
   const totalPages = Math.max(1, Math.ceil(totalDays / QURAN_LIST_LIMIT));
 
   let ramadhanSummary = '';
@@ -370,11 +427,97 @@ async function handleQuranList(
 
   debug(`📖 Listed ${rows.length} quran history rows (page ${page}/${totalPages})`);
 
+  const markSummary = currentMark ? `\n📍 Mark terakhir: halaman ${currentMark.page}` : '';
+
   return (
     `Riwayat tilawah 📖\n` +
     `Total: ${totalPagesRead} halaman (${totalDays} hari)` +
-    `${ramadhanSummary}\n\n` +
+    `${ramadhanSummary}${markSummary}\n\n` +
     `${list}${streakSection}${pageFooter}`
+  );
+}
+
+async function handleQuranMark(
+  ctx: Parameters<NamespaceHandler>[0],
+  invocation: CommandInvocation,
+  quranRepository: QuranRepository
+): Promise<string> {
+  const tokens = tokenize(invocation.firstLine);
+  const secondToken = (tokens[1] || '').toLowerCase();
+  const isDashMarkAlias = secondToken.startsWith('--mark');
+
+  if (isDashMarkAlias && tokens.length > 2) {
+    return (
+      `Untuk set mark, gunakan format ini ya 👇\n` +
+      `#quran mark <halaman>\n\n` +
+      `Contoh:\n` +
+      `#quran mark 145\n\n` +
+      `Sedangkan #quran --mark dipakai untuk cek mark saat ini.`
+    );
+  }
+
+  if (tokens.length === 2) {
+    const mark = quranRepository.findMarkByUser(ctx.sender);
+    if (!mark) {
+      return (
+        `Kamu belum punya mark tilawah 👀\n\n` +
+        `Simpan dulu dengan:\n` +
+        `#quran mark 145\n\n` +
+        `Nanti untuk cek lagi cukup kirim:\n` +
+        `#quran mark atau #quran --mark`
+      );
+    }
+
+    return (
+      `Mark tilawah kamu saat ini ada di halaman *${mark.page}* 📍\n\n` +
+      `Semoga Allah mudahkan lanjut bacanya hari ini 🤲`
+    );
+  }
+
+  if (secondToken !== 'mark') {
+    return helpMessage();
+  }
+
+  if (tokens.length > 3) {
+    return (
+      `Perintah mark cukup satu angka halaman ya 🙂\n\n` +
+      `Contoh yang benar:\n` +
+      `#quran mark 145`
+    );
+  }
+
+  const parseResult = parseMarkPage(tokens[2] || '');
+  if (!parseResult.ok) {
+    return parseResult.message;
+  }
+
+  const nowIsoUtc = ctx.now().toISOString();
+  const existing = quranRepository.findMarkByUser(ctx.sender);
+
+  quranRepository.upsertMark(
+    ctx.sender,
+    parseResult.page,
+    existing?.createdAtUtc ?? nowIsoUtc,
+    nowIsoUtc
+  );
+
+  if (!existing) {
+    return (
+      `Mark tilawah berhasil disimpan ✅\n` +
+      `Sekarang posisi bacaan kamu: halaman *${parseResult.page}* 📍`
+    );
+  }
+
+  if (existing.page === parseResult.page) {
+    return (
+      `Mark kamu sudah di halaman *${parseResult.page}* ✅\n\n` +
+      `Kalau nanti lanjut baca, tinggal update lagi dengan format yang sama.`
+    );
+  }
+
+  return (
+    `Mark tilawah berhasil diperbarui ✅\n` +
+    `Dari halaman *${existing.page}* → *${parseResult.page}* 📍`
   );
 }
 
@@ -461,6 +604,11 @@ export function createQuranNamespaceHandler(
     const isLeaderboard = invocation.subcommand === 'leaderboard' || actionToken === 'leaderboard';
     if (isLeaderboard) {
       return handleQuranLeaderboard(ctx, quranRepository, userRepository);
+    }
+
+    const isMark = invocation.subcommand === 'mark' || actionToken === 'mark';
+    if (isMark) {
+      return handleQuranMark(ctx, invocation, quranRepository);
     }
 
     if (actionToken !== 'read' && actionToken !== 'log') {

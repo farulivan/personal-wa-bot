@@ -3,6 +3,7 @@ import type {
   NewQuranReadLog,
   QuranDailyReadRow,
   QuranHistoryRow,
+  QuranMarkRow,
   QuranRepository,
 } from './quranRepository.js';
 
@@ -114,6 +115,35 @@ export class SqliteQuranRepository implements QuranRepository {
       .get(user, startDateInclusive, endDateInclusive) as { totalPages: number };
 
     return row.totalPages;
+  }
+
+  upsertMark(user: string, page: number, createdAtUtc: string, updatedAtUtc: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO quran_marks (user, page, created_at, updated_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(user) DO UPDATE SET
+           page = excluded.page,
+           updated_at = excluded.updated_at`
+      )
+      .run(user, page, createdAtUtc, updatedAtUtc);
+  }
+
+  findMarkByUser(user: string): QuranMarkRow | null {
+    const row = this.db
+      .prepare(
+        `SELECT
+          user,
+          page,
+          created_at AS createdAtUtc,
+          updated_at AS updatedAtUtc
+         FROM quran_marks
+         WHERE user = ?
+         LIMIT 1`
+      )
+      .get(user) as QuranMarkRow | undefined;
+
+    return row ?? null;
   }
 
   listByUser(user: string, limit: number, offset: number): QuranHistoryRow[] {
