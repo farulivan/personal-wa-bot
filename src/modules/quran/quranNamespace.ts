@@ -228,7 +228,9 @@ function parseMarkPage(
     return {
       ok: false,
       message:
-        `Halaman Qur'an harus di rentang 1-${MAX_QURAN_PAGE}.\n\n` +
+        `Sejauh yang aku tahu, halaman Qur'an maksimal ${MAX_QURAN_PAGE} ya 🙂\n` +
+        `Kalau kamu isi di atas itu, coba pastikan kembali ya.\n\n` +
+        `Coba cek lagi lalu set ulang dengan: #quran mark <halaman>\n` +
         `Contoh:\n` +
         `#quran mark 145`,
     };
@@ -351,15 +353,37 @@ async function handleQuranRead(
   );
   const totalToday = todayRecord?.pages ?? parseResult.pages;
   const streaks = computeQuranStreaks(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
+  const existingMark = quranRepository.findMarkByUser(ctx.sender);
+
+  let markSection: string;
+  if (!existingMark) {
+    markSection =
+      `\n\n� Aku belum bisa auto-geser mark karena kamu belum punya mark awal.` +
+      `\nKamu tadi baca sampai halaman berapa?` +
+      `\nSet dulu pakai:\n#quran mark <halaman>`;
+  } else {
+    const nextMark = existingMark.page + parseResult.pages;
+
+    if (nextMark > MAX_QURAN_PAGE) {
+      quranRepository.upsertMark(ctx.sender, 0, existingMark.createdAtUtc, nowIsoUtc);
+      markSection =
+        `\n\n📍 Aku coba geser mark berdasarkan bacaan +${parseResult.pages} halaman,` +
+        ` tapi hasilnya jadi halaman ${nextMark} (melewati batas ${MAX_QURAN_PAGE}).` +
+        `\nSejauh yang aku tahu, halaman Qur'an maksimal ${MAX_QURAN_PAGE}.` +
+        `\nMasyaAllah, kamu sudah khatam ya berarti 🎉` +
+        `\nMark Qur'an aku reset jadi halaman 0 yaa.`;
+    } else {
+      quranRepository.upsertMark(ctx.sender, nextMark, existingMark.createdAtUtc, nowIsoUtc);
+      markSection =
+        `\n\n📍 Mark otomatis aku geser dari halaman *${existingMark.page}* ke *${nextMark}*` +
+        ` berdasarkan bacaan +${parseResult.pages} halaman.` +
+        `\nKalau kurang pas, koreksi manual: #quran mark <halaman>`;
+    }
+  }
 
   debug(`📖 Quran read logged: +${parseResult.pages} page(s) by ${ctx.sender} at ${nowIsoUtc}`);
 
-  return (
-    toReadLoggedResponse(parseResult.pages, totalToday, streaks.current) +
-    `\n\n📍 Biar gak lupa posisi bacaan, simpan mark juga:\n` +
-    `#quran mark <halaman>\n` +
-    `Cek cepat mark kamu: #quran mark`
-  );
+  return toReadLoggedResponse(parseResult.pages, totalToday, streaks.current) + markSection;
 }
 
 async function handleQuranList(
