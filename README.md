@@ -26,6 +26,7 @@ A TypeScript WhatsApp bot for personal daily tracking and reminders:
 - Auto-accumulate multiple logs in the same day
 - Save and check reading mark (`#quran mark <page>`, `#quran mark`, `#quran --mark`)
 - Auto-move mark after `#quran read` when current mark exists (`current mark + pages read`)
+- Skip auto-mark with `--no-mark` flag (`#quran read 3 --no-mark`)
 - If auto-move result passes page 604, bot treats it as khatam and resets mark to 0
 - View paginated history (`#quran --list [page]`)
 - Total pages read + streak info
@@ -196,6 +197,7 @@ Format notes:
 ### Quran
 - `#quran read 3`
 - `#quran log 3`
+- `#quran read 3 --no-mark`
 - `#quran mark 145`
 - `#quran mark`
 - `#quran --mark`
@@ -204,6 +206,7 @@ Format notes:
 
 Behavior notes:
 - `#quran read` auto-updates mark only if you already have a mark.
+- Add `--no-mark` to log pages without moving mark (flexible position: before or after page number).
 - If no mark exists yet, bot asks you to set it first via `#quran mark <page>`.
 - Manual `#quran mark <page>` remains the source of truth for correction.
 

@@ -173,8 +173,10 @@ function helpMessage(): string {
     `1) Catat bacaan hari ini\n` +
     `• #quran read 3\n` +
     `• #quran log 3\n` +
+    `• #quran read 3 --no-mark\n` +
     `Fungsi: menambahkan 3 halaman ke catatan hari ini.\n` +
-    `Kalau kirim lagi di hari yang sama, otomatis dijumlahkan.\n\n` +
+    `Kalau kirim lagi di hari yang sama, otomatis dijumlahkan.\n` +
+    `Tambah --no-mark kalau mau catat bacaan tanpa geser mark.\n\n` +
     `2) Lihat riwayat bacaan\n` +
     `• #quran --list\n` +
     `Fungsi: tampilkan riwayat terbaru + total halaman yang sudah dibaca.\n\n` +
@@ -241,7 +243,7 @@ function parseMarkPage(
 
 function parseReadInput(
   firstLine: string
-): { ok: true; pages: number } | { ok: false; message: string } {
+): { ok: true; pages: number; noMark: boolean } | { ok: false; message: string } {
   const normalized = firstLine.trim().replace(/\s+/g, ' ');
   const readPrefix = /^#quran\s+(?:read|log)\s+(.+)$/i;
   const match = normalized.match(readPrefix);
@@ -254,7 +256,31 @@ function parseReadInput(
     };
   }
 
-  const rawValue = match[1].trim();
+  const parts = match[1].trim().split(/\s+/);
+  const noMark = parts.some((p) => p.toLowerCase() === '--no-mark');
+  const unknownFlags = parts.filter((p) => p.startsWith('--') && p.toLowerCase() !== '--no-mark');
+
+  if (unknownFlags.length > 0) {
+    return {
+      ok: false,
+      message:
+        `Flag *${unknownFlags[0]}* tidak dikenali 🤔\n\n` +
+        `Flag yang tersedia:\n` +
+        `--no-mark — catat bacaan tanpa geser mark\n\n` +
+        `Contoh:\n` +
+        `#quran read 3 --no-mark`,
+    };
+  }
+
+  const rawValue = parts.filter((p) => p.toLowerCase() !== '--no-mark').join(' ');
+
+  if (!rawValue) {
+    return {
+      ok: false,
+      message:
+        `Aku belum nangkep jumlah halamannya 🙏\n\n` + `Contoh yang benar:\n` + `#quran read 3`,
+    };
+  }
 
   if (/^\d+(?:[.,]\d+)\b/.test(rawValue)) {
     return {
@@ -307,7 +333,7 @@ function parseReadInput(
     };
   }
 
-  return { ok: true, pages };
+  return { ok: true, pages, noMark };
 }
 
 function toReadLoggedResponse(pagesAdded: number, totalToday: number, streakDays: number): string {
@@ -353,31 +379,37 @@ async function handleQuranRead(
   );
   const totalToday = todayRecord?.pages ?? parseResult.pages;
   const streaks = computeQuranStreaks(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
-  const existingMark = quranRepository.findMarkByUser(ctx.sender);
 
   let markSection: string;
-  if (!existingMark) {
+  if (parseResult.noMark) {
     markSection =
-      `\n\n� Aku belum bisa auto-geser mark karena kamu belum punya mark awal.` +
-      `\nKamu tadi baca sampai halaman berapa?` +
-      `\nSet dulu pakai:\n#quran mark <halaman>`;
+      `\n\n📍 Mark tidak diubah karena kamu pakai --no-mark.` + `\nCek mark kamu: #quran mark`;
   } else {
-    const nextMark = existingMark.page + parseResult.pages;
+    const existingMark = quranRepository.findMarkByUser(ctx.sender);
 
-    if (nextMark > MAX_QURAN_PAGE) {
-      quranRepository.upsertMark(ctx.sender, 0, existingMark.createdAtUtc, nowIsoUtc);
+    if (!existingMark) {
       markSection =
-        `\n\n📍 Aku coba geser mark berdasarkan bacaan +${parseResult.pages} halaman,` +
-        ` tapi hasilnya jadi halaman ${nextMark} (melewati batas ${MAX_QURAN_PAGE}).` +
-        `\nSejauh yang aku tahu, halaman Qur'an maksimal ${MAX_QURAN_PAGE}.` +
-        `\nMasyaAllah, kamu sudah khatam ya berarti 🎉` +
-        `\nMark Qur'an aku reset jadi halaman 0 yaa.`;
+        `\n\n📍 Aku belum bisa auto-geser mark karena kamu belum punya mark awal.` +
+        `\nKamu tadi baca sampai halaman berapa?` +
+        `\nSet dulu pakai:\n#quran mark <halaman>`;
     } else {
-      quranRepository.upsertMark(ctx.sender, nextMark, existingMark.createdAtUtc, nowIsoUtc);
-      markSection =
-        `\n\n📍 Mark otomatis aku geser dari halaman *${existingMark.page}* ke *${nextMark}*` +
-        ` berdasarkan bacaan +${parseResult.pages} halaman.` +
-        `\nKalau kurang pas, koreksi manual: #quran mark <halaman>`;
+      const nextMark = existingMark.page + parseResult.pages;
+
+      if (nextMark > MAX_QURAN_PAGE) {
+        quranRepository.upsertMark(ctx.sender, 0, existingMark.createdAtUtc, nowIsoUtc);
+        markSection =
+          `\n\n📍 Aku coba geser mark berdasarkan bacaan +${parseResult.pages} halaman,` +
+          ` tapi hasilnya jadi halaman ${nextMark} (melewati batas ${MAX_QURAN_PAGE}).` +
+          `\nSejauh yang aku tahu, halaman Qur'an maksimal ${MAX_QURAN_PAGE}.` +
+          `\nMasyaAllah, kamu sudah khatam ya berarti 🎉` +
+          `\nMark Qur'an aku reset jadi halaman 0 yaa.`;
+      } else {
+        quranRepository.upsertMark(ctx.sender, nextMark, existingMark.createdAtUtc, nowIsoUtc);
+        markSection =
+          `\n\n📍 Mark otomatis aku geser dari halaman *${existingMark.page}* ke *${nextMark}*` +
+          ` berdasarkan bacaan +${parseResult.pages} halaman.` +
+          `\nKalau kurang pas, koreksi manual: #quran mark <halaman>`;
+      }
     }
   }
 
