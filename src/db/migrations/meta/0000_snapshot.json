@@ -507,7 +507,7 @@
         },
         "weight": {
           "name": "weight",
-          "type": "integer",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "default": 0

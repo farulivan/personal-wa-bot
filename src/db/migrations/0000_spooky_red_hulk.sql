@@ -63,7 +63,7 @@ CREATE TABLE "workouts" (
 	"type" text NOT NULL,
 	"reps" integer NOT NULL,
 	"sets" integer NOT NULL,
-	"weight" integer DEFAULT 0 NOT NULL,
+	"weight" real DEFAULT 0 NOT NULL,
 	"workout_mode" text DEFAULT 'lift' NOT NULL,
 	"duration_minutes" real DEFAULT 0 NOT NULL,
 	"distance_km" real DEFAULT 0 NOT NULL,

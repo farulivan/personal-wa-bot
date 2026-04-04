@@ -7,7 +7,7 @@ export const workouts = pgTable('workouts', {
   type: text('type').notNull(),
   reps: integer('reps').notNull(),
   sets: integer('sets').notNull(),
-  weight: integer('weight').notNull().default(0),
+  weight: real('weight').notNull().default(0),
   workoutMode: text('workout_mode').notNull().default('lift'),
   durationMinutes: real('duration_minutes').notNull().default(0),
   distanceKm: real('distance_km').notNull().default(0),
