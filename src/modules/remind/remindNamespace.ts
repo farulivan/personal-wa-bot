@@ -280,7 +280,7 @@ async function handleCreateReminder(
     );
   }
 
-  const activeReminderCount = remindRepository.countActiveByUser(ctx.sender);
+  const activeReminderCount = await remindRepository.countActiveByUser(ctx.sender);
   if (activeReminderCount >= REMINDER_ACTIVE_LIMIT) {
     return (
       `You already have ${activeReminderCount} active reminders.\n` +
@@ -288,7 +288,7 @@ async function handleCreateReminder(
     );
   }
 
-  remindRepository.insertReminder({
+  await remindRepository.insertReminder({
     userId: ctx.sender,
     targetChatId: ctx.replyChatId,
     sourceType: ctx.isGroupChat ? 'group' : 'direct',
@@ -320,7 +320,7 @@ async function handleReminderList(
   const page = parsePageNumber(invocation.firstLine);
   const offset = (page - 1) * REMIND_LIST_LIMIT;
 
-  const total = remindRepository.countByUser(ctx.sender);
+  const total = await remindRepository.countByUser(ctx.sender);
   if (total === 0) {
     return (
       `You don't have any saved reminders yet.\n\n` +
@@ -338,7 +338,7 @@ async function handleReminderList(
   }
 
   const now = ctx.now();
-  const rows = remindRepository.listByUser(ctx.sender, REMIND_LIST_LIMIT, offset);
+  const rows = await remindRepository.listByUser(ctx.sender, REMIND_LIST_LIMIT, offset);
 
   const listText = rows
     .map((row) => {

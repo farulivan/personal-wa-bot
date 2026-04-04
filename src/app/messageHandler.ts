@@ -19,11 +19,11 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
       debug(`📨 from=${msg.from}, rawSender=${rawSender}, sender=${sender}, isGroup=${isGroup}`);
 
       // Capture user contact information for persistent storage (only if not already stored)
-      const existingUser = appContext.userRepository.findById(sender);
+      const existingUser = await appContext.userRepository.findById(sender);
       if (!existingUser) {
         try {
           const contact = await msg.getContact();
-          appContext.userRepository.upsert({
+          await appContext.userRepository.upsert({
             id: sender,
             phoneNumber: contact.number,
             contactName: contact.name,
@@ -125,7 +125,6 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
       debug(`🎯 Command: ${invocation.namespace} --${invocation.subcommand}`);
 
       const ctx: CommandContext = {
-        db: appContext.db,
         sender,
         replyChatId: msg.from,
         isGroupChat: isGroup,

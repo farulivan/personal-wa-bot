@@ -1,7 +1,7 @@
 import type { NamespaceHandler } from '../../app/commandRouter.js';
 import type { CommandInvocation } from '../../app/parseCommand.js';
 import { debug } from '../../logger.js';
-import { computeStreaks, getTodayWorkoutCount } from './workoutStreaks.js';
+import { computeStreaks } from './workoutStreaks.js';
 import { MIN_WORKOUTS_FOR_STREAK, WORKOUT_LIST_LIMIT } from '../../app/constants.js';
 import type { WorkoutRepository, WorkoutRow } from './infra/workoutRepository.js';
 
@@ -358,7 +358,7 @@ async function handleWorkoutList(
   const page = parsePageNumber(invocation.firstLine);
   const offset = (page - 1) * WORKOUT_LIST_LIMIT;
 
-  const total = workoutRepository.countByUser(ctx.sender);
+  const total = await workoutRepository.countByUser(ctx.sender);
 
   const totalPages = Math.max(1, Math.ceil(total / WORKOUT_LIST_LIMIT));
 
@@ -381,11 +381,15 @@ async function handleWorkoutList(
     );
   }
 
-  const rows = workoutRepository.listByUser(ctx.sender, WORKOUT_LIST_LIMIT, offset);
+  const rows = await workoutRepository.listByUser(ctx.sender, WORKOUT_LIST_LIMIT, offset);
 
   const list = formatWorkoutList(rows, ctx.timezoneOffsetMinutes, now);
 
-  const streaks = computeStreaks(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
+  const days = await workoutRepository.getQualifyingStreakDays(
+    ctx.sender,
+    ctx.timezoneOffsetMinutes
+  );
+  const streaks = computeStreaks(days, ctx.timezoneOffsetMinutes, now);
   let streakSection = '';
   if (streaks.current > 0 || streaks.best > 0) {
     streakSection = `\n\n🔥 Streak: ${streaks.current} day${streaks.current !== 1 ? 's' : ''}`;
@@ -420,7 +424,7 @@ async function handleWorkoutLog(
   const payload = parsed.payload;
 
   if (payload.mode === 'lift') {
-    workoutRepository.insertWorkoutLog({
+    await workoutRepository.insertWorkoutLog({
       user: ctx.sender,
       workoutMode: 'lift',
       type: payload.activity,
@@ -436,7 +440,7 @@ async function handleWorkoutLog(
       `💾 Workout saved: [lift] ${payload.activity} ${payload.reps}×${payload.sets} @ ${payload.weight === 0 ? 'bodyweight' : `${payload.weight}kg`}`
     );
   } else {
-    workoutRepository.insertWorkoutLog({
+    await workoutRepository.insertWorkoutLog({
       user: ctx.sender,
       workoutMode: 'cardio',
       type: payload.activity,
@@ -471,14 +475,22 @@ async function handleWorkoutLog(
           now
         );
 
-  const todayCount = getTodayWorkoutCount(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
+  const todayCount = await workoutRepository.getTodayCount(
+    ctx.sender,
+    ctx.timezoneOffsetMinutes,
+    now.toISOString()
+  );
   const remaining = MIN_WORKOUTS_FOR_STREAK - todayCount;
 
   let streakNote: string;
   if (remaining > 0) {
     streakNote = `\n\n${remaining} more to go today to keep the streak alive 🔥`;
   } else if (remaining === 0) {
-    const streaks = computeStreaks(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
+    const days = await workoutRepository.getQualifyingStreakDays(
+      ctx.sender,
+      ctx.timezoneOffsetMinutes
+    );
+    const streaks = computeStreaks(days, ctx.timezoneOffsetMinutes, now);
     streakNote = `\n\n🔥 Day counted! Streak: ${streaks.current} day${streaks.current !== 1 ? 's' : ''}. Keep it rolling.`;
   } else {
     // Already qualified earlier, just acknowledge

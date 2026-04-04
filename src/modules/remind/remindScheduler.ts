@@ -53,7 +53,7 @@ export function startReminderScheduler(deps: StartReminderSchedulerDeps): void {
 
     try {
       const nowIso = new Date().toISOString();
-      const dueReminders = deps.remindRepository.listDuePending(nowIso, 50);
+      const dueReminders = await deps.remindRepository.listDuePending(nowIso, 50);
 
       if (dueReminders.length === 0) {
         return;
@@ -62,7 +62,7 @@ export function startReminderScheduler(deps: StartReminderSchedulerDeps): void {
       debug(`⏰ Reminder scheduler: found ${dueReminders.length} due reminder(s)`);
 
       for (const reminder of dueReminders) {
-        const name = deps.userRepository.getDisplayName(reminder.userId);
+        const name = await deps.userRepository.getDisplayName(reminder.userId);
         const localDateTimeLabel = toLocalDateTimeLabel(
           reminder.scheduledAt,
           deps.timezoneOffsetMinutes
@@ -71,7 +71,7 @@ export function startReminderScheduler(deps: StartReminderSchedulerDeps): void {
 
         try {
           await deps.client.sendMessage(reminder.targetChatId, message);
-          deps.remindRepository.markAsSent(reminder.id, new Date().toISOString());
+          await deps.remindRepository.markAsSent(reminder.id, new Date().toISOString());
           debug(`⏰ Reminder sent: id=${reminder.id}, chat=${reminder.targetChatId}`);
         } catch (err) {
           error(`⏰ Failed to send reminder id=${reminder.id}:`, err);

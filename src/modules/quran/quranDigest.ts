@@ -1,4 +1,3 @@
-import type { Database } from 'better-sqlite3';
 import { debug, error } from '../../logger.js';
 import {
   listGroupMemberIdentities,
@@ -18,7 +17,6 @@ type WhatsAppClientLike = {
 
 type QuranReminderDeps = {
   client: WhatsAppClientLike;
-  db: Database;
   quranRepository: QuranRepository;
   userRepository: UserRepository;
   timezoneOffsetMinutes: number;
@@ -100,7 +98,7 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
       const [memberIdentities, botUserId, dbUsers] = await Promise.all([
         listGroupMemberIdentities(deps.client, groupChatId),
         resolveNormalizedBotUserId(deps.client),
-        Promise.resolve(deps.quranRepository.listDistinctUsers()),
+        deps.quranRepository.listDistinctUsers(),
       ]);
 
       groupMemberIdentities = botUserId
@@ -131,20 +129,22 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
       return;
     }
 
-    const reminders: UserReminder[] = targets.map((userId) => {
-      const hasRead = deps.quranRepository.hasReadTodayByUser(
-        userId,
-        deps.timezoneOffsetMinutes,
-        now.toISOString()
-      );
-      const streaks = computeQuranStreaks(deps.db, userId, deps.timezoneOffsetMinutes, now);
+    const reminders: UserReminder[] = await Promise.all(
+      targets.map(async (userId) => {
+        const [hasRead, readDays, name] = await Promise.all([
+          deps.quranRepository.hasReadTodayByUser(
+            userId,
+            deps.timezoneOffsetMinutes,
+            now.toISOString()
+          ),
+          deps.quranRepository.getReadDays(userId, deps.timezoneOffsetMinutes),
+          deps.userRepository.getDisplayName(userId),
+        ]);
+        const streaks = computeQuranStreaks(readDays, deps.timezoneOffsetMinutes, now);
 
-      return {
-        name: deps.userRepository.getDisplayName(userId),
-        hasRead,
-        currentStreak: streaks.current,
-      };
-    });
+        return { name, hasRead, currentStreak: streaks.current };
+      })
+    );
 
     const message = buildReminderMessage(reminders);
     debug(`📖 Reminder message built, sending to ${groupChatId}`);

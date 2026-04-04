@@ -26,24 +26,38 @@ export type QuranMarkRow = {
   updatedAtUtc: string;
 };
 
+export type QuranStreakDateRange = {
+  startDateInclusive: string;
+  endDateInclusive: string;
+};
+
 export interface QuranRepository {
-  addDailyReadPages(input: NewQuranReadLog): void;
+  addDailyReadPages(input: NewQuranReadLog): Promise<void>;
   findTodayByUser(
     user: string,
     timezoneOffsetMinutes: number,
     nowIsoUtc: string
-  ): QuranDailyReadRow | null;
-  hasReadTodayByUser(user: string, timezoneOffsetMinutes: number, nowIsoUtc: string): boolean;
-  countByUser(user: string): number;
-  sumPagesByUser(user: string): number;
+  ): Promise<QuranDailyReadRow | null>;
+  hasReadTodayByUser(
+    user: string,
+    timezoneOffsetMinutes: number,
+    nowIsoUtc: string
+  ): Promise<boolean>;
+  countByUser(user: string): Promise<number>;
+  sumPagesByUser(user: string): Promise<number>;
   sumPagesByUserInDateRange(
     user: string,
     timezoneOffsetMinutes: number,
     startDateInclusive: string,
     endDateInclusive: string
-  ): number;
-  upsertMark(user: string, page: number, createdAtUtc: string, updatedAtUtc: string): void;
-  findMarkByUser(user: string): QuranMarkRow | null;
-  listByUser(user: string, limit: number, offset: number): QuranHistoryRow[];
-  listDistinctUsers(): string[];
+  ): Promise<number>;
+  upsertMark(user: string, page: number, createdAtUtc: string, updatedAtUtc: string): Promise<void>;
+  findMarkByUser(user: string): Promise<QuranMarkRow | null>;
+  listByUser(user: string, limit: number, offset: number): Promise<QuranHistoryRow[]>;
+  listDistinctUsers(): Promise<string[]>;
+  getReadDays(
+    user: string,
+    timezoneOffsetMinutes: number,
+    range?: QuranStreakDateRange
+  ): Promise<string[]>;
 }

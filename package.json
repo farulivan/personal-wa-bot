@@ -11,7 +11,10 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/",
-    "format:check": "prettier --check src/"
+    "format:check": "prettier --check src/",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio"
   },
   "keywords": [
     "whatsapp",
@@ -23,14 +26,15 @@
   "license": "ISC",
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
-    "better-sqlite3": "^12.6.2",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.8",
     "qrcode-terminal": "^0.12.0",
     "whatsapp-web.js": "^1.34.6"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.0.9",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.1.8",
     "jiti": "^2.6.1",

@@ -212,7 +212,7 @@ async function syncLocationCatalog(
   const locationRows = toSholatLocationRows(locations);
   const nowIso = new Date().toISOString();
 
-  sholatRepository.upsertLocations(
+  await sholatRepository.upsertLocations(
     locationRows.map((row) => ({
       id: row.id,
       locationName: row.locationName,
@@ -229,7 +229,7 @@ async function ensureLocationCatalog(
   sholatRepository: SholatRepository,
   sholatClient: MyQuranSholatClient
 ): Promise<void> {
-  if (sholatRepository.countLocations() > 0) {
+  if ((await sholatRepository.countLocations()) > 0) {
     return;
   }
 
@@ -247,7 +247,7 @@ async function handleSholatToday(
 
   await ensureLocationCatalog(deps.sholatRepository, deps.sholatClient);
 
-  const allLocations = deps.sholatRepository.listLocations();
+  const allLocations = await deps.sholatRepository.listLocations();
   const resolved = resolveLocation(allLocations, locationArg, deps.defaultLocation);
   if (!resolved.ok) {
     return resolved.message;
@@ -256,7 +256,7 @@ async function handleSholatToday(
   const location = resolved.location;
   const todayDate = toDateInTimezone(now, timezone);
 
-  const cached = deps.sholatRepository.findDailySchedule(location.id, todayDate, timezone);
+  const cached = await deps.sholatRepository.findDailySchedule(location.id, todayDate, timezone);
   if (cached) {
     debug(`🕌 Sholat cache hit for ${location.locationName} on ${todayDate}`);
     return toResponse(location.locationName, cached);
@@ -288,7 +288,7 @@ async function handleSholatToday(
 
     selectedLocation = refreshedResolved.location;
 
-    const refreshedCached = deps.sholatRepository.findDailySchedule(
+    const refreshedCached = await deps.sholatRepository.findDailySchedule(
       selectedLocation.id,
       todayDate,
       timezone
@@ -303,7 +303,7 @@ async function handleSholatToday(
     schedule = await deps.sholatClient.fetchTodaySchedule(selectedLocation.id, timezone);
   }
 
-  deps.sholatRepository.upsertDailySchedule({
+  await deps.sholatRepository.upsertDailySchedule({
     locationId: selectedLocation.id,
     scheduleDate: schedule.scheduleDate,
     timezone,
@@ -323,7 +323,7 @@ async function handleSholatToday(
     `🕌 Sholat cache miss; fetched API for ${selectedLocation.locationName} on ${schedule.scheduleDate}`
   );
 
-  const persisted = deps.sholatRepository.findDailySchedule(
+  const persisted = await deps.sholatRepository.findDailySchedule(
     selectedLocation.id,
     schedule.scheduleDate,
     timezone

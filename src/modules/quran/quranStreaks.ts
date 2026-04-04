@@ -1,14 +1,10 @@
-import type { Database } from 'better-sqlite3';
-import { debug } from '../../logger.js';
-
-type DayRow = { localDate: string };
-
-export type QuranStreakDateRange = {
-  startDateInclusive: string;
-  endDateInclusive: string;
+export type StreakInfo = {
+  current: number;
+  best: number;
 };
 
-function toUserDate(utcDate: Date, timezoneOffsetMinutes: number): string {
+// Returns the user's local date string (YYYY-MM-DD) for a given UTC timestamp
+export function toUserDate(utcDate: Date, timezoneOffsetMinutes: number): string {
   const local = new Date(utcDate.getTime() + timezoneOffsetMinutes * 60000);
   const y = local.getUTCFullYear();
   const m = String(local.getUTCMonth() + 1).padStart(2, '0');
@@ -16,78 +12,12 @@ function toUserDate(utcDate: Date, timezoneOffsetMinutes: number): string {
   return `${y}-${m}-${d}`;
 }
 
-function getReadDays(
-  db: Database,
-  user: string,
-  timezoneOffsetMinutes: number,
-  range?: QuranStreakDateRange
-): string[] {
-  const offsetSeconds = timezoneOffsetMinutes * 60;
-
-  let query = `SELECT date(created_at, '+${offsetSeconds} seconds') AS localDate
-       FROM quran_daily_reads
-       WHERE user = ? AND pages > 0`;
-  const params: string[] = [user];
-
-  if (range) {
-    query += `
-       AND date(created_at, '+${offsetSeconds} seconds') >= date(?)
-       AND date(created_at, '+${offsetSeconds} seconds') <= date(?)`;
-    params.push(range.startDateInclusive, range.endDateInclusive);
-  }
-
-  query += `
-       GROUP BY localDate
-       ORDER BY localDate DESC`;
-
-  const rows = db.prepare(query).all(...params) as DayRow[];
-
-  return rows.map((row) => row.localDate);
-}
-
-export type StreakInfo = {
-  current: number;
-  best: number;
-};
-
-export function hasReadToday(
-  db: Database,
-  user: string,
+// Compute current and best streak from pre-fetched read days (DESC order)
+export function computeQuranStreaks(
+  days: string[],
   timezoneOffsetMinutes: number,
   now: Date
-): boolean {
-  const today = toUserDate(now, timezoneOffsetMinutes);
-  const offsetSeconds = timezoneOffsetMinutes * 60;
-
-  debug(
-    `📖 hasReadToday check: user=${user}, today=${today}, offset=${offsetSeconds}s, now=${now.toISOString()}`
-  );
-
-  const query = `SELECT 1
-       FROM quran_daily_reads
-       WHERE user = ?
-         AND date(created_at, '+${offsetSeconds} seconds') = date(?)
-         AND pages > 0
-       LIMIT 1`;
-
-  debug(`📖 Query: ${query}`);
-  debug(`📖 Params: user=${user}, today=${today}`);
-
-  const row = db.prepare(query).get(user, today);
-
-  debug(`📖 Query result: ${row ? 'FOUND' : 'NOT FOUND'}`);
-
-  return Boolean(row);
-}
-
-export function computeQuranStreaks(
-  db: Database,
-  user: string,
-  timezoneOffsetMinutes: number,
-  now: Date,
-  range?: QuranStreakDateRange
 ): StreakInfo {
-  const days = getReadDays(db, user, timezoneOffsetMinutes, range);
   if (days.length === 0) return { current: 0, best: 0 };
 
   const today = toUserDate(now, timezoneOffsetMinutes);

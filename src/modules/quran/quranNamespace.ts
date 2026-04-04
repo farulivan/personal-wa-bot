@@ -2,7 +2,7 @@ import type { NamespaceHandler } from '../../app/commandRouter.js';
 import type { CommandInvocation } from '../../app/parseCommand.js';
 import { debug } from '../../logger.js';
 import { computeQuranStreaks } from './quranStreaks.js';
-import type { QuranStreakDateRange } from './quranStreaks.js';
+import type { QuranStreakDateRange } from './infra/quranRepository.js';
 import {
   QURAN_LIST_LIMIT,
   QURAN_RAMADHAN_COUNT_ENABLED,
@@ -363,7 +363,7 @@ async function handleQuranRead(
   const now = ctx.now();
   const nowIsoUtc = now.toISOString();
 
-  quranRepository.addDailyReadPages({
+  await quranRepository.addDailyReadPages({
     user: ctx.sender,
     pages: parseResult.pages,
     timezoneOffsetMinutes: ctx.timezoneOffsetMinutes,
@@ -372,20 +372,21 @@ async function handleQuranRead(
     updatedAtUtc: nowIsoUtc,
   });
 
-  const todayRecord = quranRepository.findTodayByUser(
+  const todayRecord = await quranRepository.findTodayByUser(
     ctx.sender,
     ctx.timezoneOffsetMinutes,
     nowIsoUtc
   );
   const totalToday = todayRecord?.pages ?? parseResult.pages;
-  const streaks = computeQuranStreaks(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
+  const days = await quranRepository.getReadDays(ctx.sender, ctx.timezoneOffsetMinutes);
+  const streaks = computeQuranStreaks(days, ctx.timezoneOffsetMinutes, now);
 
   let markSection: string;
   if (parseResult.noMark) {
     markSection =
       `\n\n📍 Mark tidak diubah karena kamu pakai --no-mark.` + `\nCek mark kamu: #quran mark`;
   } else {
-    const existingMark = quranRepository.findMarkByUser(ctx.sender);
+    const existingMark = await quranRepository.findMarkByUser(ctx.sender);
 
     if (!existingMark) {
       markSection =
@@ -396,7 +397,7 @@ async function handleQuranRead(
       const nextMark = existingMark.page + parseResult.pages;
 
       if (nextMark > MAX_QURAN_PAGE) {
-        quranRepository.upsertMark(ctx.sender, 0, existingMark.createdAtUtc, nowIsoUtc);
+        await quranRepository.upsertMark(ctx.sender, 0, existingMark.createdAtUtc, nowIsoUtc);
         markSection =
           `\n\n📍 Aku coba geser mark berdasarkan bacaan +${parseResult.pages} halaman,` +
           ` tapi hasilnya jadi halaman ${nextMark} (melewati batas ${MAX_QURAN_PAGE}).` +
@@ -404,7 +405,12 @@ async function handleQuranRead(
           `\nMasyaAllah, kamu sudah khatam ya berarti 🎉` +
           `\nMark Qur'an aku reset jadi halaman 0 yaa.`;
       } else {
-        quranRepository.upsertMark(ctx.sender, nextMark, existingMark.createdAtUtc, nowIsoUtc);
+        await quranRepository.upsertMark(
+          ctx.sender,
+          nextMark,
+          existingMark.createdAtUtc,
+          nowIsoUtc
+        );
         markSection =
           `\n\n📍 Mark otomatis aku geser dari halaman *${existingMark.page}* ke *${nextMark}*` +
           ` berdasarkan bacaan +${parseResult.pages} halaman.` +
@@ -427,15 +433,15 @@ async function handleQuranList(
   const page = parsePageNumber(invocation.firstLine);
   const offset = (page - 1) * QURAN_LIST_LIMIT;
 
-  const totalDays = quranRepository.countByUser(ctx.sender);
-  const totalPagesRead = quranRepository.sumPagesByUser(ctx.sender);
-  const currentMark = quranRepository.findMarkByUser(ctx.sender);
+  const totalDays = await quranRepository.countByUser(ctx.sender);
+  const totalPagesRead = await quranRepository.sumPagesByUser(ctx.sender);
+  const currentMark = await quranRepository.findMarkByUser(ctx.sender);
   const totalPages = Math.max(1, Math.ceil(totalDays / QURAN_LIST_LIMIT));
 
   let ramadhanSummary = '';
   const dateRangeMode = getDateRangeMode();
   if (dateRangeMode.mode === 'ramadhan' && dateRangeMode.range) {
-    const ramadhanPagesRead = quranRepository.sumPagesByUserInDateRange(
+    const ramadhanPagesRead = await quranRepository.sumPagesByUserInDateRange(
       ctx.sender,
       ctx.timezoneOffsetMinutes,
       dateRangeMode.range.startDateInclusive,
@@ -461,9 +467,10 @@ async function handleQuranList(
     );
   }
 
-  const rows = quranRepository.listByUser(ctx.sender, QURAN_LIST_LIMIT, offset);
+  const rows = await quranRepository.listByUser(ctx.sender, QURAN_LIST_LIMIT, offset);
   const list = formatQuranHistoryList(rows, ctx.timezoneOffsetMinutes, now);
-  const streaks = computeQuranStreaks(ctx.db, ctx.sender, ctx.timezoneOffsetMinutes, now);
+  const readDays = await quranRepository.getReadDays(ctx.sender, ctx.timezoneOffsetMinutes);
+  const streaks = computeQuranStreaks(readDays, ctx.timezoneOffsetMinutes, now);
 
   let streakSection = '';
   if (streaks.current > 0 || streaks.best > 0) {
@@ -513,7 +520,7 @@ async function handleQuranMark(
   }
 
   if (tokens.length === 2) {
-    const mark = quranRepository.findMarkByUser(ctx.sender);
+    const mark = await quranRepository.findMarkByUser(ctx.sender);
     if (!mark) {
       return (
         `Kamu belum punya mark tilawah 👀\n\n` +
@@ -548,9 +555,9 @@ async function handleQuranMark(
   }
 
   const nowIsoUtc = ctx.now().toISOString();
-  const existing = quranRepository.findMarkByUser(ctx.sender);
+  const existing = await quranRepository.findMarkByUser(ctx.sender);
 
-  quranRepository.upsertMark(
+  await quranRepository.upsertMark(
     ctx.sender,
     parseResult.page,
     existing?.createdAtUtc ?? nowIsoUtc,
@@ -589,18 +596,18 @@ async function handleQuranLeaderboard(
       ? dateRangeMode.range
       : getCurrentMonthDateRange(now, ctx.timezoneOffsetMinutes);
 
-  const users = quranRepository.listDistinctUsers();
-  const entriesWithMetrics = users
-    .map((user) => {
-      const streak = computeQuranStreaks(
-        ctx.db,
+  const userIds = await quranRepository.listDistinctUsers();
+
+  const entriesWithMetricsRaw = await Promise.all(
+    userIds.map(async (user) => {
+      const readDays = await quranRepository.getReadDays(
         user,
         ctx.timezoneOffsetMinutes,
-        now,
         dateRangeMode.mode === 'ramadhan' ? dateRangeMode.range : undefined
       );
+      const streak = computeQuranStreaks(readDays, ctx.timezoneOffsetMinutes, now);
 
-      const pagesRead = quranRepository.sumPagesByUserInDateRange(
+      const pagesRead = await quranRepository.sumPagesByUserInDateRange(
         user,
         ctx.timezoneOffsetMinutes,
         pageRange.startDateInclusive,
@@ -614,14 +621,20 @@ async function handleQuranLeaderboard(
         pagesRead,
       };
     })
-    .filter((entry) => entry.currentStreak > 0 || entry.bestStreak > 0 || entry.pagesRead > 0);
+  );
 
-  const entries: QuranLeaderboardEntry[] = entriesWithMetrics.map((entry) => ({
-    user: userRepository.getDisplayName(entry.userId),
-    currentStreak: entry.currentStreak,
-    bestStreak: entry.bestStreak,
-    pagesRead: entry.pagesRead,
-  }));
+  const entriesWithMetrics = entriesWithMetricsRaw.filter(
+    (entry) => entry.currentStreak > 0 || entry.bestStreak > 0 || entry.pagesRead > 0
+  );
+
+  const entries: QuranLeaderboardEntry[] = await Promise.all(
+    entriesWithMetrics.map(async (entry) => ({
+      user: await userRepository.getDisplayName(entry.userId),
+      currentStreak: entry.currentStreak,
+      bestStreak: entry.bestStreak,
+      pagesRead: entry.pagesRead,
+    }))
+  );
 
   const rankedEntries = rankQuranLeaderboardEntries(entries);
   const message = renderQuranLeaderboardMessage(dateRangeMode.mode, rankedEntries);

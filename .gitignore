@@ -4,3 +4,6 @@
 /.wwebjs_auth
 /.wwebjs_cache
 .env
+/.windsurf
+/.agents
+skills-lock.json

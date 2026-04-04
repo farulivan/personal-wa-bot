@@ -36,8 +36,10 @@ export type NewCardioWorkoutLog = {
 export type NewWorkoutLog = NewLiftWorkoutLog | NewCardioWorkoutLog;
 
 export interface WorkoutRepository {
-  countByUser(user: string): number;
-  listByUser(user: string, limit: number, offset: number): WorkoutRow[];
-  insertWorkoutLog(log: NewWorkoutLog): void;
-  listDistinctUsers(): string[];
+  countByUser(user: string): Promise<number>;
+  listByUser(user: string, limit: number, offset: number): Promise<WorkoutRow[]>;
+  insertWorkoutLog(log: NewWorkoutLog): Promise<void>;
+  listDistinctUsers(): Promise<string[]>;
+  getQualifyingStreakDays(user: string, timezoneOffsetMinutes: number): Promise<string[]>;
+  getTodayCount(user: string, timezoneOffsetMinutes: number, nowIso: string): Promise<number>;
 }

@@ -1,10 +1,10 @@
-import type { Database } from 'better-sqlite3';
-import { MIN_WORKOUTS_FOR_STREAK } from '../../app/constants.js';
-
-type DayCountRow = { day: string; cnt: number };
+export type StreakInfo = {
+  current: number;
+  best: number;
+};
 
 // Returns the user's local date string (YYYY-MM-DD) for a given UTC timestamp
-function toUserDate(utcDate: Date, timezoneOffsetMinutes: number): string {
+export function toUserDate(utcDate: Date, timezoneOffsetMinutes: number): string {
   const local = new Date(utcDate.getTime() + timezoneOffsetMinutes * 60000);
   const y = local.getUTCFullYear();
   const m = String(local.getUTCMonth() + 1).padStart(2, '0');
@@ -12,55 +12,12 @@ function toUserDate(utcDate: Date, timezoneOffsetMinutes: number): string {
   return `${y}-${m}-${d}`;
 }
 
-// Get qualifying days (>= MIN_WORKOUTS_PER_DAY) sorted descending
-function getQualifyingDays(db: Database, sender: string, timezoneOffsetMinutes: number): string[] {
-  // SQLite: shift created_at by timezone offset, extract date, count per day
-  const offsetSeconds = timezoneOffsetMinutes * 60;
-  const rows = db
-    .prepare(
-      `SELECT date(created_at, '+${offsetSeconds} seconds') AS day, COUNT(*) AS cnt
-     FROM workouts
-     WHERE user = ?
-     GROUP BY day
-     HAVING cnt >= ?
-     ORDER BY day DESC`
-    )
-    .all(sender, MIN_WORKOUTS_FOR_STREAK) as DayCountRow[];
-
-  return rows.map((r) => r.day);
-}
-
-// Count workouts for today (user's local date)
-export function getTodayWorkoutCount(
-  db: Database,
-  sender: string,
-  timezoneOffsetMinutes: number,
-  now: Date
-): number {
-  const today = toUserDate(now, timezoneOffsetMinutes);
-  const offsetSeconds = timezoneOffsetMinutes * 60;
-  const row = db
-    .prepare(
-      `SELECT COUNT(*) AS cnt FROM workouts
-     WHERE user = ? AND date(created_at, '+${offsetSeconds} seconds') = ?`
-    )
-    .get(sender, today) as { cnt: number };
-  return row.cnt;
-}
-
-export type StreakInfo = {
-  current: number;
-  best: number;
-};
-
-// Compute current and best streak from qualifying days
+// Compute current and best streak from pre-fetched qualifying days (DESC order)
 export function computeStreaks(
-  db: Database,
-  sender: string,
+  days: string[],
   timezoneOffsetMinutes: number,
   now: Date
 ): StreakInfo {
-  const days = getQualifyingDays(db, sender, timezoneOffsetMinutes);
   if (days.length === 0) return { current: 0, best: 0 };
 
   const today = toUserDate(now, timezoneOffsetMinutes);

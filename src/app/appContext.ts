@@ -1,4 +1,3 @@
-import type { Database } from 'better-sqlite3';
 import type pkg from 'whatsapp-web.js';
 import type { AppConfig } from '../config/env.js';
 import type { MessageGateway } from '../adapters/whatsapp/messageGateway.js';
@@ -8,7 +7,6 @@ import type { UserRepository } from '../modules/users/infra/userRepository.js';
 export type AppClient = pkg.Client;
 
 export type AppContext = {
-  db: Database;
   client: AppClient;
   config: AppConfig;
   messageGateway: MessageGateway;

@@ -3,10 +3,29 @@ services:
     build: .
     container_name: personal-wa-bot
     restart: unless-stopped
+    depends_on:
+      - postgres
     volumes:
       # Persist WhatsApp session data
       - ./.wwebjs_auth:/app/.wwebjs_auth
-      # Persist SQLite database
-      - ./data:/app/data
     environment:
       - NODE_ENV=production
+      - DATABASE_URL=postgresql://wabot:wabot@postgres:5432/wabot
+    env_file:
+      - .env
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: personal-wa-bot-db
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=wabot
+      - POSTGRES_PASSWORD=wabot
+      - POSTGRES_DB=wabot
+    ports:
+      - "5432:5432"
+
+volumes:
+  pgdata:

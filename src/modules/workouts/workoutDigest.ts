@@ -1,6 +1,5 @@
 import { computeStreaks } from './workoutStreaks.js';
 import { debug, error } from '../../logger.js';
-import type { Database } from 'better-sqlite3';
 import type { WorkoutRepository } from './infra/workoutRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 import {
@@ -17,7 +16,6 @@ type WhatsAppClientLike = {
 
 type DigestDeps = {
   client: WhatsAppClientLike;
-  db: Database;
   workoutRepository: WorkoutRepository;
   userRepository: UserRepository;
   timezoneOffsetMinutes: number;
@@ -39,7 +37,7 @@ export function createDailyStreakDigestSender(deps: DigestDeps) {
       const [memberIdentities, botUserId, dbUsers] = await Promise.all([
         listGroupMemberIdentities(deps.client, groupChatId),
         resolveNormalizedBotUserId(deps.client),
-        Promise.resolve(deps.workoutRepository.listDistinctUsers()),
+        deps.workoutRepository.listDistinctUsers(),
       ]);
 
       const groupMemberIdentities = botUserId
@@ -66,15 +64,19 @@ export function createDailyStreakDigestSender(deps: DigestDeps) {
       return;
     }
 
-    const standings: UserStreak[] = targetUserIds
-      .map((userId) => {
-        const streaks = computeStreaks(deps.db, userId, deps.timezoneOffsetMinutes, now);
-        return {
-          name: deps.userRepository.getDisplayName(userId),
-          current: streaks.current,
-          best: streaks.best,
-        };
+    const standingsRaw = await Promise.all(
+      targetUserIds.map(async (userId) => {
+        const days = await deps.workoutRepository.getQualifyingStreakDays(
+          userId,
+          deps.timezoneOffsetMinutes
+        );
+        const streaks = computeStreaks(days, deps.timezoneOffsetMinutes, now);
+        const name = await deps.userRepository.getDisplayName(userId);
+        return { name, current: streaks.current, best: streaks.best };
       })
+    );
+
+    const standings: UserStreak[] = standingsRaw
       .filter((standing) => standing.current > 0 || standing.best > 0)
       .sort((a, b) => b.current - a.current || b.best - a.best);
 
