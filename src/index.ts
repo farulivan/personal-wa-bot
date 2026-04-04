@@ -1,6 +1,7 @@
 import { client } from './bot.js';
 import { debug, log, error } from './logger.js';
 import { appConfig } from './config/env.js';
+import { runMigrations } from './db/migrate.js';
 import { createDrizzleDb } from './db/drizzle.js';
 
 // --- Wire up modules ---
@@ -30,106 +31,116 @@ import {
   DIGEST_GROUP_ID,
 } from './app/constants.js';
 
-if (!appConfig.databaseUrl) {
-  throw new Error('DATABASE_URL environment variable is required');
+async function main() {
+  if (!appConfig.databaseUrl) {
+    throw new Error('DATABASE_URL environment variable is required');
+  }
+
+  // --- Run migrations before anything else ---
+  await runMigrations(appConfig.databaseUrl);
+
+  const drizzleDb = createDrizzleDb(appConfig.databaseUrl);
+
+  const messageGateway = createMessageGateway(client);
+  const workoutRepository = new DrizzleWorkoutRepository(drizzleDb);
+  const sholatRepository = new DrizzleSholatRepository(drizzleDb);
+  const sholatClient = new MyQuranSholatClient();
+  const quranRepository = new DrizzleQuranRepository(drizzleDb);
+  const remindRepository = new DrizzleRemindRepository(drizzleDb);
+  const userRepository = new DrizzleUserRepository(drizzleDb);
+
+  const router = new CommandRouter();
+  router.registerNamespace('workout', createWorkoutNamespaceHandler(workoutRepository));
+  router.registerNamespace(
+    'sholat',
+    createSholatNamespaceHandler({
+      sholatRepository,
+      sholatClient,
+      defaultLocation: appConfig.sholatDefaultLocation,
+      defaultTimezone: appConfig.sholatTimezone,
+    })
+  );
+  router.registerNamespace('quran', createQuranNamespaceHandler(quranRepository, userRepository));
+  router.registerNamespace('remind', createRemindNamespaceHandler(remindRepository));
+
+  const appContext = {
+    client,
+    config: appConfig,
+    messageGateway,
+    workoutRepository,
+    userRepository,
+  };
+
+  const sendDailyStreakDigest = createDailyStreakDigestSender({
+    client,
+    workoutRepository,
+    userRepository,
+    timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+  });
+
+  const sendNightlyQuranReminder = createQuranReminderSender({
+    client,
+    quranRepository,
+    userRepository,
+    timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+  });
+
+  let reminderSchedulerStarted = false;
+
+  const handleMessage = createMessageHandler(router, appContext);
+
+  // --- Start bot ---
+  log('🚀 Starting bot initialization...');
+
+  client.on('message', async (msg) => {
+    await handleMessage(msg);
+  });
+
+  client.on('ready', () => {
+    if (!reminderSchedulerStarted) {
+      startReminderScheduler({
+        client,
+        remindRepository,
+        userRepository,
+        timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+      });
+      reminderSchedulerStarted = true;
+      log('⏰ Reminder scheduler started');
+    }
+
+    if (DIGEST_GROUP_ID) {
+      startScheduler([
+        {
+          name: 'Daily Streak Standings',
+          hour: DAILY_DIGEST_HOUR,
+          minute: DAILY_DIGEST_MINUTE,
+          timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+          run: () => sendDailyStreakDigest(DIGEST_GROUP_ID),
+        },
+        {
+          name: 'Quran Night Reminder',
+          hour: QURAN_REMINDER_HOUR,
+          minute: QURAN_REMINDER_MINUTE,
+          timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+          run: () => sendNightlyQuranReminder(DIGEST_GROUP_ID),
+        },
+      ]);
+    } else {
+      log('⚠️ DIGEST_GROUP_ID not set — daily digest disabled');
+    }
+  });
+
+  client
+    .initialize()
+    .then(() => {
+      debug('✅ client.initialize() completed');
+    })
+    .catch((err) => {
+      error('❌ client.initialize() failed:', err);
+    });
 }
 
-const drizzleDb = createDrizzleDb(appConfig.databaseUrl);
-
-const messageGateway = createMessageGateway(client);
-const workoutRepository = new DrizzleWorkoutRepository(drizzleDb);
-const sholatRepository = new DrizzleSholatRepository(drizzleDb);
-const sholatClient = new MyQuranSholatClient();
-const quranRepository = new DrizzleQuranRepository(drizzleDb);
-const remindRepository = new DrizzleRemindRepository(drizzleDb);
-const userRepository = new DrizzleUserRepository(drizzleDb);
-
-const router = new CommandRouter();
-router.registerNamespace('workout', createWorkoutNamespaceHandler(workoutRepository));
-router.registerNamespace(
-  'sholat',
-  createSholatNamespaceHandler({
-    sholatRepository,
-    sholatClient,
-    defaultLocation: appConfig.sholatDefaultLocation,
-    defaultTimezone: appConfig.sholatTimezone,
-  })
-);
-router.registerNamespace('quran', createQuranNamespaceHandler(quranRepository, userRepository));
-router.registerNamespace('remind', createRemindNamespaceHandler(remindRepository));
-
-const appContext = {
-  client,
-  config: appConfig,
-  messageGateway,
-  workoutRepository,
-  userRepository,
-};
-
-const sendDailyStreakDigest = createDailyStreakDigestSender({
-  client,
-  workoutRepository,
-  userRepository,
-  timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+main().catch((err) => {
+  error('❌ Fatal startup error:', err);
+  process.exit(1);
 });
-
-const sendNightlyQuranReminder = createQuranReminderSender({
-  client,
-  quranRepository,
-  userRepository,
-  timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-});
-
-let reminderSchedulerStarted = false;
-
-const handleMessage = createMessageHandler(router, appContext);
-
-// --- Start bot ---
-log('🚀 Starting bot initialization...');
-
-client.on('message', async (msg) => {
-  await handleMessage(msg);
-});
-
-client.on('ready', () => {
-  if (!reminderSchedulerStarted) {
-    startReminderScheduler({
-      client,
-      remindRepository,
-      userRepository,
-      timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-    });
-    reminderSchedulerStarted = true;
-    log('⏰ Reminder scheduler started');
-  }
-
-  if (DIGEST_GROUP_ID) {
-    startScheduler([
-      {
-        name: 'Daily Streak Standings',
-        hour: DAILY_DIGEST_HOUR,
-        minute: DAILY_DIGEST_MINUTE,
-        timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-        run: () => sendDailyStreakDigest(DIGEST_GROUP_ID),
-      },
-      {
-        name: 'Quran Night Reminder',
-        hour: QURAN_REMINDER_HOUR,
-        minute: QURAN_REMINDER_MINUTE,
-        timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-        run: () => sendNightlyQuranReminder(DIGEST_GROUP_ID),
-      },
-    ]);
-  } else {
-    log('⚠️ DIGEST_GROUP_ID not set — daily digest disabled');
-  }
-});
-
-client
-  .initialize()
-  .then(() => {
-    debug('✅ client.initialize() completed');
-  })
-  .catch((err) => {
-    error('❌ client.initialize() failed:', err);
-  });

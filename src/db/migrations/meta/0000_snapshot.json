@@ -336,12 +336,8 @@
           "name": "sholat_daily_cache_location_id_sholat_locations_id_fk",
           "tableFrom": "sholat_daily_cache",
           "tableTo": "sholat_locations",
-          "columnsFrom": [
-            "location_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["location_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -349,11 +345,7 @@
       "compositePrimaryKeys": {
         "sholat_daily_cache_location_id_schedule_date_timezone_pk": {
           "name": "sholat_daily_cache_location_id_schedule_date_timezone_pk",
-          "columns": [
-            "location_id",
-            "schedule_date",
-            "timezone"
-          ]
+          "columns": ["location_id", "schedule_date", "timezone"]
         }
       },
       "uniqueConstraints": {},
