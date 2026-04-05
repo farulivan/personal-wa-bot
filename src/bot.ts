@@ -5,8 +5,6 @@ import fs from 'fs';
 import path from 'path';
 import { debug, log, error } from './logger.js';
 
-const dataPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || '.wwebjs_auth';
-
 // Clear ALL Chromium lock files recursively from the data directory
 function clearLockFiles(dir: string): void {
   if (!fs.existsSync(dir)) return;
@@ -33,59 +31,61 @@ function clearLockFiles(dir: string): void {
   }
 }
 
-debug('🧹 Clearing stale Chromium locks...');
-clearLockFiles(dataPath);
+export function createWhatsAppClient(): InstanceType<typeof Client> {
+  const dataPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || '.wwebjs_auth';
 
-export const client = new Client({
-  authStrategy: new LocalAuth({ dataPath }),
-  puppeteer: {
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--user-data-dir=/tmp/chromium-profile',
-    ],
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-  },
-});
+  debug('🧹 Clearing stale Chromium locks...');
+  clearLockFiles(dataPath);
 
-client.on('loading_screen', (percent, message) => {
-  debug('⏳ Loading:', percent + '%', message);
-});
+  const client = new Client({
+    authStrategy: new LocalAuth({ dataPath }),
+    puppeteer: {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--user-data-dir=/tmp/chromium-profile',
+      ],
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    },
+  });
 
-client.on('change_state', (state) => {
-  debug('🔄 State changed:', state);
-});
+  client.on('loading_screen', (percent, message) => {
+    debug('⏳ Loading:', percent + '%', message);
+  });
 
-client.on('qr', (qr) => {
-  log('\n📱 Scan this QR code with WhatsApp:\n');
-  qrcode.generate(qr, { small: true });
+  client.on('change_state', (state) => {
+    debug('🔄 State changed:', state);
+  });
 
-  // Also provide a URL-based QR code that renders better in web logs
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
-  log('\n🔗 Or open this URL to scan the QR code:');
-  log(qrUrl);
-  log('\n');
-});
+  client.on('qr', (qr) => {
+    log('\n📱 Scan this QR code with WhatsApp:\n');
+    qrcode.generate(qr, { small: true });
 
-client.on('authenticated', () => {
-  debug('🔐 Client authenticated');
-});
+    // Also provide a URL-based QR code that renders better in web logs
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+    log('\n🔗 Or open this URL to scan the QR code:');
+    log(qrUrl);
+    log('\n');
+  });
 
-client.on('message', () => {
-  debug('📩 Incoming message event received');
-});
+  client.on('authenticated', () => {
+    debug('🔐 Client authenticated');
+  });
 
-client.on('auth_failure', (msg) => {
-  error('❌ Authentication failure:', msg);
-});
+  client.on('message', () => {
+    debug('📩 Incoming message event received');
+  });
 
-client.on('disconnected', (reason) => {
-  log('🔌 Client disconnected:', reason);
-});
+  client.on('auth_failure', (msg) => {
+    error('❌ Authentication failure:', msg);
+  });
 
-client.on('ready', () => {
-  log('🤖 WhatsApp bot ready');
-});
+  client.on('disconnected', (reason) => {
+    log('🔌 Client disconnected:', reason);
+  });
+
+  return client;
+}

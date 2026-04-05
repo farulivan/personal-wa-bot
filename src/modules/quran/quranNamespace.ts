@@ -8,7 +8,7 @@ import {
   QURAN_RAMADHAN_COUNT_ENABLED,
   QURAN_RAMADHAN_END_DATE,
   QURAN_RAMADHAN_START_DATE,
-} from '../../app/constants.js';
+} from '../../config/env.js';
 import type { QuranHistoryRow, QuranRepository } from './infra/quranRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 

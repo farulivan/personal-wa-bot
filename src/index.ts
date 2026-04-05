@@ -1,4 +1,4 @@
-import { client } from './bot.js';
+import { createWhatsAppClient } from './bot.js';
 import { debug, log, error } from './logger.js';
 import { appConfig } from './config/env.js';
 import { runMigrations } from './db/migrate.js';
@@ -29,7 +29,7 @@ import {
   QURAN_REMINDER_HOUR,
   QURAN_REMINDER_MINUTE,
   DIGEST_GROUP_ID,
-} from './app/constants.js';
+} from './config/env.js';
 
 async function main() {
   if (!appConfig.databaseUrl) {
@@ -40,6 +40,7 @@ async function main() {
   await runMigrations(appConfig.databaseUrl);
 
   const drizzleDb = createDrizzleDb(appConfig.databaseUrl);
+  const client = createWhatsAppClient();
 
   const messageGateway = createMessageGateway(client);
   const workoutRepository = new DrizzleWorkoutRepository(drizzleDb);
@@ -68,6 +69,10 @@ async function main() {
     config: appConfig,
     messageGateway,
     workoutRepository,
+    quranRepository,
+    sholatRepository,
+    sholatClient,
+    remindRepository,
     userRepository,
   };
 
@@ -97,6 +102,8 @@ async function main() {
   });
 
   client.on('ready', () => {
+    log('🤖 WhatsApp bot ready');
+
     if (!reminderSchedulerStarted) {
       startReminderScheduler({
         client,

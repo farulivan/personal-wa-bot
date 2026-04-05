@@ -2,7 +2,7 @@ import type { NamespaceHandler } from '../../app/commandRouter.js';
 import type { CommandInvocation } from '../../app/parseCommand.js';
 import { debug } from '../../logger.js';
 import { computeStreaks } from './workoutStreaks.js';
-import { MIN_WORKOUTS_FOR_STREAK, WORKOUT_LIST_LIMIT } from '../../app/constants.js';
+import { MIN_WORKOUTS_FOR_STREAK, WORKOUT_LIST_LIMIT } from '../../config/env.js';
 import type { WorkoutRepository, WorkoutRow } from './infra/workoutRepository.js';
 
 const WORKOUT_NAMESPACE = 'workout';

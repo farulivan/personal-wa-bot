@@ -1,7 +1,7 @@
 import { eq, sql, count } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
 import { workouts } from '../../../db/schema.js';
-import { MIN_WORKOUTS_FOR_STREAK } from '../../../app/constants.js';
+import { MIN_WORKOUTS_FOR_STREAK } from '../../../config/env.js';
 import type { WorkoutRepository, WorkoutRow, NewWorkoutLog } from './workoutRepository.js';
 
 export class DrizzleWorkoutRepository implements WorkoutRepository {

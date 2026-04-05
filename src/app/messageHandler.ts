@@ -2,7 +2,7 @@ import type pkg from 'whatsapp-web.js';
 type Message = pkg.Message;
 import { parseCommand } from './parseCommand.js';
 import type { CommandRouter, CommandContext } from './commandRouter.js';
-import { isAllowedUser } from '../config.js';
+import { isAllowedUser } from '../config/env.js';
 import { debug, error } from '../logger.js';
 import type { AppContext } from './appContext.js';
 import { normalizeUserId } from './normalizeUserId.js';

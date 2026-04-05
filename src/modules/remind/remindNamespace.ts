@@ -1,6 +1,6 @@
 import type { NamespaceHandler } from '../../app/commandRouter.js';
 import type { CommandInvocation } from '../../app/parseCommand.js';
-import { REMIND_LIST_LIMIT } from '../../app/constants.js';
+import { REMIND_LIST_LIMIT } from '../../config/env.js';
 import { debug } from '../../logger.js';
 import type { RemindRepository } from './infra/remindRepository.js';
 
