@@ -9,7 +9,8 @@ import { CommandRouter } from './app/commandRouter.js';
 import { createMessageHandler } from './app/messageHandler.js';
 import { startScheduler } from './app/scheduler.js';
 import { createMessageGateway } from './adapters/whatsapp/messageGateway.js';
-import { createWorkoutNamespaceHandler } from './modules/workouts/workoutNamespace.js';
+import { createWorkoutController } from './modules/workouts/workoutController.js';
+import { WorkoutService } from './modules/workouts/workoutService.js';
 import { createDailyStreakDigestSender } from './modules/workouts/workoutDigest.js';
 import { DrizzleWorkoutRepository } from './modules/workouts/infra/drizzleWorkoutRepository.js';
 import { createSholatNamespaceHandler } from './modules/sholat/sholatNamespace.js';
@@ -50,8 +51,10 @@ async function main() {
   const remindRepository = new DrizzleRemindRepository(drizzleDb);
   const userRepository = new DrizzleUserRepository(drizzleDb);
 
+  const workoutService = new WorkoutService(workoutRepository, userRepository);
+
   const router = new CommandRouter();
-  router.registerNamespace('workout', createWorkoutNamespaceHandler(workoutRepository));
+  router.registerNamespace('workout', createWorkoutController(workoutService));
   router.registerNamespace(
     'sholat',
     createSholatNamespaceHandler({
@@ -78,8 +81,7 @@ async function main() {
 
   const sendDailyStreakDigest = createDailyStreakDigestSender({
     client,
-    workoutRepository,
-    userRepository,
+    workoutService,
     timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
   });
 
