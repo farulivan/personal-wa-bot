@@ -77,11 +77,6 @@ async function main() {
     client,
     config: appConfig,
     messageGateway,
-    workoutRepository,
-    quranRepository,
-    sholatRepository,
-    sholatClient,
-    remindRepository,
     userRepository,
   };
 
