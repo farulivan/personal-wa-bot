@@ -64,10 +64,10 @@ export function createSholatController(
       const result = await sholatService.getTodaySchedule(locationArg, now);
 
       if (!result.ok) {
-        return decodeServiceMessage(result.message, defaultLocation);
+        return decodeServiceMessage(result.error, defaultLocation);
       }
 
-      return formatScheduleResponse(result.locationName, result.schedule);
+      return formatScheduleResponse(result.value.locationName, result.value.schedule);
     } catch (err) {
       error('🕌 Failed handling #sholat command:', err);
       return formatFetchErrorMessage();

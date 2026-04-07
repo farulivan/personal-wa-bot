@@ -2,7 +2,7 @@ import { debug } from '../../logger.js';
 import { MIN_WORKOUTS_FOR_STREAK, WORKOUT_LIST_LIMIT } from '../../config/env.js';
 import { computeStreaks } from './workoutStreaks.js';
 import type { StreakInfo } from './workoutStreaks.js';
-import type { WorkoutRepository, WorkoutRow } from './infra/workoutRepository.js';
+import type { WorkoutRepository, WorkoutEntry } from './infra/workoutRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 import type { LiftPayload, CardioPayload } from './workoutParser.js';
 import type { UserStreak } from './workoutPresenter.js';
@@ -14,7 +14,7 @@ import {
 } from '../../adapters/whatsapp/waId.js';
 
 export type WorkoutListResult = {
-  rows: WorkoutRow[];
+  rows: WorkoutEntry[];
   total: number;
   page: number;
   totalPages: number;

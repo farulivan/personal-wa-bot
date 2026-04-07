@@ -6,14 +6,13 @@ import type {
 } from './infra/sholatRepository.js';
 import type { MyQuranLocation, MyQuranSholatClient } from './infra/myQuranSholatClient.js';
 import { normalizeForMatch, normalizeUserLocationInput } from './sholatParser.js';
+import { ok, err } from '../../shared/result.js';
+import type { Result } from '../../shared/result.js';
 
-export type LocationLookup =
-  | { ok: true; location: SholatLocationRow }
-  | { ok: false; message: string };
+export type LocationLookup = Result<SholatLocationRow>;
 
-export type TodayScheduleResult =
-  | { ok: true; locationName: string; schedule: SholatDailyScheduleRow }
-  | { ok: false; message: string };
+export type TodaySchedule = { locationName: string; schedule: SholatDailyScheduleRow };
+export type TodayScheduleResult = Result<TodaySchedule>;
 
 function toSholatLocationRows(locations: MyQuranLocation[]): SholatLocationRow[] {
   return locations.map((row) => ({
@@ -78,7 +77,7 @@ export class SholatService {
     const requestedNormalized = normalizeForMatch(requested);
 
     const exact = allLocations.find((row) => row.normalizedLocationName === requestedNormalized);
-    if (exact) return { ok: true, location: exact };
+    if (exact) return ok(exact);
 
     const fuzzyQuery = normalizeForMatch(locationInput.trim() || this.defaultLocation);
     const fuzzyMatches = allLocations.filter((row) =>
@@ -86,15 +85,15 @@ export class SholatService {
     );
 
     if (fuzzyMatches.length === 1) {
-      return { ok: true, location: fuzzyMatches[0] };
+      return ok(fuzzyMatches[0]);
     }
 
     if (fuzzyMatches.length > 1) {
       const samples = fuzzyMatches.slice(0, 5).map((row) => row.locationName);
-      return { ok: false, message: `__ambiguous__:${locationInput}:${samples.join('|')}` };
+      return err(`__ambiguous__:${locationInput}:${samples.join('|')}`);
     }
 
-    return { ok: false, message: `__notfound__:${locationInput}` };
+    return err(`__notfound__:${locationInput}`);
   }
 
   private toDateInTimezone(now: Date): string {
@@ -115,16 +114,16 @@ export class SholatService {
     const allLocations = await this.sholatRepository.listLocations();
     const resolved = this.resolveLocation(allLocations, locationArg);
     if (!resolved.ok) {
-      return { ok: false, message: resolved.message };
+      return err(resolved.error);
     }
 
-    const location = resolved.location;
+    const location = resolved.value;
     const todayDate = this.toDateInTimezone(now);
 
     const cached = await this.sholatRepository.findDailySchedule(location.id, todayDate, timezone);
     if (cached) {
       debug(`🕌 Sholat cache hit for ${location.locationName} on ${todayDate}`);
-      return { ok: true, locationName: location.locationName, schedule: cached };
+      return ok({ locationName: location.locationName, schedule: cached });
     }
 
     let selectedLocation = location;
@@ -132,8 +131,8 @@ export class SholatService {
 
     try {
       apiSchedule = await this.sholatClient.fetchTodaySchedule(selectedLocation.id, timezone);
-    } catch (err) {
-      if (!isLikelyInvalidLocationIdError(err)) throw err;
+    } catch (fetchErr) {
+      if (!isLikelyInvalidLocationIdError(fetchErr)) throw fetchErr;
 
       debug(
         `🕌 Suspected stale location id for ${selectedLocation.locationName}; force-refreshing locations`
@@ -142,10 +141,10 @@ export class SholatService {
       const refreshedLocations = await this.syncLocationCatalog();
       const refreshedResolved = this.resolveLocation(refreshedLocations, locationArg);
       if (!refreshedResolved.ok) {
-        return { ok: false, message: refreshedResolved.message };
+        return err(refreshedResolved.error);
       }
 
-      selectedLocation = refreshedResolved.location;
+      selectedLocation = refreshedResolved.value;
 
       const refreshedCached = await this.sholatRepository.findDailySchedule(
         selectedLocation.id,
@@ -156,7 +155,7 @@ export class SholatService {
         debug(
           `🕌 Sholat cache hit after location refresh for ${selectedLocation.locationName} on ${todayDate}`
         );
-        return { ok: true, locationName: selectedLocation.locationName, schedule: refreshedCached };
+        return ok({ locationName: selectedLocation.locationName, schedule: refreshedCached });
       }
 
       apiSchedule = await this.sholatClient.fetchTodaySchedule(selectedLocation.id, timezone);
@@ -189,9 +188,9 @@ export class SholatService {
     );
 
     if (persisted) {
-      return { ok: true, locationName: selectedLocation.locationName, schedule: persisted };
+      return ok({ locationName: selectedLocation.locationName, schedule: persisted });
     }
 
-    return { ok: false, message: `__persist_error__:${selectedLocation.locationName}` };
+    return err(`__persist_error__:${selectedLocation.locationName}`);
   }
 }

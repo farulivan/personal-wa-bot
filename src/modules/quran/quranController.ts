@@ -29,11 +29,11 @@ export function createQuranController(quranService: QuranService): NamespaceHand
   async function handleRead(ctx: CommandContext, invocation: CommandInvocation): Promise<string> {
     const parseResult = parseReadInput(invocation.firstLine);
     if (!parseResult.ok) {
-      return parseResult.message;
+      return parseResult.error;
     }
 
     const now = ctx.now();
-    const { pages, noMark } = parseResult.input;
+    const { pages, noMark } = parseResult.value;
 
     const result = await quranService.logRead(
       ctx.sender,
@@ -143,29 +143,33 @@ export function createQuranController(quranService: QuranService): NamespaceHand
 
     const parseResult = parseMarkPage(tokens[2] || '');
     if (!parseResult.ok) {
-      return parseResult.message;
+      return parseResult.error;
     }
 
     const now = ctx.now();
-    const { existed, previousPage } = await quranService.setMark(ctx.sender, parseResult.page, now);
+    const { existed, previousPage } = await quranService.setMark(
+      ctx.sender,
+      parseResult.value,
+      now
+    );
 
     if (!existed) {
       return (
         `Mark tilawah berhasil disimpan ✅\n` +
-        `Sekarang posisi bacaan kamu: halaman *${parseResult.page}* 📍`
+        `Sekarang posisi bacaan kamu: halaman *${parseResult.value}* 📍`
       );
     }
 
-    if (previousPage === parseResult.page) {
+    if (previousPage === parseResult.value) {
       return (
-        `Mark kamu sudah di halaman *${parseResult.page}* ✅\n\n` +
+        `Mark kamu sudah di halaman *${parseResult.value}* ✅\n\n` +
         `Kalau nanti lanjut baca, tinggal update lagi dengan format yang sama.`
       );
     }
 
     return (
       `Mark tilawah berhasil diperbarui ✅\n` +
-      `Dari halaman *${previousPage}* → *${parseResult.page}* 📍`
+      `Dari halaman *${previousPage}* → *${parseResult.value}* 📍`
     );
   }
 

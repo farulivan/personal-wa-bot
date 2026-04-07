@@ -1,12 +1,12 @@
-export type WorkoutRow = {
-  created_at: string;
-  workout_mode: 'lift' | 'cardio';
+export type WorkoutEntry = {
+  createdAt: string;
+  workoutMode: 'lift' | 'cardio';
   type: string;
   reps: number;
   sets: number;
   weight: number;
-  duration_minutes: number;
-  distance_km: number;
+  durationMinutes: number;
+  distanceKm: number;
 };
 
 export type NewLiftWorkoutLog = {
@@ -37,7 +37,7 @@ export type NewWorkoutLog = NewLiftWorkoutLog | NewCardioWorkoutLog;
 
 export interface WorkoutRepository {
   countByUser(user: string): Promise<number>;
-  listByUser(user: string, limit: number, offset: number): Promise<WorkoutRow[]>;
+  listByUser(user: string, limit: number, offset: number): Promise<WorkoutEntry[]>;
   insertWorkoutLog(log: NewWorkoutLog): Promise<void>;
   listDistinctUsers(): Promise<string[]>;
   getQualifyingStreakDays(user: string, timezoneOffsetMinutes: number): Promise<string[]>;

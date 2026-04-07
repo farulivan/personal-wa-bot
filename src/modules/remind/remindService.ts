@@ -3,12 +3,14 @@ import { REMIND_LIST_LIMIT } from '../../config/env.js';
 import { resolveDateInput, toScheduledUtcIso } from './remindParser.js';
 import type { ParsedReminderCommand } from './remindParser.js';
 import type { RemindRepository, ReminderListRow } from './infra/remindRepository.js';
+import { ok, err } from '../../shared/result.js';
+import type { Result } from '../../shared/result.js';
 
 const REMINDER_ACTIVE_LIMIT = 50;
 
-export type CreateReminderResult =
-  | { ok: true; scheduledAt: string; reminderText: string }
-  | { ok: false; reason: 'past_time' | 'active_limit'; activeCount?: number };
+export type ReminderCreated = { scheduledAt: string; reminderText: string };
+export type ReminderError = { reason: 'past_time' | 'active_limit'; activeCount?: number };
+export type CreateReminderResult = Result<ReminderCreated, ReminderError>;
 
 export type ReminderListResult = {
   rows: ReminderListRow[];
@@ -30,25 +32,25 @@ export class RemindService {
   ): Promise<CreateReminderResult> {
     const dateResult = resolveDateInput(parsed.dateInput, now, timezoneOffsetMinutes);
     if (!dateResult.ok) {
-      return { ok: false, reason: 'past_time' };
+      return err({ reason: 'past_time' });
     }
 
     const scheduledAt = toScheduledUtcIso(
-      dateResult.year,
-      dateResult.month,
-      dateResult.day,
+      dateResult.value.year,
+      dateResult.value.month,
+      dateResult.value.day,
       parsed.hour,
       parsed.minute,
       timezoneOffsetMinutes
     );
 
     if (new Date(scheduledAt).getTime() <= now.getTime()) {
-      return { ok: false, reason: 'past_time' };
+      return err({ reason: 'past_time' });
     }
 
     const activeReminderCount = await this.remindRepository.countActiveByUser(sender);
     if (activeReminderCount >= REMINDER_ACTIVE_LIMIT) {
-      return { ok: false, reason: 'active_limit', activeCount: activeReminderCount };
+      return err({ reason: 'active_limit', activeCount: activeReminderCount });
     }
 
     await this.remindRepository.insertReminder({
@@ -64,7 +66,7 @@ export class RemindService {
       `⏰ Reminder created by ${sender} for ${scheduledAt} (chat=${replyChatId}, source=${isGroupChat ? 'group' : 'direct'})`
     );
 
-    return { ok: true, scheduledAt, reminderText: parsed.reminderText };
+    return ok({ scheduledAt, reminderText: parsed.reminderText });
   }
 
   async listReminders(sender: string, page: number): Promise<ReminderListResult> {

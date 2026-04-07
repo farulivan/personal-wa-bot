@@ -4,29 +4,29 @@ import { appConfig } from './config/env.js';
 import { runMigrations } from './db/migrate.js';
 import { createDrizzleDb } from './db/drizzle.js';
 
-// --- Wire up modules ---
+// --- App core ---
 import { CommandRouter } from './app/commandRouter.js';
 import { createMessageHandler } from './app/messageHandler.js';
 import { startScheduler } from './app/scheduler.js';
 import { createMessageGateway } from './adapters/whatsapp/messageGateway.js';
-import { createWorkoutController } from './modules/workouts/workoutController.js';
-import { WorkoutService } from './modules/workouts/workoutService.js';
-import { createDailyStreakDigestSender } from './modules/workouts/workoutDigest.js';
+
+// --- Infra ---
 import { DrizzleWorkoutRepository } from './modules/workouts/infra/drizzleWorkoutRepository.js';
-import { createSholatController } from './modules/sholat/sholatController.js';
-import { SholatService } from './modules/sholat/sholatService.js';
 import { DrizzleSholatRepository } from './modules/sholat/infra/drizzleSholatRepository.js';
 import { MyQuranSholatClient } from './modules/sholat/infra/myQuranSholatClient.js';
-import { createQuranController } from './modules/quran/quranController.js';
-import { QuranService } from './modules/quran/quranService.js';
 import { DrizzleQuranRepository } from './modules/quran/infra/drizzleQuranRepository.js';
-import { createQuranReminderSender } from './modules/quran/quranDigest.js';
-import { createRemindController } from './modules/remind/remindController.js';
-import { RemindService } from './modules/remind/remindService.js';
 import { DrizzleRemindRepository } from './modules/remind/infra/drizzleRemindRepository.js';
-import { startReminderScheduler } from './modules/remind/remindScheduler.js';
 import { DrizzleUserRepository } from './modules/users/infra/drizzleUserRepository.js';
+
+// --- Module registration ---
+import { registerWorkoutModule } from './modules/workouts/index.js';
+import { registerQuranModule } from './modules/quran/index.js';
+import { registerSholatModule } from './modules/sholat/index.js';
+import { registerRemindModule } from './modules/remind/index.js';
+
+// --- Users ---
 import { UserService } from './modules/users/userService.js';
+
 import {
   USER_TIMEZONE_OFFSET,
   DAILY_DIGEST_HOUR,
@@ -48,6 +48,8 @@ async function main() {
   const client = createWhatsAppClient();
 
   const messageGateway = createMessageGateway(client);
+
+  // --- Repositories ---
   const workoutRepository = new DrizzleWorkoutRepository(drizzleDb);
   const sholatRepository = new DrizzleSholatRepository(drizzleDb);
   const sholatClient = new MyQuranSholatClient();
@@ -57,24 +59,47 @@ async function main() {
 
   const userService = new UserService(userRepository);
 
-  const workoutService = new WorkoutService(workoutRepository, userRepository);
-  const quranService = new QuranService(quranRepository, userRepository);
-  const remindService = new RemindService(remindRepository);
-  const sholatService = new SholatService(
+  // --- Register modules ---
+  const workout = registerWorkoutModule({
+    workoutRepository,
+    userRepository,
+    client,
+    timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+    digestGroupId: DIGEST_GROUP_ID,
+    dailyDigestHour: DAILY_DIGEST_HOUR,
+    dailyDigestMinute: DAILY_DIGEST_MINUTE,
+  });
+
+  const quran = registerQuranModule({
+    quranRepository,
+    userRepository,
+    client,
+    timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+    digestGroupId: DIGEST_GROUP_ID,
+    quranReminderHour: QURAN_REMINDER_HOUR,
+    quranReminderMinute: QURAN_REMINDER_MINUTE,
+  });
+
+  const sholat = registerSholatModule({
     sholatRepository,
     sholatClient,
-    appConfig.sholatDefaultLocation,
-    appConfig.sholatTimezone
-  );
+    defaultLocation: appConfig.sholatDefaultLocation,
+    defaultTimezone: appConfig.sholatTimezone,
+  });
 
+  const remind = registerRemindModule({
+    remindRepository,
+    userRepository,
+    client,
+    timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+  });
+
+  // --- Wire router ---
   const router = new CommandRouter();
-  router.registerNamespace('workout', createWorkoutController(workoutService));
-  router.registerNamespace(
-    'sholat',
-    createSholatController(sholatService, appConfig.sholatDefaultLocation)
-  );
-  router.registerNamespace('quran', createQuranController(quranService));
-  router.registerNamespace('remind', createRemindController(remindService));
+  router.registerNamespace('workout', workout.controller);
+  router.registerNamespace('sholat', sholat.controller);
+  router.registerNamespace('quran', quran.controller);
+  router.registerNamespace('remind', remind.controller);
 
   const appContext = {
     client,
@@ -82,20 +107,6 @@ async function main() {
     messageGateway,
     userService,
   };
-
-  const sendDailyStreakDigest = createDailyStreakDigestSender({
-    client,
-    workoutService,
-    timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-  });
-
-  const sendNightlyQuranReminder = createQuranReminderSender({
-    client,
-    quranService,
-    timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-  });
-
-  let reminderSchedulerStarted = false;
 
   const handleMessage = createMessageHandler(router, appContext);
 
@@ -106,37 +117,20 @@ async function main() {
     await handleMessage(msg);
   });
 
+  let reminderSchedulerStarted = false;
+
   client.on('ready', () => {
     log('🤖 WhatsApp bot ready');
 
     if (!reminderSchedulerStarted) {
-      startReminderScheduler({
-        client,
-        remindRepository,
-        userRepository,
-        timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-      });
+      remind.startScheduler();
       reminderSchedulerStarted = true;
       log('⏰ Reminder scheduler started');
     }
 
-    if (DIGEST_GROUP_ID) {
-      startScheduler([
-        {
-          name: 'Daily Streak Standings',
-          hour: DAILY_DIGEST_HOUR,
-          minute: DAILY_DIGEST_MINUTE,
-          timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-          run: () => sendDailyStreakDigest(DIGEST_GROUP_ID),
-        },
-        {
-          name: 'Quran Night Reminder',
-          hour: QURAN_REMINDER_HOUR,
-          minute: QURAN_REMINDER_MINUTE,
-          timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-          run: () => sendNightlyQuranReminder(DIGEST_GROUP_ID),
-        },
-      ]);
+    const allJobs = [...workout.jobs, ...quran.jobs];
+    if (allJobs.length > 0) {
+      startScheduler(allJobs);
     } else {
       log('⚠️ DIGEST_GROUP_ID not set — daily digest disabled');
     }

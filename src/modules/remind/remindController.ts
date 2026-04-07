@@ -33,16 +33,16 @@ export function createRemindController(remindService: RemindService): NamespaceH
     );
 
     if (!result.ok) {
-      if (result.reason === 'active_limit') {
-        return formatActiveLimitMessage(result.activeCount ?? 0);
+      if (result.error.reason === 'active_limit') {
+        return formatActiveLimitMessage(result.error.activeCount ?? 0);
       }
       return formatPastTimeMessage();
     }
 
     return formatReminderCreated(
-      result.scheduledAt,
+      result.value.scheduledAt,
       ctx.timezoneOffsetMinutes,
-      result.reminderText,
+      result.value.reminderText,
       ctx.isGroupChat
     );
   }
@@ -92,14 +92,14 @@ export function createRemindController(remindService: RemindService): NamespaceH
 
     const parsed = parseReminderCommand(invocation.firstLine);
     if (!parsed.ok) {
-      return parsed.message;
+      return parsed.error;
     }
 
     // Validate date before passing to service (to surface user-facing error messages)
     const now = ctx.now();
     const dateResult = resolveDateInput(parsed.value.dateInput, now, ctx.timezoneOffsetMinutes);
     if (!dateResult.ok) {
-      return dateResult.message;
+      return dateResult.error;
     }
 
     return handleCreate(ctx, parsed.value);

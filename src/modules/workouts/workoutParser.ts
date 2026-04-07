@@ -1,4 +1,6 @@
 import type { CommandInvocation } from '../../app/parseCommand.js';
+import { ok, err } from '../../shared/result.js';
+import type { Result } from '../../shared/result.js';
 
 export type LiftPayload = {
   mode: 'lift';
@@ -17,15 +19,13 @@ export type CardioPayload = {
 
 export type WorkoutPayload = LiftPayload | CardioPayload;
 
-export type ParseWorkoutPayloadResult =
-  | { ok: true; payload: WorkoutPayload }
-  | { ok: false; message: string };
+export type ParseWorkoutPayloadResult = Result<WorkoutPayload>;
 
-type DurationParseResult = { ok: true; minutes: number } | { ok: false; message: string };
+type DurationParseResult = Result<{ minutes: number }>;
 
-type DistanceParseResult = { ok: true; distanceKm: number } | { ok: false; message: string };
+type DistanceParseResult = Result<{ distanceKm: number }>;
 
-type WeightResult = { ok: true; value: number } | { ok: false; error: string };
+type WeightResult = Result<{ value: number }>;
 
 export function tokenize(firstLine: string): string[] {
   return firstLine.trim().split(/\s+/).filter(Boolean);
@@ -46,64 +46,46 @@ function parsePositiveIntegerFromToken(token: string, regex: RegExp): number | n
 function parseWeightFromToken(token: string): WeightResult {
   const match = token.toLowerCase().match(/^(\d+(?:[.,]\d+)?)kg$/);
   if (!match || !match[1]) {
-    return {
-      ok: false,
-      error: `Weight token must use kg format, e.g. 10kg.`,
-    };
+    return err(`Weight token must use kg format, e.g. 10kg.`);
   }
 
   const value = Number(match[1].replace(',', '.'));
   if (!Number.isFinite(value) || value < 0) {
-    return {
-      ok: false,
-      error: `Weight value is invalid. Use positive number with kg, e.g. 12kg.`,
-    };
+    return err(`Weight value is invalid. Use positive number with kg, e.g. 12kg.`);
   }
 
-  return { ok: true, value };
+  return ok({ value });
 }
 
 function parseDurationToken(token: string): DurationParseResult {
   const match = token.toLowerCase().match(/^(\d+(?:[.,]\d+)?)(min|hour)$/);
   if (!match || !match[1] || !match[2]) {
-    return {
-      ok: false,
-      message: `Duration must be attached token with min/hour, e.g. 30min or 1hour.`,
-    };
+    return err(`Duration must be attached token with min/hour, e.g. 30min or 1hour.`);
   }
 
   const value = Number(match[1].replace(',', '.'));
   if (!Number.isFinite(value) || value <= 0) {
-    return {
-      ok: false,
-      message: `Duration must be greater than 0.`,
-    };
+    return err(`Duration must be greater than 0.`);
   }
 
   const unit = match[2];
   const minutes = unit === 'hour' ? value * 60 : value;
 
-  return { ok: true, minutes };
+  return ok({ minutes });
 }
 
 function parseDistanceToken(token: string): DistanceParseResult {
   const match = token.toLowerCase().match(/^(\d+(?:[.,]\d+)?)km$/);
   if (!match || !match[1]) {
-    return {
-      ok: false,
-      message: `Distance must use km format, e.g. 5km.`,
-    };
+    return err(`Distance must use km format, e.g. 5km.`);
   }
 
   const distanceKm = Number(match[1].replace(',', '.'));
   if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
-    return {
-      ok: false,
-      message: `Distance must be greater than 0.`,
-    };
+    return err(`Distance must be greater than 0.`);
   }
 
-  return { ok: true, distanceKm };
+  return ok({ distanceKm });
 }
 
 export function workoutHelpMessage(): string {
@@ -123,7 +105,7 @@ export function workoutHelpMessage(): string {
 
 export function parseLiftPayload(tokens: string[]): ParseWorkoutPayloadResult {
   if (tokens.length < 5) {
-    return { ok: false, message: workoutHelpMessage() };
+    return err(workoutHelpMessage());
   }
 
   const hasWeightToken = tokens.length >= 6 && /kg$/i.test(tokens[tokens.length - 1]);
@@ -132,50 +114,41 @@ export function parseLiftPayload(tokens: string[]): ParseWorkoutPayloadResult {
 
   const reps = parsePositiveIntegerFromToken(tokens[repsTokenIndex], /^(\d+)rep(?:s)?$/i);
   if (reps === null) {
-    return {
-      ok: false,
-      message: `Lift reps token is invalid. Use 20rep or 20reps.\n\n${workoutHelpMessage()}`,
-    };
+    return err(`Lift reps token is invalid. Use 20rep or 20reps.\n\n${workoutHelpMessage()}`);
   }
 
   const sets = parsePositiveIntegerFromToken(tokens[setsTokenIndex], /^(\d+)set(?:s)?$/i);
   if (sets === null) {
-    return {
-      ok: false,
-      message: `Lift sets token is invalid. Use 4set or 4sets.\n\n${workoutHelpMessage()}`,
-    };
+    return err(`Lift sets token is invalid. Use 4set or 4sets.\n\n${workoutHelpMessage()}`);
   }
 
   const activityTokens = tokens.slice(2, repsTokenIndex);
   const activity = activityTokens.join(' ').trim();
   if (!activity) {
-    return { ok: false, message: `Lift activity is required.\n\n${workoutHelpMessage()}` };
+    return err(`Lift activity is required.\n\n${workoutHelpMessage()}`);
   }
 
   let weight = 0;
   if (hasWeightToken) {
     const parsedWeight = parseWeightFromToken(tokens[tokens.length - 1]);
     if (!parsedWeight.ok) {
-      return { ok: false, message: `${parsedWeight.error}\n\n${workoutHelpMessage()}` };
+      return err(`${parsedWeight.error}\n\n${workoutHelpMessage()}`);
     }
-    weight = parsedWeight.value;
+    weight = parsedWeight.value.value;
   }
 
-  return {
-    ok: true,
-    payload: {
-      mode: 'lift',
-      activity,
-      reps,
-      sets,
-      weight,
-    },
-  };
+  return ok({
+    mode: 'lift',
+    activity,
+    reps,
+    sets,
+    weight,
+  });
 }
 
 export function parseCardioPayload(tokens: string[]): ParseWorkoutPayloadResult {
   if (tokens.length < 4) {
-    return { ok: false, message: workoutHelpMessage() };
+    return err(workoutHelpMessage());
   }
 
   const maybeDistanceToken = tokens[tokens.length - 1];
@@ -189,41 +162,35 @@ export function parseCardioPayload(tokens: string[]): ParseWorkoutPayloadResult 
 
   const durationResult = parseDurationToken(tokens[durationTokenIndex]);
   if (!durationResult.ok) {
-    return { ok: false, message: `${durationResult.message}\n\n${workoutHelpMessage()}` };
+    return err(`${durationResult.error}\n\n${workoutHelpMessage()}`);
   }
 
   let distanceKm = 0;
   if (hasDistance) {
     const distanceResult = parseDistanceToken(tokens[tokens.length - 1]);
     if (!distanceResult.ok) {
-      return { ok: false, message: `${distanceResult.message}\n\n${workoutHelpMessage()}` };
+      return err(`${distanceResult.error}\n\n${workoutHelpMessage()}`);
     }
-    distanceKm = distanceResult.distanceKm;
+    distanceKm = distanceResult.value.distanceKm;
   }
 
   const activityTokens = tokens.slice(2, durationTokenIndex);
   const activity = activityTokens.join(' ').trim();
   if (!activity) {
-    return { ok: false, message: `Cardio activity is required.\n\n${workoutHelpMessage()}` };
+    return err(`Cardio activity is required.\n\n${workoutHelpMessage()}`);
   }
 
-  return {
-    ok: true,
-    payload: {
-      mode: 'cardio',
-      activity,
-      durationMinutes: durationResult.minutes,
-      distanceKm,
-    },
-  };
+  return ok({
+    mode: 'cardio',
+    activity,
+    durationMinutes: durationResult.value.minutes,
+    distanceKm,
+  });
 }
 
 export function parseWorkoutPayload(invocation: CommandInvocation): ParseWorkoutPayloadResult {
   if (isLegacyMultiline(invocation.rawText)) {
-    return {
-      ok: false,
-      message: `Workout format has been updated.\n\n${workoutHelpMessage()}`,
-    };
+    return err(`Workout format has been updated.\n\n${workoutHelpMessage()}`);
   }
 
   const tokens = tokenize(invocation.firstLine);
@@ -237,10 +204,7 @@ export function parseWorkoutPayload(invocation: CommandInvocation): ParseWorkout
     return parseCardioPayload(tokens);
   }
 
-  return {
-    ok: false,
-    message: `Please choose an explicit mode: lift or cardio.\n\n${workoutHelpMessage()}`,
-  };
+  return err(`Please choose an explicit mode: lift or cardio.\n\n${workoutHelpMessage()}`);
 }
 
 export function parsePageNumber(firstLine: string): number {

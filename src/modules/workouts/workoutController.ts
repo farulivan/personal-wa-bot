@@ -53,11 +53,11 @@ export function createWorkoutController(workoutService: WorkoutService): Namespa
   async function handleLog(ctx: CommandContext, invocation: CommandInvocation): Promise<string> {
     const parsed = parseWorkoutPayload(invocation);
     if (!parsed.ok) {
-      return parsed.message;
+      return parsed.error;
     }
 
     const now = ctx.now();
-    const payload = parsed.payload;
+    const payload = parsed.value;
 
     if (payload.mode === 'lift') {
       await workoutService.logLift(ctx.sender, payload, now);

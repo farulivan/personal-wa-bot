@@ -1,3 +1,6 @@
+import { ok, err } from '../../shared/result.js';
+import type { Result } from '../../shared/result.js';
+
 const REMINDER_TEXT_MAX_CHARS = 200;
 
 export type ParsedReminderCommand = {
@@ -7,17 +10,12 @@ export type ParsedReminderCommand = {
   reminderText: string;
 };
 
-export type ParseTimeResult =
-  | { ok: true; hour: number; minute: number; normalized: string }
-  | { ok: false; message: string };
+export type ParseTimeInfo = { hour: number; minute: number; normalized: string };
+export type ParseDateInfo = { year: number; month: number; day: number; normalized: string };
 
-export type ParseDateResult =
-  | { ok: true; year: number; month: number; day: number; normalized: string }
-  | { ok: false; message: string };
-
-export type ParseReminderResult =
-  | { ok: true; value: ParsedReminderCommand }
-  | { ok: false; message: string };
+export type ParseTimeResult = Result<ParseTimeInfo>;
+export type ParseDateResult = Result<ParseDateInfo>;
+export type ParseReminderResult = Result<ParsedReminderCommand>;
 
 export function tokenize(firstLine: string): string[] {
   return firstLine.trim().split(/\s+/).filter(Boolean);
@@ -32,12 +30,10 @@ export function parsePageNumber(firstLine: string): number {
 export function parseDateInput(rawDate: string): ParseDateResult {
   const match = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) {
-    return {
-      ok: false,
-      message:
-        `The date format is invalid. Please use YYYY-MM-DD.\n` +
-        `Example: #remind 2026-03-10 10:30 Follow up proposal`,
-    };
+    return err(
+      `The date format is invalid. Please use YYYY-MM-DD.\n` +
+        `Example: #remind 2026-03-10 10:30 Follow up proposal`
+    );
   }
 
   const year = Number(match[1]);
@@ -51,13 +47,10 @@ export function parseDateInput(rawDate: string): ParseDateResult {
     candidate.getUTCDate() === day;
 
   if (!isValid) {
-    return {
-      ok: false,
-      message: `The date ${rawDate} is not valid. Please double-check the day and month.`,
-    };
+    return err(`The date ${rawDate} is not valid. Please double-check the day and month.`);
   }
 
-  return { ok: true, year, month, day, normalized: rawDate };
+  return ok({ year, month, day, normalized: rawDate });
 }
 
 export function parseTimeInput(rawTime: string): ParseTimeResult {
@@ -65,12 +58,10 @@ export function parseTimeInput(rawTime: string): ParseTimeResult {
   const match = cleaned.match(/^(\d{1,2})(?::(\d{1,2}))?(am|pm)?$/i);
 
   if (!match) {
-    return {
-      ok: false,
-      message:
-        `The time format is invalid. Use HH, HH:MM, HHam/HHpm, or HH:MMam/HH:MMpm.\n` +
-        `Example: 10 | 10:15 | 10pm | 10:21pm`,
-    };
+    return err(
+      `The time format is invalid. Use HH, HH:MM, HHam/HHpm, or HH:MMam/HH:MMpm.\n` +
+        `Example: 10 | 10:15 | 10pm | 10:21pm`
+    );
   }
 
   const rawHour = Number(match[1]);
@@ -78,36 +69,31 @@ export function parseTimeInput(rawTime: string): ParseTimeResult {
   const meridiem = match[3] ? match[3].toLowerCase() : '';
 
   if (rawMinute < 0 || rawMinute > 59) {
-    return { ok: false, message: `Minutes must be in the 00-59 range.` };
+    return err(`Minutes must be in the 00-59 range.`);
   }
 
   if (meridiem) {
     if (rawHour < 1 || rawHour > 12) {
-      return {
-        ok: false,
-        message: `For am/pm format, the hour must be between 1 and 12.`,
-      };
+      return err(`For am/pm format, the hour must be between 1 and 12.`);
     }
     let hour24 = rawHour % 12;
     if (meridiem === 'pm') hour24 += 12;
-    return {
-      ok: true,
+    return ok({
       hour: hour24,
       minute: rawMinute,
       normalized: `${String(hour24).padStart(2, '0')}:${String(rawMinute).padStart(2, '0')}`,
-    };
+    });
   }
 
   if (rawHour < 0 || rawHour > 23) {
-    return { ok: false, message: `Hour must be in the 0-23 range.` };
+    return err(`Hour must be in the 0-23 range.`);
   }
 
-  return {
-    ok: true,
+  return ok({
     hour: rawHour,
     minute: rawMinute,
     normalized: `${String(rawHour).padStart(2, '0')}:${String(rawMinute).padStart(2, '0')}`,
-  };
+  });
 }
 
 export function parseReminderCommand(firstLine: string): ParseReminderResult {
@@ -115,13 +101,11 @@ export function parseReminderCommand(firstLine: string): ParseReminderResult {
   const match = normalized.match(/^#remind\s+(\S+)\s+(\S+)\s+(.+)$/i);
 
   if (!match) {
-    return {
-      ok: false,
-      message:
-        `I couldn't parse that reminder format yet.\n\n` +
+    return err(
+      `I couldn't parse that reminder format yet.\n\n` +
         `Please use: #remind YYYY-MM-DD|today|tomorrow HH:MM <message>\n` +
-        `Examples: #remind 2026-03-10 10:30 Review proposal | #remind tomorrow 9am Team sync`,
-    };
+        `Examples: #remind 2026-03-10 10:30 Review proposal | #remind tomorrow 9am Team sync`
+    );
   }
 
   const timeResult = parseTimeInput(match[2]);
@@ -129,30 +113,22 @@ export function parseReminderCommand(firstLine: string): ParseReminderResult {
 
   const reminderText = match[3].trim();
   if (!reminderText) {
-    return {
-      ok: false,
-      message: `Please include the reminder message so I can deliver it clearly.`,
-    };
+    return err(`Please include the reminder message so I can deliver it clearly.`);
   }
 
   if (reminderText.length > REMINDER_TEXT_MAX_CHARS) {
-    return {
-      ok: false,
-      message:
-        `Your reminder message is too long (${reminderText.length} characters).\n` +
-        `Please keep it within ${REMINDER_TEXT_MAX_CHARS} characters for reliable delivery.`,
-    };
+    return err(
+      `Your reminder message is too long (${reminderText.length} characters).\n` +
+        `Please keep it within ${REMINDER_TEXT_MAX_CHARS} characters for reliable delivery.`
+    );
   }
 
-  return {
-    ok: true,
-    value: {
-      dateInput: match[1],
-      hour: timeResult.hour,
-      minute: timeResult.minute,
-      reminderText,
-    },
-  };
+  return ok({
+    dateInput: match[1],
+    hour: timeResult.value.hour,
+    minute: timeResult.value.minute,
+    reminderText,
+  });
 }
 
 export function resolveDateInput(
@@ -183,7 +159,7 @@ export function resolveDateInput(
   const day = targetLocalDate.getUTCDate();
   const normalized = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-  return { ok: true, year, month, day, normalized };
+  return ok({ year, month, day, normalized });
 }
 
 export function toScheduledUtcIso(

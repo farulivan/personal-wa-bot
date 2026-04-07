@@ -1,4 +1,4 @@
-import type { WorkoutRow } from './infra/workoutRepository.js';
+import type { WorkoutEntry } from './infra/workoutRepository.js';
 import type { StreakInfo } from './workoutStreaks.js';
 
 export type UserStreak = {
@@ -8,13 +8,13 @@ export type UserStreak = {
 };
 
 export function formatWorkoutList(
-  rows: WorkoutRow[],
+  rows: WorkoutEntry[],
   timezoneOffsetMinutes: number,
   now: Date
 ): string {
   return rows
     .map((r) => {
-      const workoutDate = new Date(r.created_at);
+      const workoutDate = new Date(r.createdAt);
       const userWorkoutDate = new Date(workoutDate.getTime() + timezoneOffsetMinutes * 60000);
 
       const userNow = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
@@ -36,15 +36,15 @@ export function formatWorkoutList(
       } else if (workoutDateOnly.getTime() === userYesterday.getTime()) {
         dateStr = 'Yesterday';
       } else {
-        const [year, month, day] = r.created_at.split('T')[0].split('-');
+        const [year, month, day] = r.createdAt.split('T')[0].split('-');
         dateStr = `${year}/${month}/${day}`;
       }
 
-      if (r.workout_mode === 'cardio') {
-        const durationStr = Number.isInteger(r.duration_minutes)
-          ? `${r.duration_minutes}min`
-          : `${r.duration_minutes.toFixed(1)}min`;
-        const distanceStr = r.distance_km > 0 ? ` | ${r.distance_km}km` : '';
+      if (r.workoutMode === 'cardio') {
+        const durationStr = Number.isInteger(r.durationMinutes)
+          ? `${r.durationMinutes}min`
+          : `${r.durationMinutes.toFixed(1)}min`;
+        const distanceStr = r.distanceKm > 0 ? ` | ${r.distanceKm}km` : '';
         return `• ${dateStr} – [cardio] ${r.type} | ${durationStr}${distanceStr}`;
       }
 
