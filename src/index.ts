@@ -13,14 +13,16 @@ import { createWorkoutController } from './modules/workouts/workoutController.js
 import { WorkoutService } from './modules/workouts/workoutService.js';
 import { createDailyStreakDigestSender } from './modules/workouts/workoutDigest.js';
 import { DrizzleWorkoutRepository } from './modules/workouts/infra/drizzleWorkoutRepository.js';
-import { createSholatNamespaceHandler } from './modules/sholat/sholatNamespace.js';
+import { createSholatController } from './modules/sholat/sholatController.js';
+import { SholatService } from './modules/sholat/sholatService.js';
 import { DrizzleSholatRepository } from './modules/sholat/infra/drizzleSholatRepository.js';
 import { MyQuranSholatClient } from './modules/sholat/infra/myQuranSholatClient.js';
 import { createQuranController } from './modules/quran/quranController.js';
 import { QuranService } from './modules/quran/quranService.js';
 import { DrizzleQuranRepository } from './modules/quran/infra/drizzleQuranRepository.js';
 import { createQuranReminderSender } from './modules/quran/quranDigest.js';
-import { createRemindNamespaceHandler } from './modules/remind/remindNamespace.js';
+import { createRemindController } from './modules/remind/remindController.js';
+import { RemindService } from './modules/remind/remindService.js';
 import { DrizzleRemindRepository } from './modules/remind/infra/drizzleRemindRepository.js';
 import { startReminderScheduler } from './modules/remind/remindScheduler.js';
 import { DrizzleUserRepository } from './modules/users/infra/drizzleUserRepository.js';
@@ -54,20 +56,22 @@ async function main() {
 
   const workoutService = new WorkoutService(workoutRepository, userRepository);
   const quranService = new QuranService(quranRepository, userRepository);
+  const remindService = new RemindService(remindRepository);
+  const sholatService = new SholatService(
+    sholatRepository,
+    sholatClient,
+    appConfig.sholatDefaultLocation,
+    appConfig.sholatTimezone
+  );
 
   const router = new CommandRouter();
   router.registerNamespace('workout', createWorkoutController(workoutService));
   router.registerNamespace(
     'sholat',
-    createSholatNamespaceHandler({
-      sholatRepository,
-      sholatClient,
-      defaultLocation: appConfig.sholatDefaultLocation,
-      defaultTimezone: appConfig.sholatTimezone,
-    })
+    createSholatController(sholatService, appConfig.sholatDefaultLocation)
   );
   router.registerNamespace('quran', createQuranController(quranService));
-  router.registerNamespace('remind', createRemindNamespaceHandler(remindRepository));
+  router.registerNamespace('remind', createRemindController(remindService));
 
   const appContext = {
     client,
