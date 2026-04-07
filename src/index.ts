@@ -16,7 +16,8 @@ import { DrizzleWorkoutRepository } from './modules/workouts/infra/drizzleWorkou
 import { createSholatNamespaceHandler } from './modules/sholat/sholatNamespace.js';
 import { DrizzleSholatRepository } from './modules/sholat/infra/drizzleSholatRepository.js';
 import { MyQuranSholatClient } from './modules/sholat/infra/myQuranSholatClient.js';
-import { createQuranNamespaceHandler } from './modules/quran/quranNamespace.js';
+import { createQuranController } from './modules/quran/quranController.js';
+import { QuranService } from './modules/quran/quranService.js';
 import { DrizzleQuranRepository } from './modules/quran/infra/drizzleQuranRepository.js';
 import { createQuranReminderSender } from './modules/quran/quranDigest.js';
 import { createRemindNamespaceHandler } from './modules/remind/remindNamespace.js';
@@ -52,6 +53,7 @@ async function main() {
   const userRepository = new DrizzleUserRepository(drizzleDb);
 
   const workoutService = new WorkoutService(workoutRepository, userRepository);
+  const quranService = new QuranService(quranRepository, userRepository);
 
   const router = new CommandRouter();
   router.registerNamespace('workout', createWorkoutController(workoutService));
@@ -64,7 +66,7 @@ async function main() {
       defaultTimezone: appConfig.sholatTimezone,
     })
   );
-  router.registerNamespace('quran', createQuranNamespaceHandler(quranRepository, userRepository));
+  router.registerNamespace('quran', createQuranController(quranService));
   router.registerNamespace('remind', createRemindNamespaceHandler(remindRepository));
 
   const appContext = {
@@ -87,8 +89,7 @@ async function main() {
 
   const sendNightlyQuranReminder = createQuranReminderSender({
     client,
-    quranRepository,
-    userRepository,
+    quranService,
     timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
   });
 
