@@ -54,7 +54,7 @@ A TypeScript WhatsApp bot for personal daily tracking and reminders:
 
 - **Node.js + TypeScript**
 - **whatsapp-web.js** for WhatsApp integration
-- **better-sqlite3** for local persistence
+- **PostgreSQL** via **Drizzle ORM** for persistence
 - **pnpm** for package management
 
 ---
@@ -239,12 +239,14 @@ Behavior notes:
 
 ```bash
 pnpm build
-pnpm lint
+pnpm verify
 pnpm format:check
 ```
 
 Useful scripts:
-- `pnpm dev` – TypeScript watch
+- `pnpm dev` – TypeScript watch mode
+- `pnpm verify` – type-check + lint (`tsc --noEmit && eslint src/`)
+- `pnpm lint:fix` – auto-fix lint issues
 - `pnpm clean` – remove `dist`
 
 ---

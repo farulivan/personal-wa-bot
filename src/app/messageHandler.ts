@@ -19,20 +19,15 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
       debug(`📨 from=${msg.from}, rawSender=${rawSender}, sender=${sender}, isGroup=${isGroup}`);
 
       // Capture user contact information for persistent storage (only if not already stored)
-      const existingUser = await appContext.userRepository.findById(sender);
-      if (!existingUser) {
-        try {
-          const contact = await msg.getContact();
-          await appContext.userRepository.upsert({
-            id: sender,
-            phoneNumber: contact.number,
-            contactName: contact.name,
-            pushname: contact.pushname,
-          });
-          debug(`👤 Captured new user: ${sender}`);
-        } catch (err) {
-          debug(`⚠️ Failed to capture user info for ${sender}:`, err);
-        }
+      try {
+        const contact = await msg.getContact();
+        await appContext.userService.captureIfNew(sender, {
+          phoneNumber: contact.number,
+          contactName: contact.name,
+          pushname: contact.pushname,
+        });
+      } catch (err) {
+        debug(`⚠️ Failed to capture user info for ${sender}:`, err);
       }
 
       // Check if bot is mentioned (for groups)

@@ -26,6 +26,7 @@ import { RemindService } from './modules/remind/remindService.js';
 import { DrizzleRemindRepository } from './modules/remind/infra/drizzleRemindRepository.js';
 import { startReminderScheduler } from './modules/remind/remindScheduler.js';
 import { DrizzleUserRepository } from './modules/users/infra/drizzleUserRepository.js';
+import { UserService } from './modules/users/userService.js';
 import {
   USER_TIMEZONE_OFFSET,
   DAILY_DIGEST_HOUR,
@@ -54,6 +55,8 @@ async function main() {
   const remindRepository = new DrizzleRemindRepository(drizzleDb);
   const userRepository = new DrizzleUserRepository(drizzleDb);
 
+  const userService = new UserService(userRepository);
+
   const workoutService = new WorkoutService(workoutRepository, userRepository);
   const quranService = new QuranService(quranRepository, userRepository);
   const remindService = new RemindService(remindRepository);
@@ -77,7 +80,7 @@ async function main() {
     client,
     config: appConfig,
     messageGateway,
-    userRepository,
+    userService,
   };
 
   const sendDailyStreakDigest = createDailyStreakDigestSender({
