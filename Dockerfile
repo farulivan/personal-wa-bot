@@ -37,7 +37,7 @@ RUN npm install -g pnpm@10.28.0 && pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Build TypeScript
+# Build TypeScript (also copies src/db/migrations → dist/db/migrations)
 RUN pnpm build
 
 # Run the bot
