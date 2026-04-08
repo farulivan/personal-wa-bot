@@ -1,8 +1,8 @@
 import { eq, sql, count } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
 import { workouts } from '../../../db/schema.js';
-import { MIN_WORKOUTS_FOR_STREAK } from '../../../app/constants.js';
-import type { WorkoutRepository, WorkoutRow, NewWorkoutLog } from './workoutRepository.js';
+import { MIN_WORKOUTS_FOR_STREAK } from '../../../config/env.js';
+import type { WorkoutRepository, WorkoutEntry, NewWorkoutLog } from './workoutRepository.js';
 
 export class DrizzleWorkoutRepository implements WorkoutRepository {
   constructor(private readonly db: DrizzleDb) {}
@@ -16,7 +16,7 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
     return rows[0]?.total ?? 0;
   }
 
-  async listByUser(user: string, limit: number, offset: number): Promise<WorkoutRow[]> {
+  async listByUser(user: string, limit: number, offset: number): Promise<WorkoutEntry[]> {
     const rows = await this.db
       .select({
         createdAt: workouts.createdAt,
@@ -35,14 +35,14 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
       .offset(offset);
 
     return rows.map((r) => ({
-      created_at: r.createdAt,
-      workout_mode: r.workoutMode as 'lift' | 'cardio',
+      createdAt: r.createdAt,
+      workoutMode: r.workoutMode as 'lift' | 'cardio',
       type: r.type,
       reps: r.reps,
       sets: r.sets,
       weight: r.weight,
-      duration_minutes: r.durationMinutes,
-      distance_km: r.distanceKm,
+      durationMinutes: r.durationMinutes,
+      distanceKm: r.distanceKm,
     }));
   }
 

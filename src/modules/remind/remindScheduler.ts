@@ -1,6 +1,7 @@
 import { debug, error } from '../../logger.js';
 import type { RemindRepository } from './infra/remindRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
+import { toLocalDateTimeLabel, formatSchedulerReminderMessage } from './remindPresenter.js';
 
 type ReminderClientLike = {
   sendMessage: (chatId: string, text: string) => Promise<unknown>;
@@ -13,32 +14,6 @@ type StartReminderSchedulerDeps = {
   timezoneOffsetMinutes: number;
   intervalMs?: number;
 };
-
-function toLocalDateTimeLabel(utcIso: string, timezoneOffsetMinutes: number): string {
-  const utcDate = new Date(utcIso);
-  const local = new Date(utcDate.getTime() + timezoneOffsetMinutes * 60000);
-
-  const year = local.getUTCFullYear();
-  const month = String(local.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(local.getUTCDate()).padStart(2, '0');
-  const hour = String(local.getUTCHours()).padStart(2, '0');
-  const minute = String(local.getUTCMinutes()).padStart(2, '0');
-
-  return `${year}-${month}-${day} ${hour}:${minute}`;
-}
-
-function buildReminderMessage(
-  name: string,
-  reminderText: string,
-  localDateTimeLabel: string
-): string {
-  return (
-    `Reminder for ${name} ⏰\n` +
-    `Schedule: ${localDateTimeLabel} (GMT+7)\n\n` +
-    `${reminderText}\n\n` +
-    `Hope this helps you stay on track.`
-  );
-}
 
 export function startReminderScheduler(deps: StartReminderSchedulerDeps): void {
   const intervalMs = deps.intervalMs ?? 30000;
@@ -67,7 +42,11 @@ export function startReminderScheduler(deps: StartReminderSchedulerDeps): void {
           reminder.scheduledAt,
           deps.timezoneOffsetMinutes
         );
-        const message = buildReminderMessage(name, reminder.reminderText, localDateTimeLabel);
+        const message = formatSchedulerReminderMessage(
+          name,
+          reminder.reminderText,
+          localDateTimeLabel
+        );
 
         try {
           await deps.client.sendMessage(reminder.targetChatId, message);
