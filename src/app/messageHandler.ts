@@ -2,7 +2,6 @@ import type pkg from 'whatsapp-web.js';
 type Message = pkg.Message;
 import { parseCommand } from './parseCommand.js';
 import type { CommandRouter, CommandContext } from './commandRouter.js';
-import { isAllowedUser } from '../config/env.js';
 import { debug, error } from '../logger.js';
 import type { AppContext } from './appContext.js';
 import { normalizeUserId } from './normalizeUserId.js';
@@ -46,7 +45,7 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
       ) {
         debug(`👋 Greeting from ${sender}`);
 
-        if (isAllowedUser(sender)) {
+        if (appContext.isAllowedUser(sender)) {
           // Randomize opening line
           const openings = [
             `Yo! 👊`,
@@ -107,7 +106,7 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
       }
 
       // Security: Only allow whitelisted phone numbers
-      if (!isAllowedUser(sender)) {
+      if (!appContext.isAllowedUser(sender)) {
         debug(`🚫 Blocked: ${sender}`);
         return;
       }

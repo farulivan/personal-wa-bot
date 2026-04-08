@@ -1,11 +1,13 @@
 import { eq, sql, count } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
 import { workouts } from '../../../db/schema.js';
-import { MIN_WORKOUTS_FOR_STREAK } from '../../../config/env.js';
 import type { WorkoutRepository, WorkoutEntry, NewWorkoutLog } from './workoutRepository.js';
 
 export class DrizzleWorkoutRepository implements WorkoutRepository {
-  constructor(private readonly db: DrizzleDb) {}
+  constructor(
+    private readonly db: DrizzleDb,
+    private readonly minWorkoutsForStreak: number = 3
+  ) {}
 
   async countByUser(user: string): Promise<number> {
     const rows = await this.db
@@ -78,7 +80,7 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
       .from(workouts)
       .where(eq(workouts.user, user))
       .groupBy(dayExpr)
-      .having(sql`COUNT(*) >= ${MIN_WORKOUTS_FOR_STREAK}`)
+      .having(sql`COUNT(*) >= ${this.minWorkoutsForStreak}`)
       .orderBy(sql`day DESC`);
 
     return rows.map((r) => r.day as string);

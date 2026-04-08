@@ -6,13 +6,7 @@ import { WorkoutService } from './workoutService.js';
 import { createDailyStreakDigestSender } from './workoutDigest.js';
 import type { WorkoutRepository } from './infra/workoutRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
-
-type WhatsAppClientLike = {
-  sendMessage: (chatId: string, text: string) => Promise<unknown>;
-  getChatById: (chatId: string) => Promise<unknown>;
-  getContactById: (contactId: string) => Promise<unknown>;
-  info: { wid: { _serialized: string; user: string } };
-};
+import type { WhatsAppClientLike } from '../../adapters/whatsapp/types.js';
 
 export type WorkoutModuleDeps = {
   workoutRepository: WorkoutRepository;
@@ -22,6 +16,8 @@ export type WorkoutModuleDeps = {
   digestGroupId: string | undefined;
   dailyDigestHour: number;
   dailyDigestMinute: number;
+  minWorkoutsForStreak: number;
+  workoutListLimit: number;
 };
 
 export type WorkoutModuleRegistration = {
@@ -30,7 +26,12 @@ export type WorkoutModuleRegistration = {
 };
 
 export function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleRegistration {
-  const workoutService = new WorkoutService(deps.workoutRepository, deps.userRepository);
+  const workoutService = new WorkoutService(
+    deps.workoutRepository,
+    deps.userRepository,
+    deps.minWorkoutsForStreak,
+    deps.workoutListLimit
+  );
 
   const controller = withErrorBoundary('workout', createWorkoutController(workoutService));
 

@@ -1,13 +1,12 @@
 import { debug, error } from '../../logger.js';
 import { formatDigestMessage } from './workoutPresenter.js';
 import type { WorkoutService, DigestClientLike } from './workoutService.js';
+import type { WhatsAppSenderLike } from '../../adapters/whatsapp/types.js';
 
-type WhatsAppClientLike = {
-  sendMessage: (chatId: string, text: string) => Promise<unknown>;
-} & DigestClientLike;
+type DigestClientFull = WhatsAppSenderLike & DigestClientLike;
 
 type DigestDeps = {
-  client: WhatsAppClientLike;
+  client: DigestClientFull;
   workoutService: WorkoutService;
   timezoneOffsetMinutes: number;
 };

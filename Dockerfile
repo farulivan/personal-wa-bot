@@ -31,8 +31,8 @@ WORKDIR /app
 # Copy package files and pnpm config
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Install pnpm and dependencies (pnpm@9 for native module compatibility)
-RUN npm install -g pnpm@9 && pnpm install --frozen-lockfile
+# Install pnpm and dependencies
+RUN npm install -g pnpm@10.28.0 && pnpm install --frozen-lockfile
 
 # Copy source code
 COPY . .

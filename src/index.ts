@@ -26,15 +26,7 @@ import { registerRemindModule } from './modules/remind/index.js';
 
 // --- Users ---
 import { UserService } from './modules/users/userService.js';
-
-import {
-  USER_TIMEZONE_OFFSET,
-  DAILY_DIGEST_HOUR,
-  DAILY_DIGEST_MINUTE,
-  QURAN_REMINDER_HOUR,
-  QURAN_REMINDER_MINUTE,
-  DIGEST_GROUP_ID,
-} from './config/env.js';
+import { createAuthGuard } from './app/authGuard.js';
 
 async function main() {
   if (!appConfig.databaseUrl) {
@@ -50,7 +42,7 @@ async function main() {
   const messageGateway = createMessageGateway(client);
 
   // --- Repositories ---
-  const workoutRepository = new DrizzleWorkoutRepository(drizzleDb);
+  const workoutRepository = new DrizzleWorkoutRepository(drizzleDb, appConfig.minWorkoutsForStreak);
   const sholatRepository = new DrizzleSholatRepository(drizzleDb);
   const sholatClient = new MyQuranSholatClient();
   const quranRepository = new DrizzleQuranRepository(drizzleDb);
@@ -59,25 +51,33 @@ async function main() {
 
   const userService = new UserService(userRepository);
 
+  const isAllowedUser = createAuthGuard(appConfig.allowedNumbers);
+
   // --- Register modules ---
   const workout = registerWorkoutModule({
     workoutRepository,
     userRepository,
     client,
-    timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-    digestGroupId: DIGEST_GROUP_ID,
-    dailyDigestHour: DAILY_DIGEST_HOUR,
-    dailyDigestMinute: DAILY_DIGEST_MINUTE,
+    timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
+    digestGroupId: appConfig.digestGroupId,
+    dailyDigestHour: appConfig.dailyDigestHour,
+    dailyDigestMinute: appConfig.dailyDigestMinute,
+    minWorkoutsForStreak: appConfig.minWorkoutsForStreak,
+    workoutListLimit: appConfig.workoutListLimit,
   });
 
   const quran = registerQuranModule({
     quranRepository,
     userRepository,
     client,
-    timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-    digestGroupId: DIGEST_GROUP_ID,
-    quranReminderHour: QURAN_REMINDER_HOUR,
-    quranReminderMinute: QURAN_REMINDER_MINUTE,
+    timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
+    digestGroupId: appConfig.digestGroupId,
+    quranReminderHour: appConfig.quranReminderHour,
+    quranReminderMinute: appConfig.quranReminderMinute,
+    quranListLimit: appConfig.quranListLimit,
+    ramadhanCountEnabled: appConfig.quranRamadhanCountEnabled,
+    ramadhanStartDate: appConfig.quranRamadhanStartDate,
+    ramadhanEndDate: appConfig.quranRamadhanEndDate,
   });
 
   const sholat = registerSholatModule({
@@ -91,7 +91,8 @@ async function main() {
     remindRepository,
     userRepository,
     client,
-    timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+    timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
+    remindListLimit: appConfig.remindListLimit,
   });
 
   // --- Wire router ---
@@ -106,6 +107,7 @@ async function main() {
     config: appConfig,
     messageGateway,
     userService,
+    isAllowedUser,
   };
 
   const handleMessage = createMessageHandler(router, appContext);

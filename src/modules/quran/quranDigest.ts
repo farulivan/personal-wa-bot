@@ -2,14 +2,12 @@ import { debug, error } from '../../logger.js';
 import type { BotInfoClientLike, GroupMemberClientLike } from '../../adapters/whatsapp/waId.js';
 import { formatReminderMessage } from './quranPresenter.js';
 import type { QuranService } from './quranService.js';
+import type { WhatsAppSenderLike } from '../../adapters/whatsapp/types.js';
 
-type WhatsAppClientLike = {
-  sendMessage: (chatId: string, text: string) => Promise<unknown>;
-} & GroupMemberClientLike &
-  BotInfoClientLike;
+type QuranReminderClientFull = WhatsAppSenderLike & GroupMemberClientLike & BotInfoClientLike;
 
 type QuranReminderDeps = {
-  client: WhatsAppClientLike;
+  client: QuranReminderClientFull;
   quranService: QuranService;
   timezoneOffsetMinutes: number;
 };

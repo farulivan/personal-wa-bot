@@ -1,17 +1,12 @@
 import { debug } from '../../logger.js';
-import { MIN_WORKOUTS_FOR_STREAK, WORKOUT_LIST_LIMIT } from '../../config/env.js';
 import { computeStreaks } from './workoutStreaks.js';
 import type { StreakInfo } from './workoutStreaks.js';
 import type { WorkoutRepository, WorkoutEntry } from './infra/workoutRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 import type { LiftPayload, CardioPayload } from './workoutParser.js';
 import type { UserStreak } from './workoutPresenter.js';
-import {
-  listGroupMemberIdentities,
-  resolveNormalizedBotUserId,
-  type BotInfoClientLike,
-  type GroupMemberClientLike,
-} from '../../adapters/whatsapp/waId.js';
+import type { BotInfoClientLike, GroupMemberClientLike } from '../../adapters/whatsapp/waId.js';
+import { resolveGroupDbUserIds } from '../../adapters/whatsapp/resolveGroupDbUserIds.js';
 
 export type WorkoutListResult = {
   rows: WorkoutEntry[];
@@ -31,7 +26,9 @@ export type DigestClientLike = GroupMemberClientLike & BotInfoClientLike;
 export class WorkoutService {
   constructor(
     private readonly workoutRepository: WorkoutRepository,
-    private readonly userRepository: UserRepository
+    private readonly userRepository: UserRepository,
+    readonly minWorkoutsForStreak: number = 3,
+    private readonly workoutListLimit: number = 10
   ) {}
 
   async logLift(sender: string, payload: LiftPayload, now: Date): Promise<void> {
@@ -81,7 +78,7 @@ export class WorkoutService {
       now.toISOString()
     );
 
-    const remaining = MIN_WORKOUTS_FOR_STREAK - todayCount;
+    const remaining = this.minWorkoutsForStreak - todayCount;
 
     let streaks: StreakInfo | null = null;
     if (remaining === 0) {
@@ -101,14 +98,14 @@ export class WorkoutService {
     timezoneOffsetMinutes: number,
     now: Date
   ): Promise<WorkoutListResult> {
-    const offset = (page - 1) * WORKOUT_LIST_LIMIT;
+    const offset = (page - 1) * this.workoutListLimit;
     const total = await this.workoutRepository.countByUser(sender);
-    const totalPages = Math.max(1, Math.ceil(total / WORKOUT_LIST_LIMIT));
+    const totalPages = Math.max(1, Math.ceil(total / this.workoutListLimit));
 
     const rows =
       total === 0 || page > totalPages
         ? []
-        : await this.workoutRepository.listByUser(sender, WORKOUT_LIST_LIMIT, offset);
+        : await this.workoutRepository.listByUser(sender, this.workoutListLimit, offset);
 
     const days = await this.workoutRepository.getQualifyingStreakDays(
       sender,
@@ -125,26 +122,8 @@ export class WorkoutService {
     timezoneOffsetMinutes: number,
     now: Date
   ): Promise<UserStreak[]> {
-    const [memberIdentities, botUserId, dbUsers] = await Promise.all([
-      listGroupMemberIdentities(client, groupChatId),
-      resolveNormalizedBotUserId(client),
-      this.workoutRepository.listDistinctUsers(),
-    ]);
-
-    const groupMemberIdentities = botUserId
-      ? memberIdentities.filter((member) => !member.aliases.includes(botUserId))
-      : memberIdentities;
-
-    const knownUsers = new Set(dbUsers);
-    const targetUserIdSet = new Set<string>();
-
-    for (const member of groupMemberIdentities) {
-      const matchedDbId = member.aliases.find((alias: string) => knownUsers.has(alias));
-      const dbUserId = matchedDbId ?? member.primaryId;
-      targetUserIdSet.add(dbUserId);
-    }
-
-    const targetUserIds = Array.from(targetUserIdSet);
+    const dbUsers = await this.workoutRepository.listDistinctUsers();
+    const targetUserIds = await resolveGroupDbUserIds(client, groupChatId, dbUsers);
 
     if (targetUserIds.length === 0) {
       return [];

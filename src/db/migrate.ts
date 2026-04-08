@@ -15,7 +15,7 @@ export async function runMigrations(databaseUrl: string): Promise<void> {
 
   try {
     await migrate(db, {
-      migrationsFolder: resolve(__dirname, '../../src/db/migrations'),
+      migrationsFolder: resolve(__dirname, 'migrations'),
     });
     log('🗄️  Migrations complete');
   } catch (err) {
