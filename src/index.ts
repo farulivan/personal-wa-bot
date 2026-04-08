@@ -118,6 +118,7 @@ async function main() {
   });
 
   let reminderSchedulerStarted = false;
+  let digestSchedulerStarted = false;
 
   client.on('ready', () => {
     log('🤖 WhatsApp bot ready');
@@ -128,11 +129,14 @@ async function main() {
       log('⏰ Reminder scheduler started');
     }
 
-    const allJobs = [...workout.jobs, ...quran.jobs];
-    if (allJobs.length > 0) {
-      startScheduler(allJobs);
-    } else {
-      log('⚠️ DIGEST_GROUP_ID not set — daily digest disabled');
+    if (!digestSchedulerStarted) {
+      const allJobs = [...workout.jobs, ...quran.jobs];
+      if (allJobs.length > 0) {
+        startScheduler(allJobs);
+      } else {
+        log('⚠️ DIGEST_GROUP_ID not set — daily digest disabled');
+      }
+      digestSchedulerStarted = true;
     }
   });
 

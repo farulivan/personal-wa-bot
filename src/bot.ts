@@ -46,7 +46,6 @@ export function createWhatsAppClient(): InstanceType<typeof Client> {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--user-data-dir=/tmp/chromium-profile',
       ],
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     },
