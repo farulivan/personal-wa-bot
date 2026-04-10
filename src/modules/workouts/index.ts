@@ -6,12 +6,13 @@ import { WorkoutService } from './workoutService.js';
 import { createDailyStreakDigestSender } from './workoutDigest.js';
 import type { WorkoutRepository } from './infra/workoutRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
-import type { WhatsAppClientLike } from '../../adapters/whatsapp/types.js';
+import type { GroupMembershipPort, MessageSenderPort } from '../../adapters/whatsapp/ports.js';
 
 export type WorkoutModuleDeps = {
   workoutRepository: WorkoutRepository;
   userRepository: UserRepository;
-  client: WhatsAppClientLike;
+  membershipPort: GroupMembershipPort;
+  senderPort: MessageSenderPort;
   timezoneOffsetMinutes: number;
   digestGroupId: string | undefined;
   dailyDigestHour: number;
@@ -39,7 +40,8 @@ export function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleReg
 
   if (deps.digestGroupId) {
     const sendDailyStreakDigest = createDailyStreakDigestSender({
-      client: deps.client,
+      membershipPort: deps.membershipPort,
+      senderPort: deps.senderPort,
       workoutService,
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
     });

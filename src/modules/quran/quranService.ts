@@ -8,8 +8,8 @@ import type {
 } from './infra/quranRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 import type { UserReminder } from './quranPresenter.js';
-import type { BotInfoClientLike, GroupMemberClientLike } from '../../adapters/whatsapp/waId.js';
 import { resolveGroupDbUserIds } from '../../adapters/whatsapp/resolveGroupDbUserIds.js';
+import type { GroupMembershipPort } from '../../adapters/whatsapp/ports.js';
 
 export type QuranLeaderboardMode = 'monthly' | 'ramadhan';
 
@@ -40,7 +40,7 @@ export type QuranListResult = {
   ramadhanPagesRead: number | null;
 };
 
-export type ReminderClientLike = GroupMemberClientLike & BotInfoClientLike;
+export type { GroupMembershipPort };
 
 const MAX_QURAN_PAGE = 604;
 
@@ -282,13 +282,13 @@ export class QuranService {
   }
 
   async getReminderTargets(
-    client: ReminderClientLike,
+    port: GroupMembershipPort,
     groupChatId: string,
     timezoneOffsetMinutes: number,
     now: Date
   ): Promise<UserReminder[]> {
     const dbUsers = await this.quranRepository.listDistinctUsers();
-    const targets = await resolveGroupDbUserIds(client, groupChatId, dbUsers);
+    const targets = await resolveGroupDbUserIds(port, groupChatId, dbUsers);
 
     debug(`📖 Found ${targets.length} reminder targets from group participants`);
 

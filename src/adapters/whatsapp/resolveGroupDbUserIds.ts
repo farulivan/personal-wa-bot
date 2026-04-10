@@ -1,20 +1,13 @@
-import {
-  listGroupMemberIdentities,
-  resolveNormalizedBotUserId,
-  type BotInfoClientLike,
-  type GroupMemberClientLike,
-} from './waId.js';
-
-export type GroupDbUserResolverClientLike = GroupMemberClientLike & BotInfoClientLike;
+import type { GroupMembershipPort } from './ports.js';
 
 export async function resolveGroupDbUserIds(
-  client: GroupDbUserResolverClientLike,
+  port: GroupMembershipPort,
   groupChatId: string,
   knownDbUserIds: string[]
 ): Promise<string[]> {
   const [memberIdentities, botUserId] = await Promise.all([
-    listGroupMemberIdentities(client, groupChatId),
-    resolveNormalizedBotUserId(client),
+    port.listMemberIdentities(groupChatId),
+    port.resolveBotUserId(),
   ]);
 
   const groupMemberIdentities = botUserId

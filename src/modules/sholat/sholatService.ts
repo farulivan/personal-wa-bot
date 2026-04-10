@@ -9,10 +9,15 @@ import { normalizeForMatch, normalizeUserLocationInput } from './sholatParser.js
 import { ok, err } from '../../shared/result.js';
 import type { Result } from '../../shared/result.js';
 
-export type LocationLookup = Result<SholatLocationRow>;
-
 export type TodaySchedule = { locationName: string; schedule: SholatDailyScheduleRow };
-export type TodayScheduleResult = Result<TodaySchedule>;
+
+export type SholatError =
+  | { type: 'ambiguous'; input: string; samples: string[] }
+  | { type: 'notfound'; input: string }
+  | { type: 'persist_error'; locationName: string };
+
+export type LocationLookupResult = Result<SholatLocationRow, SholatError>;
+export type TodayScheduleResult = Result<TodaySchedule, SholatError>;
 
 function toSholatLocationRows(locations: MyQuranLocation[]): SholatLocationRow[] {
   return locations.map((row) => ({
@@ -70,7 +75,7 @@ export class SholatService {
     await this.syncLocationCatalog();
   }
 
-  resolveLocation(allLocations: SholatLocationRow[], locationInput: string): LocationLookup {
+  resolveLocation(allLocations: SholatLocationRow[], locationInput: string): LocationLookupResult {
     const requested = locationInput.trim()
       ? normalizeUserLocationInput(locationInput)
       : normalizeUserLocationInput(this.defaultLocation);
@@ -90,10 +95,10 @@ export class SholatService {
 
     if (fuzzyMatches.length > 1) {
       const samples = fuzzyMatches.slice(0, 5).map((row) => row.locationName);
-      return err(`__ambiguous__:${locationInput}:${samples.join('|')}`);
+      return err({ type: 'ambiguous', input: locationInput, samples });
     }
 
-    return err(`__notfound__:${locationInput}`);
+    return err({ type: 'notfound', input: locationInput });
   }
 
   private toDateInTimezone(now: Date): string {
@@ -191,6 +196,6 @@ export class SholatService {
       return ok({ locationName: selectedLocation.locationName, schedule: persisted });
     }
 
-    return err(`__persist_error__:${selectedLocation.locationName}`);
+    return err({ type: 'persist_error', locationName: selectedLocation.locationName });
   }
 }

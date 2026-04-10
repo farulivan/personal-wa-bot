@@ -1,13 +1,11 @@
 import { debug, error } from '../../logger.js';
-import type { BotInfoClientLike, GroupMemberClientLike } from '../../adapters/whatsapp/waId.js';
 import { formatReminderMessage } from './quranPresenter.js';
 import type { QuranService } from './quranService.js';
-import type { WhatsAppSenderLike } from '../../adapters/whatsapp/types.js';
-
-type QuranReminderClientFull = WhatsAppSenderLike & GroupMemberClientLike & BotInfoClientLike;
+import type { GroupMembershipPort, MessageSenderPort } from '../../adapters/whatsapp/ports.js';
 
 type QuranReminderDeps = {
-  client: QuranReminderClientFull;
+  membershipPort: GroupMembershipPort;
+  senderPort: MessageSenderPort;
   quranService: QuranService;
   timezoneOffsetMinutes: number;
 };
@@ -22,7 +20,7 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
     let reminders;
     try {
       reminders = await deps.quranService.getReminderTargets(
-        deps.client,
+        deps.membershipPort,
         groupChatId,
         deps.timezoneOffsetMinutes,
         now
@@ -41,7 +39,7 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
     debug(`📖 Reminder message built, sending to ${groupChatId}`);
 
     try {
-      await deps.client.sendMessage(groupChatId, message);
+      await deps.senderPort.sendMessage(groupChatId, message);
       debug(`📖 Quran reminder sent to ${groupChatId}`);
     } catch (err) {
       error('📖 Failed to send Quran reminder:', err);

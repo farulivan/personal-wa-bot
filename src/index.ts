@@ -9,6 +9,7 @@ import { CommandRouter } from './app/commandRouter.js';
 import { createMessageHandler } from './app/messageHandler.js';
 import { startScheduler } from './app/scheduler.js';
 import { createMessageGateway } from './adapters/whatsapp/messageGateway.js';
+import { WhatsAppGroupMembershipAdapter } from './adapters/whatsapp/whatsAppGroupMembershipAdapter.js';
 
 // --- Infra ---
 import { DrizzleWorkoutRepository } from './modules/workouts/infra/drizzleWorkoutRepository.js';
@@ -40,6 +41,7 @@ async function main() {
   const client = createWhatsAppClient();
 
   const messageGateway = createMessageGateway(client);
+  const senderPort = messageGateway;
 
   // --- Repositories ---
   const workoutRepository = new DrizzleWorkoutRepository(drizzleDb, appConfig.minWorkoutsForStreak);
@@ -54,10 +56,15 @@ async function main() {
   const isAllowedUser = createAuthGuard(appConfig.allowedNumbers);
 
   // --- Register modules ---
+  const membershipPort = appConfig.digestGroupId
+    ? new WhatsAppGroupMembershipAdapter(client, appConfig.digestGroupId)
+    : new WhatsAppGroupMembershipAdapter(client, '');
+
   const workout = registerWorkoutModule({
     workoutRepository,
     userRepository,
-    client,
+    membershipPort,
+    senderPort,
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
     digestGroupId: appConfig.digestGroupId,
     dailyDigestHour: appConfig.dailyDigestHour,
@@ -69,7 +76,8 @@ async function main() {
   const quran = registerQuranModule({
     quranRepository,
     userRepository,
-    client,
+    membershipPort,
+    senderPort,
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
     digestGroupId: appConfig.digestGroupId,
     quranReminderHour: appConfig.quranReminderHour,
@@ -90,7 +98,7 @@ async function main() {
   const remind = registerRemindModule({
     remindRepository,
     userRepository,
-    client,
+    client: senderPort,
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
     remindListLimit: appConfig.remindListLimit,
   });

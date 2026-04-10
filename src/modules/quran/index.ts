@@ -6,12 +6,13 @@ import { QuranService } from './quranService.js';
 import { createQuranReminderSender } from './quranDigest.js';
 import type { QuranRepository } from './infra/quranRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
-import type { WhatsAppClientLike } from '../../adapters/whatsapp/types.js';
+import type { GroupMembershipPort, MessageSenderPort } from '../../adapters/whatsapp/ports.js';
 
 export type QuranModuleDeps = {
   quranRepository: QuranRepository;
   userRepository: UserRepository;
-  client: WhatsAppClientLike;
+  membershipPort: GroupMembershipPort;
+  senderPort: MessageSenderPort;
   timezoneOffsetMinutes: number;
   digestGroupId: string | undefined;
   quranReminderHour: number;
@@ -43,7 +44,8 @@ export function registerQuranModule(deps: QuranModuleDeps): QuranModuleRegistrat
 
   if (deps.digestGroupId) {
     const sendNightlyQuranReminder = createQuranReminderSender({
-      client: deps.client,
+      membershipPort: deps.membershipPort,
+      senderPort: deps.senderPort,
       quranService,
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
     });
