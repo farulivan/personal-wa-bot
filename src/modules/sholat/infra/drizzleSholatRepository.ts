@@ -1,6 +1,6 @@
 import { eq, sql, count, and } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
-import { sholatLocations, sholatDailyCache } from '../../../db/schema.js';
+import { sholatLocations, sholatDailyCache } from './schema.js';
 import type {
   SholatRepository,
   SholatLocationRow,

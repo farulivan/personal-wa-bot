@@ -39,8 +39,6 @@ export class WorkoutService {
       reps: payload.reps,
       sets: payload.sets,
       weight: payload.weight,
-      durationMinutes: 0,
-      distanceKm: 0,
       createdAtIso: now.toISOString(),
     });
 
@@ -54,9 +52,6 @@ export class WorkoutService {
       user: sender,
       workoutMode: 'cardio',
       type: payload.activity,
-      reps: 0,
-      sets: 0,
-      weight: 0,
       durationMinutes: payload.durationMinutes,
       distanceKm: payload.distanceKm,
       createdAtIso: now.toISOString(),

@@ -1,6 +1,6 @@
 import { eq, sql, count } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
-import { workouts } from '../../../db/schema.js';
+import { workouts } from './schema.js';
 import type { WorkoutRepository, WorkoutEntry, NewWorkoutLog } from './workoutRepository.js';
 
 export class DrizzleWorkoutRepository implements WorkoutRepository {
@@ -36,30 +36,53 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
       .limit(limit)
       .offset(offset);
 
-    return rows.map((r) => ({
-      createdAt: r.createdAt,
-      workoutMode: r.workoutMode as 'lift' | 'cardio',
-      type: r.type,
-      reps: r.reps,
-      sets: r.sets,
-      weight: r.weight,
-      durationMinutes: r.durationMinutes,
-      distanceKm: r.distanceKm,
-    }));
+    return rows.map((r): WorkoutEntry => {
+      if (r.workoutMode === 'cardio') {
+        return {
+          createdAt: r.createdAt,
+          workoutMode: 'cardio',
+          type: r.type,
+          durationMinutes: r.durationMinutes,
+          distanceKm: r.distanceKm,
+        };
+      }
+      return {
+        createdAt: r.createdAt,
+        workoutMode: 'lift',
+        type: r.type,
+        reps: r.reps,
+        sets: r.sets,
+        weight: r.weight,
+      };
+    });
   }
 
   async insertWorkoutLog(log: NewWorkoutLog): Promise<void> {
-    await this.db.insert(workouts).values({
-      user: log.user,
-      workoutMode: log.workoutMode,
-      type: log.type,
-      reps: log.reps,
-      sets: log.sets,
-      weight: log.weight,
-      durationMinutes: log.durationMinutes,
-      distanceKm: log.distanceKm,
-      createdAt: log.createdAtIso,
-    });
+    if (log.workoutMode === 'lift') {
+      await this.db.insert(workouts).values({
+        user: log.user,
+        workoutMode: log.workoutMode,
+        type: log.type,
+        reps: log.reps,
+        sets: log.sets,
+        weight: log.weight,
+        durationMinutes: 0,
+        distanceKm: 0,
+        createdAt: log.createdAtIso,
+      });
+    } else {
+      await this.db.insert(workouts).values({
+        user: log.user,
+        workoutMode: log.workoutMode,
+        type: log.type,
+        reps: 0,
+        sets: 0,
+        weight: 0,
+        durationMinutes: log.durationMinutes,
+        distanceKm: log.distanceKm,
+        createdAt: log.createdAtIso,
+      });
+    }
   }
 
   async listDistinctUsers(): Promise<string[]> {

@@ -19,16 +19,25 @@ class InMemoryWorkoutRepository implements WorkoutRepository {
     return this.logs
       .filter((l) => l.user === user)
       .slice(offset, offset + limit)
-      .map((l) => ({
-        createdAt: l.createdAtIso,
-        workoutMode: l.workoutMode,
-        type: l.type,
-        reps: l.reps,
-        sets: l.sets,
-        weight: l.weight,
-        durationMinutes: l.durationMinutes,
-        distanceKm: l.distanceKm,
-      }));
+      .map((l): WorkoutEntry => {
+        if (l.workoutMode === 'cardio') {
+          return {
+            createdAt: l.createdAtIso,
+            workoutMode: 'cardio',
+            type: l.type,
+            durationMinutes: l.durationMinutes,
+            distanceKm: l.distanceKm,
+          };
+        }
+        return {
+          createdAt: l.createdAtIso,
+          workoutMode: 'lift',
+          type: l.type,
+          reps: l.reps,
+          sets: l.sets,
+          weight: l.weight,
+        };
+      });
   }
 
   async listDistinctUsers(): Promise<string[]> {

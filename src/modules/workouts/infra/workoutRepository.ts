@@ -1,13 +1,21 @@
-export type WorkoutEntry = {
+export type LiftWorkoutEntry = {
   createdAt: string;
-  workoutMode: 'lift' | 'cardio';
+  workoutMode: 'lift';
   type: string;
   reps: number;
   sets: number;
   weight: number;
+};
+
+export type CardioWorkoutEntry = {
+  createdAt: string;
+  workoutMode: 'cardio';
+  type: string;
   durationMinutes: number;
   distanceKm: number;
 };
+
+export type WorkoutEntry = LiftWorkoutEntry | CardioWorkoutEntry;
 
 export type NewLiftWorkoutLog = {
   user: string;
@@ -16,8 +24,6 @@ export type NewLiftWorkoutLog = {
   reps: number;
   sets: number;
   weight: number;
-  durationMinutes: number;
-  distanceKm: number;
   createdAtIso: string;
 };
 
@@ -25,9 +31,6 @@ export type NewCardioWorkoutLog = {
   user: string;
   workoutMode: 'cardio';
   type: string;
-  reps: number;
-  sets: number;
-  weight: number;
   durationMinutes: number;
   distanceKm: number;
   createdAtIso: string;
