@@ -1,3 +1,4 @@
+import http from 'http';
 import { createWhatsAppClient } from './bot.js';
 import { debug, log, error } from './logger.js';
 import { appConfig } from './config/env.js';
@@ -37,7 +38,7 @@ async function main() {
   // --- Run migrations before anything else ---
   await runMigrations(appConfig.databaseUrl);
 
-  const drizzleDb = createDrizzleDb(appConfig.databaseUrl);
+  const { db: drizzleDb, close: closeDb } = createDrizzleDb(appConfig.databaseUrl);
   const client = createWhatsAppClient();
 
   const messageGateway = createMessageGateway(client);
@@ -120,6 +121,14 @@ async function main() {
 
   const handleMessage = createMessageHandler(router, appContext);
 
+  // --- Health check server ---
+  const healthPort = Number(process.env.PORT ?? 3000);
+  const healthServer = http.createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('OK');
+  });
+  healthServer.listen(healthPort, () => log(`❤️  Health check listening on :${healthPort}`));
+
   // --- Start bot ---
   log('🚀 Starting bot initialization...');
 
@@ -127,14 +136,39 @@ async function main() {
     await handleMessage(msg);
   });
 
+  let reminderHandle: { stop: () => void } | null = null;
+  let digestHandle: { stop: () => void } | null = null;
   let reminderSchedulerStarted = false;
   let digestSchedulerStarted = false;
+
+  async function shutdown(signal: string): Promise<void> {
+    log(`🛑 Received ${signal} — shutting down gracefully...`);
+    reminderHandle?.stop();
+    digestHandle?.stop();
+    healthServer.close();
+    try {
+      await client.destroy();
+      log('✅ WhatsApp client destroyed');
+    } catch (err) {
+      error('⚠️ Error destroying WA client:', err);
+    }
+    try {
+      await closeDb();
+      log('✅ Database connection closed');
+    } catch (err) {
+      error('⚠️ Error closing DB:', err);
+    }
+    process.exit(0);
+  }
+
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
 
   client.on('ready', () => {
     log('🤖 WhatsApp bot ready');
 
     if (!reminderSchedulerStarted) {
-      remind.startScheduler();
+      reminderHandle = remind.startScheduler();
       reminderSchedulerStarted = true;
       log('⏰ Reminder scheduler started');
     }
@@ -142,7 +176,7 @@ async function main() {
     if (!digestSchedulerStarted) {
       const allJobs = [...workout.jobs, ...quran.jobs];
       if (allJobs.length > 0) {
-        startScheduler(allJobs);
+        digestHandle = startScheduler(allJobs);
       } else {
         log('⚠️ DIGEST_GROUP_ID not set — daily digest disabled');
       }

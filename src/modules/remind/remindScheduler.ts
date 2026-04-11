@@ -15,7 +15,9 @@ type StartReminderSchedulerDeps = {
   intervalMs?: number;
 };
 
-export function startReminderScheduler(deps: StartReminderSchedulerDeps): void {
+export type ReminderSchedulerHandle = { stop: () => void };
+
+export function startReminderScheduler(deps: StartReminderSchedulerDeps): ReminderSchedulerHandle {
   const intervalMs = deps.intervalMs ?? 30000;
   let isRunning = false;
 
@@ -64,7 +66,9 @@ export function startReminderScheduler(deps: StartReminderSchedulerDeps): void {
   };
 
   void runTick();
-  setInterval(() => {
+  const handle = setInterval(() => {
     void runTick();
   }, intervalMs);
+
+  return { stop: () => clearInterval(handle) };
 }
