@@ -1,6 +1,6 @@
 import { eq, sql, count, sum } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
-import { quranDailyReads, quranMarks } from '../../../db/schema.js';
+import { quranDailyReads, quranMarks } from './schema.js';
 import type {
   QuranRepository,
   QuranDailyReadRow,

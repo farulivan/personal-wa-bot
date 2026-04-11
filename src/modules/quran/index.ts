@@ -6,22 +6,21 @@ import { QuranService } from './quranService.js';
 import { createQuranReminderSender } from './quranDigest.js';
 import type { QuranRepository } from './infra/quranRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
-
-type WhatsAppClientLike = {
-  sendMessage: (chatId: string, text: string) => Promise<unknown>;
-  getChatById: (chatId: string) => Promise<unknown>;
-  getContactById: (contactId: string) => Promise<unknown>;
-  info: { wid: { _serialized: string; user: string } };
-};
+import type { GroupMembershipPort, MessageSenderPort } from '../../adapters/whatsapp/ports.js';
 
 export type QuranModuleDeps = {
   quranRepository: QuranRepository;
   userRepository: UserRepository;
-  client: WhatsAppClientLike;
+  membershipPort: GroupMembershipPort;
+  senderPort: MessageSenderPort;
   timezoneOffsetMinutes: number;
   digestGroupId: string | undefined;
   quranReminderHour: number;
   quranReminderMinute: number;
+  quranListLimit: number;
+  ramadhanCountEnabled: boolean;
+  ramadhanStartDate: string;
+  ramadhanEndDate: string;
 };
 
 export type QuranModuleRegistration = {
@@ -30,7 +29,14 @@ export type QuranModuleRegistration = {
 };
 
 export function registerQuranModule(deps: QuranModuleDeps): QuranModuleRegistration {
-  const quranService = new QuranService(deps.quranRepository, deps.userRepository);
+  const quranService = new QuranService(
+    deps.quranRepository,
+    deps.userRepository,
+    deps.quranListLimit,
+    deps.ramadhanCountEnabled,
+    deps.ramadhanStartDate,
+    deps.ramadhanEndDate
+  );
 
   const controller = withErrorBoundary('quran', createQuranController(quranService));
 
@@ -38,7 +44,8 @@ export function registerQuranModule(deps: QuranModuleDeps): QuranModuleRegistrat
 
   if (deps.digestGroupId) {
     const sendNightlyQuranReminder = createQuranReminderSender({
-      client: deps.client,
+      membershipPort: deps.membershipPort,
+      senderPort: deps.senderPort,
       quranService,
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
     });

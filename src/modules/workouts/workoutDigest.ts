@@ -1,13 +1,11 @@
 import { debug, error } from '../../logger.js';
 import { formatDigestMessage } from './workoutPresenter.js';
-import type { WorkoutService, DigestClientLike } from './workoutService.js';
-
-type WhatsAppClientLike = {
-  sendMessage: (chatId: string, text: string) => Promise<unknown>;
-} & DigestClientLike;
+import type { WorkoutService } from './workoutService.js';
+import type { GroupMembershipPort, MessageSenderPort } from '../../adapters/whatsapp/ports.js';
 
 type DigestDeps = {
-  client: WhatsAppClientLike;
+  membershipPort: GroupMembershipPort;
+  senderPort: MessageSenderPort;
   workoutService: WorkoutService;
   timezoneOffsetMinutes: number;
 };
@@ -19,7 +17,7 @@ export function createDailyStreakDigestSender(deps: DigestDeps) {
     let standings;
     try {
       standings = await deps.workoutService.getDigestStandings(
-        deps.client,
+        deps.membershipPort,
         groupChatId,
         deps.timezoneOffsetMinutes,
         now
@@ -37,7 +35,7 @@ export function createDailyStreakDigestSender(deps: DigestDeps) {
     const message = formatDigestMessage(standings);
 
     try {
-      await deps.client.sendMessage(groupChatId, message);
+      await deps.senderPort.sendMessage(groupChatId, message);
       debug(`⏰ Digest sent to ${groupChatId}`);
     } catch (err) {
       error('⏰ Failed to send digest:', err);

@@ -13,9 +13,14 @@ type WhatsAppClientLike = {
 
 export type MessageGateway = {
   reply: (msg: Message, text: string) => Promise<void>;
+  sendMessage: (chatId: string, text: string) => Promise<unknown>;
 };
 
 export function createMessageGateway(client: WhatsAppClientLike): MessageGateway {
+  function sendMessage(chatId: string, text: string): Promise<unknown> {
+    return client.sendMessage(chatId, text, { sendSeen: false });
+  }
+
   async function reply(msg: Message, text: string): Promise<void> {
     try {
       await client.sendMessage(msg.from, text, { sendSeen: false });
@@ -35,5 +40,5 @@ export function createMessageGateway(client: WhatsAppClientLike): MessageGateway
     }
   }
 
-  return { reply };
+  return { reply, sendMessage };
 }

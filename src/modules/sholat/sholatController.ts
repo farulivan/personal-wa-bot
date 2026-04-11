@@ -9,29 +9,14 @@ import {
   formatPersistErrorMessage,
   formatFetchErrorMessage,
 } from './sholatPresenter.js';
-import type { SholatService } from './sholatService.js';
+import type { SholatService, SholatError } from './sholatService.js';
 
 const SHOLAT_NAMESPACE = 'sholat';
 
-function decodeServiceMessage(message: string, defaultLocation: string): string {
-  if (message.startsWith('__ambiguous__:')) {
-    const parts = message.slice('__ambiguous__:'.length).split(':');
-    const locationInput = parts[0] ?? '';
-    const samples = (parts[1] ?? '').split('|').filter(Boolean);
-    return formatAmbiguousLocationMessage(locationInput, samples);
-  }
-
-  if (message.startsWith('__notfound__:')) {
-    const locationInput = message.slice('__notfound__:'.length);
-    return formatLocationNotFoundMessage(locationInput || defaultLocation);
-  }
-
-  if (message.startsWith('__persist_error__:')) {
-    const locationName = message.slice('__persist_error__:'.length);
-    return formatPersistErrorMessage(locationName);
-  }
-
-  return message;
+function formatSholatError(e: SholatError, defaultLocation: string): string {
+  if (e.type === 'ambiguous') return formatAmbiguousLocationMessage(e.input, e.samples);
+  if (e.type === 'notfound') return formatLocationNotFoundMessage(e.input || defaultLocation);
+  return formatPersistErrorMessage(e.locationName);
 }
 
 export function createSholatController(
@@ -64,7 +49,7 @@ export function createSholatController(
       const result = await sholatService.getTodaySchedule(locationArg, now);
 
       if (!result.ok) {
-        return decodeServiceMessage(result.error, defaultLocation);
+        return formatSholatError(result.error, defaultLocation);
       }
 
       return formatScheduleResponse(result.value.locationName, result.value.schedule);

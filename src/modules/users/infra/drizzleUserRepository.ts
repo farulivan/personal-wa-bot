@@ -1,6 +1,6 @@
 import { eq, sql, inArray } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
-import { users } from '../../../db/schema.js';
+import { users } from './schema.js';
 import type { UserRepository, UserRow, UpsertUserData } from './userRepository.js';
 
 function toUserRow(row: {

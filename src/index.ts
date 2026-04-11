@@ -1,3 +1,4 @@
+import http from 'http';
 import { createWhatsAppClient } from './bot.js';
 import { debug, log, error } from './logger.js';
 import { appConfig } from './config/env.js';
@@ -9,6 +10,7 @@ import { CommandRouter } from './app/commandRouter.js';
 import { createMessageHandler } from './app/messageHandler.js';
 import { startScheduler } from './app/scheduler.js';
 import { createMessageGateway } from './adapters/whatsapp/messageGateway.js';
+import { WhatsAppGroupMembershipAdapter } from './adapters/whatsapp/whatsAppGroupMembershipAdapter.js';
 
 // --- Infra ---
 import { DrizzleWorkoutRepository } from './modules/workouts/infra/drizzleWorkoutRepository.js';
@@ -26,15 +28,7 @@ import { registerRemindModule } from './modules/remind/index.js';
 
 // --- Users ---
 import { UserService } from './modules/users/userService.js';
-
-import {
-  USER_TIMEZONE_OFFSET,
-  DAILY_DIGEST_HOUR,
-  DAILY_DIGEST_MINUTE,
-  QURAN_REMINDER_HOUR,
-  QURAN_REMINDER_MINUTE,
-  DIGEST_GROUP_ID,
-} from './config/env.js';
+import { createAuthGuard } from './app/authGuard.js';
 
 async function main() {
   if (!appConfig.databaseUrl) {
@@ -44,13 +38,14 @@ async function main() {
   // --- Run migrations before anything else ---
   await runMigrations(appConfig.databaseUrl);
 
-  const drizzleDb = createDrizzleDb(appConfig.databaseUrl);
+  const { db: drizzleDb, close: closeDb } = createDrizzleDb(appConfig.databaseUrl);
   const client = createWhatsAppClient();
 
   const messageGateway = createMessageGateway(client);
+  const senderPort = messageGateway;
 
   // --- Repositories ---
-  const workoutRepository = new DrizzleWorkoutRepository(drizzleDb);
+  const workoutRepository = new DrizzleWorkoutRepository(drizzleDb, appConfig.minWorkoutsForStreak);
   const sholatRepository = new DrizzleSholatRepository(drizzleDb);
   const sholatClient = new MyQuranSholatClient();
   const quranRepository = new DrizzleQuranRepository(drizzleDb);
@@ -59,25 +54,39 @@ async function main() {
 
   const userService = new UserService(userRepository);
 
+  const isAllowedUser = createAuthGuard(appConfig.allowedNumbers);
+
   // --- Register modules ---
+  const membershipPort = appConfig.digestGroupId
+    ? new WhatsAppGroupMembershipAdapter(client, appConfig.digestGroupId)
+    : new WhatsAppGroupMembershipAdapter(client, '');
+
   const workout = registerWorkoutModule({
     workoutRepository,
     userRepository,
-    client,
-    timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-    digestGroupId: DIGEST_GROUP_ID,
-    dailyDigestHour: DAILY_DIGEST_HOUR,
-    dailyDigestMinute: DAILY_DIGEST_MINUTE,
+    membershipPort,
+    senderPort,
+    timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
+    digestGroupId: appConfig.digestGroupId,
+    dailyDigestHour: appConfig.dailyDigestHour,
+    dailyDigestMinute: appConfig.dailyDigestMinute,
+    minWorkoutsForStreak: appConfig.minWorkoutsForStreak,
+    workoutListLimit: appConfig.workoutListLimit,
   });
 
   const quran = registerQuranModule({
     quranRepository,
     userRepository,
-    client,
-    timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-    digestGroupId: DIGEST_GROUP_ID,
-    quranReminderHour: QURAN_REMINDER_HOUR,
-    quranReminderMinute: QURAN_REMINDER_MINUTE,
+    membershipPort,
+    senderPort,
+    timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
+    digestGroupId: appConfig.digestGroupId,
+    quranReminderHour: appConfig.quranReminderHour,
+    quranReminderMinute: appConfig.quranReminderMinute,
+    quranListLimit: appConfig.quranListLimit,
+    ramadhanCountEnabled: appConfig.quranRamadhanCountEnabled,
+    ramadhanStartDate: appConfig.quranRamadhanStartDate,
+    ramadhanEndDate: appConfig.quranRamadhanEndDate,
   });
 
   const sholat = registerSholatModule({
@@ -90,8 +99,9 @@ async function main() {
   const remind = registerRemindModule({
     remindRepository,
     userRepository,
-    client,
-    timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
+    client: senderPort,
+    timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
+    remindListLimit: appConfig.remindListLimit,
   });
 
   // --- Wire router ---
@@ -106,9 +116,18 @@ async function main() {
     config: appConfig,
     messageGateway,
     userService,
+    isAllowedUser,
   };
 
   const handleMessage = createMessageHandler(router, appContext);
+
+  // --- Health check server ---
+  const healthPort = Number(process.env.PORT ?? 3000);
+  const healthServer = http.createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('OK');
+  });
+  healthServer.listen(healthPort, () => log(`❤️  Health check listening on :${healthPort}`));
 
   // --- Start bot ---
   log('🚀 Starting bot initialization...');
@@ -117,14 +136,39 @@ async function main() {
     await handleMessage(msg);
   });
 
+  let reminderHandle: { stop: () => void } | null = null;
+  let digestHandle: { stop: () => void } | null = null;
   let reminderSchedulerStarted = false;
   let digestSchedulerStarted = false;
+
+  async function shutdown(signal: string): Promise<void> {
+    log(`🛑 Received ${signal} — shutting down gracefully...`);
+    reminderHandle?.stop();
+    digestHandle?.stop();
+    healthServer.close();
+    try {
+      await client.destroy();
+      log('✅ WhatsApp client destroyed');
+    } catch (err) {
+      error('⚠️ Error destroying WA client:', err);
+    }
+    try {
+      await closeDb();
+      log('✅ Database connection closed');
+    } catch (err) {
+      error('⚠️ Error closing DB:', err);
+    }
+    process.exit(0);
+  }
+
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
 
   client.on('ready', () => {
     log('🤖 WhatsApp bot ready');
 
     if (!reminderSchedulerStarted) {
-      remind.startScheduler();
+      reminderHandle = remind.startScheduler();
       reminderSchedulerStarted = true;
       log('⏰ Reminder scheduler started');
     }
@@ -132,7 +176,7 @@ async function main() {
     if (!digestSchedulerStarted) {
       const allJobs = [...workout.jobs, ...quran.jobs];
       if (allJobs.length > 0) {
-        startScheduler(allJobs);
+        digestHandle = startScheduler(allJobs);
       } else {
         log('⚠️ DIGEST_GROUP_ID not set — daily digest disabled');
       }

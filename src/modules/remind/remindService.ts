@@ -1,5 +1,4 @@
 import { debug } from '../../logger.js';
-import { REMIND_LIST_LIMIT } from '../../config/env.js';
 import { resolveDateInput, toScheduledUtcIso } from './remindParser.js';
 import type { ParsedReminderCommand } from './remindParser.js';
 import type { RemindRepository, ReminderListRow } from './infra/remindRepository.js';
@@ -20,7 +19,10 @@ export type ReminderListResult = {
 };
 
 export class RemindService {
-  constructor(private readonly remindRepository: RemindRepository) {}
+  constructor(
+    private readonly remindRepository: RemindRepository,
+    private readonly remindListLimit: number = 10
+  ) {}
 
   async createReminder(
     sender: string,
@@ -71,13 +73,13 @@ export class RemindService {
 
   async listReminders(sender: string, page: number): Promise<ReminderListResult> {
     const total = await this.remindRepository.countByUser(sender);
-    const totalPages = Math.max(1, Math.ceil(total / REMIND_LIST_LIMIT));
-    const offset = (page - 1) * REMIND_LIST_LIMIT;
+    const totalPages = Math.max(1, Math.ceil(total / this.remindListLimit));
+    const offset = (page - 1) * this.remindListLimit;
 
     const rows =
       total === 0 || page > totalPages
         ? []
-        : await this.remindRepository.listByUser(sender, REMIND_LIST_LIMIT, offset);
+        : await this.remindRepository.listByUser(sender, this.remindListLimit, offset);
 
     return { rows, total, page, totalPages };
   }

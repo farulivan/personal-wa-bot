@@ -1,25 +1,40 @@
-// Debug logging utility
-// Set DEBUG=true in environment to enable debug logs
+import pino from 'pino';
 
-const DEBUG = process.env.DEBUG === 'true' || process.env.DEBUG === '1';
+const level =
+  process.env.DEBUG === 'true' || process.env.DEBUG === '1'
+    ? 'debug'
+    : (process.env.LOG_LEVEL ?? 'info');
 
-export function debug(...args: unknown[]): void {
-  if (DEBUG) {
-    console.log(...args);
+const logger = pino({ level, base: null });
+
+export function debug(msg: string, ...args: unknown[]): void {
+  if (args.length > 0) {
+    logger.debug({ data: args }, msg);
+  } else {
+    logger.debug(msg);
   }
 }
 
-export function debugError(...args: unknown[]): void {
-  if (DEBUG) {
-    console.error(...args);
+export function debugError(msg: string, ...args: unknown[]): void {
+  if (args.length > 0) {
+    logger.debug({ data: args }, msg);
+  } else {
+    logger.debug(msg);
   }
 }
 
-// Always log these (critical events)
-export function log(...args: unknown[]): void {
-  console.log(...args);
+export function log(msg: string, ...args: unknown[]): void {
+  if (args.length > 0) {
+    logger.info({ data: args }, msg);
+  } else {
+    logger.info(msg);
+  }
 }
 
-export function error(...args: unknown[]): void {
-  console.error(...args);
+export function error(msg: string, ...args: unknown[]): void {
+  if (args.length > 0) {
+    logger.error({ data: args }, msg);
+  } else {
+    logger.error(msg);
+  }
 }

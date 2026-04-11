@@ -1,10 +1,4 @@
 import { debug } from '../../logger.js';
-import {
-  QURAN_LIST_LIMIT,
-  QURAN_RAMADHAN_COUNT_ENABLED,
-  QURAN_RAMADHAN_START_DATE,
-  QURAN_RAMADHAN_END_DATE,
-} from '../../config/env.js';
 import { computeQuranStreaks } from './quranStreaks.js';
 import type { StreakInfo } from './quranStreaks.js';
 import type {
@@ -14,13 +8,8 @@ import type {
 } from './infra/quranRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 import type { UserReminder } from './quranPresenter.js';
-import {
-  listGroupMemberIdentities,
-  resolveNormalizedBotUserId,
-  type BotInfoClientLike,
-  type GroupMemberClientLike,
-  type GroupMemberIdentity,
-} from '../../adapters/whatsapp/waId.js';
+import { resolveGroupDbUserIds } from '../../adapters/whatsapp/resolveGroupDbUserIds.js';
+import type { GroupMembershipPort } from '../../adapters/whatsapp/ports.js';
 
 export type QuranLeaderboardMode = 'monthly' | 'ramadhan';
 
@@ -51,7 +40,7 @@ export type QuranListResult = {
   ramadhanPagesRead: number | null;
 };
 
-export type ReminderClientLike = GroupMemberClientLike & BotInfoClientLike;
+export type { GroupMembershipPort };
 
 const MAX_QURAN_PAGE = 604;
 
@@ -62,18 +51,20 @@ function isIsoDateOnly(value: string): boolean {
   return parsed.toISOString().slice(0, 10) === value;
 }
 
-export function getDateRangeMode(): { mode: QuranLeaderboardMode; range?: QuranStreakDateRange } {
-  const hasRamadhanRange =
-    isIsoDateOnly(QURAN_RAMADHAN_START_DATE) && isIsoDateOnly(QURAN_RAMADHAN_END_DATE);
-  const isValidRamadhanRange =
-    hasRamadhanRange && QURAN_RAMADHAN_START_DATE <= QURAN_RAMADHAN_END_DATE;
+export function getDateRangeMode(
+  ramadhanCountEnabled: boolean,
+  ramadhanStartDate: string,
+  ramadhanEndDate: string
+): { mode: QuranLeaderboardMode; range?: QuranStreakDateRange } {
+  const hasRamadhanRange = isIsoDateOnly(ramadhanStartDate) && isIsoDateOnly(ramadhanEndDate);
+  const isValidRamadhanRange = hasRamadhanRange && ramadhanStartDate <= ramadhanEndDate;
 
-  if (QURAN_RAMADHAN_COUNT_ENABLED && isValidRamadhanRange) {
+  if (ramadhanCountEnabled && isValidRamadhanRange) {
     return {
       mode: 'ramadhan',
       range: {
-        startDateInclusive: QURAN_RAMADHAN_START_DATE,
-        endDateInclusive: QURAN_RAMADHAN_END_DATE,
+        startDateInclusive: ramadhanStartDate,
+        endDateInclusive: ramadhanEndDate,
       },
     };
   }
@@ -99,7 +90,11 @@ export function getCurrentMonthDateRange(
 export class QuranService {
   constructor(
     private readonly quranRepository: QuranRepository,
-    private readonly userRepository: UserRepository
+    private readonly userRepository: UserRepository,
+    private readonly quranListLimit: number = 10,
+    private readonly ramadhanCountEnabled: boolean = false,
+    private readonly ramadhanStartDate: string = '',
+    private readonly ramadhanEndDate: string = ''
   ) {}
 
   async logRead(
@@ -189,7 +184,7 @@ export class QuranService {
     timezoneOffsetMinutes: number,
     now: Date
   ): Promise<QuranListResult> {
-    const offset = (page - 1) * QURAN_LIST_LIMIT;
+    const offset = (page - 1) * this.quranListLimit;
 
     const [totalDays, totalPagesRead, currentMark] = await Promise.all([
       this.quranRepository.countByUser(sender),
@@ -197,18 +192,22 @@ export class QuranService {
       this.quranRepository.findMarkByUser(sender),
     ]);
 
-    const totalPages = Math.max(1, Math.ceil(totalDays / QURAN_LIST_LIMIT));
+    const totalPages = Math.max(1, Math.ceil(totalDays / this.quranListLimit));
 
     const rows =
       totalDays === 0 || page > totalPages
         ? []
-        : await this.quranRepository.listByUser(sender, QURAN_LIST_LIMIT, offset);
+        : await this.quranRepository.listByUser(sender, this.quranListLimit, offset);
 
     const readDays = await this.quranRepository.getReadDays(sender, timezoneOffsetMinutes);
     const streaks = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
 
     let ramadhanPagesRead: number | null = null;
-    const dateRangeMode = getDateRangeMode();
+    const dateRangeMode = getDateRangeMode(
+      this.ramadhanCountEnabled,
+      this.ramadhanStartDate,
+      this.ramadhanEndDate
+    );
     if (dateRangeMode.mode === 'ramadhan' && dateRangeMode.range) {
       ramadhanPagesRead = await this.quranRepository.sumPagesByUserInDateRange(
         sender,
@@ -234,7 +233,11 @@ export class QuranService {
     timezoneOffsetMinutes: number,
     now: Date
   ): Promise<{ mode: QuranLeaderboardMode; entries: QuranLeaderboardEntry[] }> {
-    const dateRangeMode = getDateRangeMode();
+    const dateRangeMode = getDateRangeMode(
+      this.ramadhanCountEnabled,
+      this.ramadhanStartDate,
+      this.ramadhanEndDate
+    );
     const pageRange =
       dateRangeMode.mode === 'ramadhan' && dateRangeMode.range
         ? dateRangeMode.range
@@ -279,31 +282,13 @@ export class QuranService {
   }
 
   async getReminderTargets(
-    client: ReminderClientLike,
+    port: GroupMembershipPort,
     groupChatId: string,
     timezoneOffsetMinutes: number,
     now: Date
   ): Promise<UserReminder[]> {
-    const [memberIdentities, botUserId, dbUsers] = await Promise.all([
-      listGroupMemberIdentities(client, groupChatId),
-      resolveNormalizedBotUserId(client),
-      this.quranRepository.listDistinctUsers(),
-    ]);
-
-    const groupMemberIdentities: GroupMemberIdentity[] = botUserId
-      ? memberIdentities.filter((member) => !member.aliases.includes(botUserId))
-      : memberIdentities;
-
-    const knownUsers = new Set(dbUsers);
-    const targetUserIds = new Set<string>();
-
-    for (const member of groupMemberIdentities) {
-      const matchedDbId = member.aliases.find((alias: string) => knownUsers.has(alias));
-      const dbUserId = matchedDbId ?? member.primaryId;
-      targetUserIds.add(dbUserId);
-    }
-
-    const targets = Array.from(targetUserIds);
+    const dbUsers = await this.quranRepository.listDistinctUsers();
+    const targets = await resolveGroupDbUserIds(port, groupChatId, dbUsers);
 
     debug(`📖 Found ${targets.length} reminder targets from group participants`);
 

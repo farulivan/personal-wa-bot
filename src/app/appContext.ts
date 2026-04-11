@@ -10,4 +10,5 @@ export type AppContext = {
   config: AppConfig;
   messageGateway: MessageGateway;
   userService: UserService;
+  isAllowedUser: (phoneNumber: string) => boolean;
 };

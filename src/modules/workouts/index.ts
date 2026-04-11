@@ -6,22 +6,19 @@ import { WorkoutService } from './workoutService.js';
 import { createDailyStreakDigestSender } from './workoutDigest.js';
 import type { WorkoutRepository } from './infra/workoutRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
-
-type WhatsAppClientLike = {
-  sendMessage: (chatId: string, text: string) => Promise<unknown>;
-  getChatById: (chatId: string) => Promise<unknown>;
-  getContactById: (contactId: string) => Promise<unknown>;
-  info: { wid: { _serialized: string; user: string } };
-};
+import type { GroupMembershipPort, MessageSenderPort } from '../../adapters/whatsapp/ports.js';
 
 export type WorkoutModuleDeps = {
   workoutRepository: WorkoutRepository;
   userRepository: UserRepository;
-  client: WhatsAppClientLike;
+  membershipPort: GroupMembershipPort;
+  senderPort: MessageSenderPort;
   timezoneOffsetMinutes: number;
   digestGroupId: string | undefined;
   dailyDigestHour: number;
   dailyDigestMinute: number;
+  minWorkoutsForStreak: number;
+  workoutListLimit: number;
 };
 
 export type WorkoutModuleRegistration = {
@@ -30,7 +27,12 @@ export type WorkoutModuleRegistration = {
 };
 
 export function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleRegistration {
-  const workoutService = new WorkoutService(deps.workoutRepository, deps.userRepository);
+  const workoutService = new WorkoutService(
+    deps.workoutRepository,
+    deps.userRepository,
+    deps.minWorkoutsForStreak,
+    deps.workoutListLimit
+  );
 
   const controller = withErrorBoundary('workout', createWorkoutController(workoutService));
 
@@ -38,7 +40,8 @@ export function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleReg
 
   if (deps.digestGroupId) {
     const sendDailyStreakDigest = createDailyStreakDigestSender({
-      client: deps.client,
+      membershipPort: deps.membershipPort,
+      senderPort: deps.senderPort,
       workoutService,
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
     });

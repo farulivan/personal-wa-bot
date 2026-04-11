@@ -1,7 +1,6 @@
 import type { NamespaceHandler, CommandContext } from '../../app/commandRouter.js';
 import type { CommandInvocation } from '../../app/parseCommand.js';
 import { debug } from '../../logger.js';
-import { MIN_WORKOUTS_FOR_STREAK } from '../../config/env.js';
 import {
   parseWorkoutPayload,
   parsePageNumber,
@@ -91,7 +90,7 @@ export function createWorkoutController(workoutService: WorkoutService): Namespa
 
     const streakNote = formatStreakNote(
       streakResult.todayCount,
-      MIN_WORKOUTS_FOR_STREAK,
+      workoutService.minWorkoutsForStreak,
       streakResult.streaks
     );
 

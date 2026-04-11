@@ -1,6 +1,6 @@
 import { eq, sql, count, isNull, and, lte } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
-import { reminders } from '../../../db/schema.js';
+import { reminders } from './schema.js';
 import type {
   RemindRepository,
   NewReminder,
