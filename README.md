@@ -1,280 +1,357 @@
-# personal-wa-bot
+<p align="center"><img src="docs/assets/logo.png" alt="personal-wa-bot" height="140"></p>
 
-A TypeScript WhatsApp bot for personal daily tracking and reminders:
+<h1 align="center">personal-wa-bot</h1>
 
-- **Workout tracking** (`#workout`)
-- **Quran reading tracking** (`#quran`)
-- **Sholat schedule lookup** (`#sholat`)
-- **Personal reminders** (`#remind`)
-- **Daily scheduled digests** for workout streaks + Quran reminder
+<p align="center">
+  A TypeScript WhatsApp bot for personal daily tracking and reminders.
+</p>
 
----
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#command-reference">Commands</a> ·
+  <a href="#configuration">Configuration</a> ·
+  <a href="#project-structure">Project Structure</a> ·
+  <a href="#documentation">Docs</a>
+</p>
 
-## 1) Features
-
-### Workout module
-- Explicit compact workout modes:
-  - Lift: `#workout lift <activity> <reps> <sets> [weight]`
-  - Cardio: `#workout cardio <activity> <duration> [distance]`
-- View paginated history (`#workout --list [page]`)
-- Mixed chronological history with mode badges (`[lift]`, `[cardio]`)
-- Streak tracking with configurable threshold (`MIN_WORKOUTS_FOR_STREAK`)
-- Daily digest leaderboard in group
-
-### Quran module
-- Log daily pages (`#quran read <pages>` or `#quran log <pages>`)
-- Auto-accumulate multiple logs in the same day
-- Save and check reading mark (`#quran mark <page>`, `#quran mark`, `#quran --mark`)
-- Auto-move mark after `#quran read` when current mark exists (`current mark + pages read`)
-- Skip auto-mark with `--no-mark` flag (`#quran read 3 --no-mark`)
-- If auto-move result passes page 604, bot treats it as khatam and resets mark to 0
-- View paginated history (`#quran --list [page]`)
-- Total pages read + streak info
-- Night reminder in group
-
-### Sholat module
-- Fetch and cache daily sholat schedule
-- Location resolution with default fallback
-- Self-healing location catalog refresh when stale/invalid location ID is detected
-
-### Remind module
-- Create personal reminders in group or direct chat (`#remind`)
-- Flexible date/time parsing:
-  - Date: `YYYY-MM-DD`, `today`, `tomorrow`
-  - Time: `HH`, `HH:MM`, `HHam/pm`, `HH:MMam/pm`
-- UTC storage with user-local timezone input/output behavior
-- Paginated list (`#remind --list [page]`)
-- Safety limits:
-  - Max reminder text: 200 characters
-  - Max active reminders per user: 50
+![GitHub Actions](https://img.shields.io/github/actions/workflow/status/farulivan/personal-wa-bot/ci.yml?style=flat-square)
+![License](https://img.shields.io/github/license/farulivan/personal-wa-bot?style=flat-square)
+![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square)
+![TypeScript](https://img.shields.io/badge/typescript-5.x-blue?style=flat-square)
 
 ---
 
-## 2) Tech stack
+## Features
 
-- **Node.js + TypeScript**
-- **whatsapp-web.js** for WhatsApp integration
-- **PostgreSQL** via **Drizzle ORM** for persistence
-- **pnpm** for package management
+### Workout Tracking — `#workout`
+
+Log lift and cardio sessions with compact syntax, track streaks, and get daily group leaderboards.
+
+```
+#workout lift push up 20reps 4sets 10kg
+#workout cardio run 30min 5km
+#workout --list
+```
+
+- Explicit modes: **lift** and **cardio**
+- Configurable streak threshold (`MIN_WORKOUTS_FOR_STREAK`)
+- Paginated history with mode badges (`[lift]`, `[cardio]`)
+- Daily digest leaderboard in group chat
+
+### Quran Reading — `#quran`
+
+Track daily pages, manage bookmarks, and get nightly group reminders.
+
+```
+#quran read 3
+#quran mark 145
+#quran --list
+```
+
+- Auto-accumulate multiple logs per day
+- Auto-advance bookmark after each read (skip with `--no-mark`)
+- Khatam detection — resets bookmark when passing page 604
+- Streak tracking and nightly reminder in group
+
+### Sholat Schedule — `#sholat`
+
+Fetch daily prayer times with location-aware caching.
+
+```
+#sholat --today
+#sholat --today --location bandung
+```
+
+- DB-cached schedules (fetched once per location per day)
+- Self-healing location catalog refresh on stale data
+
+### Personal Reminders — `#remind`
+
+Set reminders with natural date/time input, delivered back to the source chat.
+
+```
+#remind tomorrow 9am Review proposal
+#remind 2026-03-10 10:30 Submit report
+#remind --list
+```
+
+- Flexible parsing: `today`, `tomorrow`, `YYYY-MM-DD` + `9am`, `HH:MM`, `14`
+- Delivered to the same chat (group or direct) where it was created
+- Safety limits: 200 char max text, 50 active reminders per user
 
 ---
 
-## 3) Quick start (local)
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Runtime** | Node.js 20+ · TypeScript 5.x |
+| **WhatsApp** | whatsapp-web.js |
+| **Database** | PostgreSQL · Drizzle ORM |
+| **Testing** | Vitest |
+| **Linting** | ESLint · Prettier |
+| **Package Manager** | pnpm |
+
+---
+
+## Quick Start
 
 ### Prerequisites
-- Node.js 20+
-- pnpm
-- Chromium dependencies (if running outside Docker, depends on your OS)
 
-### Install
+- **Node.js** 20+
+- **pnpm**
+- **PostgreSQL** instance (local or remote)
+- Chromium dependencies (OS-dependent, only if running outside Docker)
+
+### Install and run
+
 ```bash
+# 1. Install dependencies
 pnpm install
-```
 
-### Configure env
-```bash
+# 2. Configure environment
 cp .env.example .env
-```
+# Edit .env — fill DATABASE_URL and ALLOWED_NUMBERS at minimum
 
-Fill required values in `.env`:
-- `ALLOWED_NUMBERS`
-- `DIGEST_GROUP_ID` (if you want scheduled workout/quran group jobs)
-
-### Build and run
-```bash
+# 3. Build and start
 pnpm build
 pnpm start
 ```
 
-On first run, scan QR shown in terminal to authenticate WhatsApp session.
+On first run, scan the QR code shown in terminal to authenticate your WhatsApp session.
 
----
-
-## 4) Docker
-
-Build and run with compose:
+### Docker
 
 ```bash
 docker compose up --build
 ```
 
-`docker-compose.yml` mounts:
-- `./.wwebjs_auth` (session persistence)
-- `./data` (SQLite persistence)
+`docker-compose.yml` mounts `.wwebjs_auth/` for session persistence and `data/` for local storage.
 
 ---
 
-## 5) Environment variables
-
-See `.env.example` for full template.
-
-### Required / strongly advised
-
-| Variable | Required | Default | Description |
-|---|---|---:|---|
-| `ALLOWED_NUMBERS` | Yes | `""` | Comma-separated allowlist. Only these users can run commands. |
-| `DIGEST_GROUP_ID` | Recommended | `""` | Target group for scheduled workout digest + Quran reminder. Scheduler disabled if empty. |
-| `DEBUG` | No | `false` | Enable debug logs (`true/1`). |
-
-### Time and scheduling
-
-| Variable | Default | Description |
-|---|---:|---|
-| `USER_TIMEZONE_OFFSET_MINUTES` | `420` | Main app timezone offset in minutes (UTC+7 = 420). |
-| `DAILY_DIGEST_HOUR` | `8` | Workout digest hour (24h, in user timezone). |
-| `DAILY_DIGEST_MINUTE` | `0` | Workout digest minute. |
-| `QURAN_REMINDER_HOUR` | `22` | Quran reminder hour (24h, in user timezone). |
-| `QURAN_REMINDER_MINUTE` | `0` | Quran reminder minute. |
-
-### Feature behavior
-
-| Variable | Default | Description |
-|---|---:|---|
-| `MIN_WORKOUTS_FOR_STREAK` | `3` | Workouts/day required to count streak day. |
-| `WORKOUT_LIST_LIMIT` | `10` | Rows per page for `#workout --list`. |
-| `QURAN_LIST_LIMIT` | `10` | Rows per page for `#quran --list`. |
-| `REMIND_LIST_LIMIT` | `10` | Rows per page for `#remind --list`. |
-| `QURAN_RAMADHAN_COUNT_ENABLED` | `false` | Temporary feature flag to show Ramadhan pages total in `#quran --list`. |
-| `QURAN_RAMADHAN_START_DATE` | unset | Ramadhan start date, inclusive (`YYYY-MM-DD`, local user date). |
-| `QURAN_RAMADHAN_END_DATE` | unset | Ramadhan end date, inclusive (`YYYY-MM-DD`, local user date). |
-| `SHOLAT_DEFAULT_LOCATION` | `KAB. BOGOR` | Fallback sholat location when not specified. |
-| `SHOLAT_TIMEZONE` | `Asia/Jakarta` | IANA timezone for sholat date calculation. |
-
-### Deployment/runtime options
-
-| Variable | Default | Description |
-|---|---:|---|
-| `PUPPETEER_EXECUTABLE_PATH` | unset | Override Chromium path (often needed on some hosts). |
-| `RAILWAY_VOLUME_MOUNT_PATH` | unset | Override LocalAuth data path for persistent WA auth storage. |
-
----
-
-## 6) Timezone (+7) and date logic
-
-This app stores timestamps in UTC (`ISO`), then calculates user-local day boundaries using:
-
-- `USER_TIMEZONE_OFFSET_MINUTES`
-- offset conversion (`utc + offset`) when deciding **Today/Yesterday** and streak days
-
-### Example
-If your users are in WIB (UTC+7):
-- Set `USER_TIMEZONE_OFFSET_MINUTES=420`
-- A log at `2026-02-21T17:30:00.000Z` becomes local `2026-02-22 00:30` and belongs to **Feb 22** local day.
-
-Scheduled jobs also run against this same offset, so digest/reminder timing is consistent with user local time.
-
-For `#remind`, user-entered date/time is interpreted using this timezone offset, then stored in UTC in database.
-
-### Ramadhan counter date range logic
-When `QURAN_RAMADHAN_COUNT_ENABLED=true`, `#quran --list` will show an extra Ramadhan total line.
-
-- Date range source: `QURAN_RAMADHAN_START_DATE` and `QURAN_RAMADHAN_END_DATE`
-- Format: strict `YYYY-MM-DD`
-- Range: inclusive start and inclusive end
-- Date comparison uses user-local day (`USER_TIMEZONE_OFFSET_MINUTES`), not raw UTC day
-
-If flag is off or date values are invalid/empty, the Ramadhan line is not shown.
-
----
-
-## 7) Command reference
+## Command Reference
 
 ### Workout
-- `#workout lift push up 20reps 4sets 10kg`
-- `#workout lift pull up 8rep 5set` (bodyweight)
-- `#workout cardio run 30min 5km`
-- `#workout cardio brisk walk 1hour`
-- `#workout --list`
-- `#workout --list 2`
 
-Format notes:
-- Explicit mode is required: `lift` or `cardio`
-- Lift reps token accepts `rep` or `reps`; sets token accepts `set` or `sets`
-- Lift weight is optional; when provided use `kg` only (e.g. `10kg`)
-- Cardio duration token must be attached and use `min` or `hour` (e.g. `30min`, `1hour`)
-- Cardio distance token is optional and must use attached `km` (e.g. `5km`)
+| Command | Description |
+|---|---|
+| `#workout lift push up 20reps 4sets 10kg` | Log a lift session (weight optional) |
+| `#workout lift pull up 8rep 5set` | Log bodyweight lift |
+| `#workout cardio run 30min 5km` | Log cardio (distance optional) |
+| `#workout cardio brisk walk 1hour` | Log cardio with hour unit |
+| `#workout --list` | View paginated history |
+| `#workout --list 2` | View page 2 |
+
+**Format rules:** Reps accept `rep`/`reps`, sets accept `set`/`sets`, weight uses `kg` only, duration uses `min`/`hour`, distance uses `km`.
 
 ### Quran
-- `#quran read 3`
-- `#quran log 3`
-- `#quran read 3 --no-mark`
-- `#quran mark 145`
-- `#quran mark`
-- `#quran --mark`
-- `#quran --list`
-- `#quran --list 2`
 
-Behavior notes:
-- `#quran read` auto-updates mark only if you already have a mark.
-- Add `--no-mark` to log pages without moving mark (flexible position: before or after page number).
-- If no mark exists yet, bot asks you to set it first via `#quran mark <page>`.
-- Manual `#quran mark <page>` remains the source of truth for correction.
+| Command | Description |
+|---|---|
+| `#quran read 3` | Log 3 pages read today |
+| `#quran read 3 --no-mark` | Log without advancing bookmark |
+| `#quran mark 145` | Set bookmark to page 145 |
+| `#quran mark` / `#quran --mark` | Check current bookmark |
+| `#quran --list` | View paginated reading history |
 
 ### Sholat
-- `#sholat`
-- `#sholat --today`
-- `#sholat --today --location kab. bogor`
-- `#sholat --today --location bandung`
+
+| Command | Description |
+|---|---|
+| `#sholat` / `#sholat --today` | Today's schedule (default location) |
+| `#sholat --today --location bandung` | Specify location |
 
 ### Remind
-- `#remind 2026-03-10 10:30 Review proposal`
-- `#remind today 9am Join standup`
-- `#remind tomorrow 8:15 Prepare morning update`
-- `#remind --list`
-- `#remind --list 2`
+
+| Command | Description |
+|---|---|
+| `#remind 2026-03-10 10:30 Review proposal` | Set reminder with specific date |
+| `#remind today 9am Join standup` | Set reminder for today |
+| `#remind tomorrow 8:15 Prepare update` | Set reminder for tomorrow |
+| `#remind --list` | View active reminders |
 
 ---
 
-## 8) Internal behavior (important)
+## Configuration
 
-- Commands in group chats require bot mention **or** command prefix `#`.
-- User identity is normalized before persistence/checking (to avoid WA ID suffix mismatch).
-- `#remind` background scheduler always runs after client is ready and checks due reminders periodically.
-- Workout digest + Quran reminder scheduled jobs run only when `DIGEST_GROUP_ID` is configured.
-- Quran/workout list responses are paginated and controlled by env limits.
+See [`.env.example`](.env.example) for the full template.
+
+<details>
+<summary><strong>Required variables</strong></summary>
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | — | PostgreSQL connection URL |
+| `ALLOWED_NUMBERS` | `""` | Comma-separated phone allowlist (digits only, e.g. `6281234567890`) |
+| `DIGEST_GROUP_ID` | `""` | Target group for scheduled digests. Scheduler disabled if empty. |
+| `DEBUG` | `false` | Enable debug logs (`true`/`1`) |
+
+</details>
+
+<details>
+<summary><strong>Scheduling</strong></summary>
+
+| Variable | Default | Description |
+|---|---|---|
+| `USER_TIMEZONE_OFFSET_MINUTES` | `420` | UTC offset in minutes (UTC+7 = 420) |
+| `DAILY_DIGEST_HOUR` | `8` | Workout digest hour (24h, user timezone) |
+| `DAILY_DIGEST_MINUTE` | `0` | Workout digest minute |
+| `QURAN_REMINDER_HOUR` | `22` | Quran reminder hour (24h, user timezone) |
+| `QURAN_REMINDER_MINUTE` | `0` | Quran reminder minute |
+
+</details>
+
+<details>
+<summary><strong>Feature behavior</strong></summary>
+
+| Variable | Default | Description |
+|---|---|---|
+| `MIN_WORKOUTS_FOR_STREAK` | `3` | Workouts/day to count as a streak day |
+| `WORKOUT_LIST_LIMIT` | `10` | Rows per page for `#workout --list` |
+| `QURAN_LIST_LIMIT` | `10` | Rows per page for `#quran --list` |
+| `REMIND_LIST_LIMIT` | `10` | Rows per page for `#remind --list` |
+| `QURAN_RAMADHAN_COUNT_ENABLED` | `false` | Show Ramadhan total in `#quran --list` |
+| `QURAN_RAMADHAN_START_DATE` | — | Ramadhan start (`YYYY-MM-DD`, inclusive) |
+| `QURAN_RAMADHAN_END_DATE` | — | Ramadhan end (`YYYY-MM-DD`, inclusive) |
+| `SHOLAT_DEFAULT_LOCATION` | `KAB. BOGOR` | Default prayer schedule location |
+| `SHOLAT_TIMEZONE` | `Asia/Jakarta` | IANA timezone for sholat date calc |
+
+</details>
+
+<details>
+<summary><strong>Deployment</strong></summary>
+
+| Variable | Default | Description |
+|---|---|---|
+| `PUPPETEER_EXECUTABLE_PATH` | — | Override Chromium binary path |
+| `RAILWAY_VOLUME_MOUNT_PATH` | — | Override WA auth storage path |
+
+</details>
+
+<details>
+<summary><strong>Timezone and date logic</strong></summary>
+
+Timestamps are stored in UTC. User-local day boundaries are calculated using `USER_TIMEZONE_OFFSET_MINUTES`.
+
+**Example:** With `USER_TIMEZONE_OFFSET_MINUTES=420` (UTC+7), a log at `2026-02-21T17:30:00Z` becomes local `2026-02-22 00:30` and belongs to **Feb 22**.
+
+Scheduled jobs use the same offset, so digest/reminder timing is always consistent with user-local time. Reminder input (`#remind`) is interpreted in this timezone, then stored as UTC.
+
+**Ramadhan counter:** When `QURAN_RAMADHAN_COUNT_ENABLED=true`, `#quran --list` shows a Ramadhan total line. Date range is inclusive on both ends, using user-local day comparison.
+
+</details>
 
 ---
 
-## 9) Development workflow
+## Project Structure
 
-```bash
-pnpm build
-pnpm verify
-pnpm format:check
+```
+src/
+├── index.ts              # Composition root — wires all dependencies
+├── config/env.ts         # Centralized env parsing
+├── app/                  # Application layer (router, handler, auth, scheduler)
+├── adapters/whatsapp/    # WhatsApp adapter (ports, gateway, ID helpers)
+├── modules/
+│   ├── workouts/         # Workout tracking module
+│   ├── quran/            # Quran reading module
+│   ├── sholat/           # Prayer schedule module
+│   ├── remind/           # Reminder module
+│   └── users/            # User identity management
+├── db/                   # Drizzle connection, migrations, schema aggregator
+└── shared/               # Shared utilities (Result type)
 ```
 
-Useful scripts:
-- `pnpm dev` – TypeScript watch mode
-- `pnpm verify` – type-check + lint (`tsc --noEmit && eslint src/`)
-- `pnpm lint:fix` – auto-fix lint issues
-- `pnpm clean` – remove `dist`
+Each module follows a consistent internal structure:
+
+```
+modules/<name>/
+├── index.ts              # Registration factory (module's public API)
+├── <name>Parser.ts       # Pure input parsing → Result<T>
+├── <name>Service.ts      # Business logic (depends on repository interface)
+├── <name>Controller.ts   # Thin handler: invocation → service → presenter
+├── <name>Presenter.ts    # Pure string formatting
+└── infra/
+    ├── <name>Repository.ts         # Interface (contract)
+    ├── drizzle<Name>Repository.ts  # Implementation (Drizzle queries)
+    └── schema.ts                   # Table definition
+```
+
+See the [Architecture Guide](docs/architecture.md) for a full walkthrough of how the layers connect and how to add a new module.
 
 ---
 
-## 10) Security and operational notes
+## Development
 
-- Keep `.env` out of version control.
-- Restrict bot usage via `ALLOWED_NUMBERS`.
-- Persist `.wwebjs_auth` and `data` in production.
-- Avoid sharing terminal logs publicly (may contain operational details).
+```bash
+pnpm dev              # TypeScript watch mode
+pnpm build            # Compile + copy migrations
+pnpm verify           # Type-check + lint (tsc --noEmit && eslint)
+pnpm test             # Run unit tests
+pnpm lint:fix         # Auto-fix lint issues
+pnpm format           # Format with Prettier
+```
 
 ---
 
-## 11) Troubleshooting
+## Internal Behavior
 
-### Bot does not respond
-- Check sender number exists in `ALLOWED_NUMBERS`
-- Ensure message starts with `#` in groups (or bot is mentioned)
-- Enable `DEBUG=true` and inspect logs
+- **Group chats:** bot responds only when mentioned or message starts with `#`.
+- **Auth:** only phone numbers in `ALLOWED_NUMBERS` can execute commands.
+- **Identity:** user IDs are normalized before persistence to handle WA ID format variations.
+- **Remind scheduler:** runs independently after WA client is ready, polls every 30s.
+- **Digest/Quran scheduler:** runs only when `DIGEST_GROUP_ID` is configured.
 
-### Scheduler not running
-- For workout/quran scheduled group jobs:
-  - Verify `DIGEST_GROUP_ID` is set
-  - Confirm `USER_TIMEZONE_OFFSET_MINUTES` and schedule hour/minute values
-- For `#remind` delivery:
-  - Ensure bot client reached `ready` state
-  - Check DB has pending reminders (`sent_at IS NULL`) with `scheduled_at <= now`
+---
 
-### Authentication/session issues
-- Ensure auth path is writable (`.wwebjs_auth` or `RAILWAY_VOLUME_MOUNT_PATH`)
-- Restart and rescan QR if session is invalid
+## Security
+
+- Keep `.env` out of version control (already in `.gitignore`).
+- Restrict access via `ALLOWED_NUMBERS` — no allowlist means no one can use the bot.
+- Persist `.wwebjs_auth/` and `data/` in production environments.
+- Do not share terminal logs publicly (may contain operational details).
+
+---
+
+## Troubleshooting
+
+<details>
+<summary><strong>Bot does not respond</strong></summary>
+
+- Check sender number is in `ALLOWED_NUMBERS`
+- In groups, ensure message starts with `#` or bot is mentioned
+- Set `DEBUG=true` and inspect logs
+
+</details>
+
+<details>
+<summary><strong>Scheduler not running</strong></summary>
+
+- **Digest/Quran jobs:** verify `DIGEST_GROUP_ID` is set and timezone/hour/minute values are correct
+- **Reminders:** ensure WA client reached `ready` state; check DB for pending reminders (`sent_at IS NULL`, `scheduled_at <= now`)
+
+</details>
+
+<details>
+<summary><strong>Authentication issues</strong></summary>
+
+- Ensure auth path is writable (`.wwebjs_auth/` or `RAILWAY_VOLUME_MOUNT_PATH`)
+- Delete auth folder and rescan QR if session is corrupted
+
+</details>
+
+---
+
+## Documentation
+
+| Document | Description |
+|---|---|
+| [Architecture Guide](docs/architecture.md) | How the codebase is structured, key patterns, and step-by-step guide for adding new features |
+| [Improvement Backlog](docs/improvements.md) | Known technical debt with root cause analysis and fix plans |
+
+---
+
+## License
+
+ISC
