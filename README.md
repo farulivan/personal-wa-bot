@@ -15,10 +15,14 @@
   <a href="#documentation">Docs</a>
 </p>
 
+<div align="center">
+  
 ![GitHub Actions](https://img.shields.io/github/actions/workflow/status/farulivan/personal-wa-bot/ci.yml?style=flat-square)
 ![License](https://img.shields.io/github/license/farulivan/personal-wa-bot?style=flat-square)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/typescript-5.x-blue?style=flat-square)
+  
+</div>
 
 ---
 
