@@ -358,4 +358,4 @@ pnpm format           # Format with Prettier
 
 ## License
 
-ISC
+MIT
