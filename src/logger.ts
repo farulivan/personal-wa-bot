@@ -1,4 +1,5 @@
 import pino from 'pino';
+import crypto from 'crypto';
 
 const level =
   process.env.DEBUG === 'true' || process.env.DEBUG === '1'
@@ -6,6 +7,13 @@ const level =
     : (process.env.LOG_LEVEL ?? 'info');
 
 const logger = pino({ level, base: null });
+
+export type RequestLogger = pino.Logger;
+
+export function createRequestLogger(sender: string): RequestLogger {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  return logger.child({ requestId, sender });
+}
 
 export function debug(msg: string, ...args: unknown[]): void {
   if (args.length > 0) {
