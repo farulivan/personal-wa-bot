@@ -7,9 +7,6 @@ import type {
   QuranStreakDateRange,
 } from './infra/quranRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
-import type { UserReminder } from './quranPresenter.js';
-import { resolveGroupDbUserIds } from '../../adapters/whatsapp/resolveGroupDbUserIds.js';
-import type { GroupMembershipPort } from '../../adapters/whatsapp/ports.js';
 
 export type QuranLeaderboardMode = 'monthly' | 'ramadhan';
 
@@ -39,8 +36,6 @@ export type QuranListResult = {
   currentMarkPage: number | null;
   ramadhanPagesRead: number | null;
 };
-
-export type { GroupMembershipPort };
 
 const MAX_QURAN_PAGE = 604;
 
@@ -281,27 +276,21 @@ export class QuranService {
     return { mode: dateRangeMode.mode, entries };
   }
 
-  async getReminderTargets(
-    port: GroupMembershipPort,
-    groupChatId: string,
+  async getReminderDataForUser(
+    userId: string,
     timezoneOffsetMinutes: number,
     now: Date
-  ): Promise<UserReminder[]> {
-    const dbUsers = await this.quranRepository.listDistinctUsers();
-    const targets = await resolveGroupDbUserIds(port, groupChatId, dbUsers);
+  ): Promise<{ hasRead: boolean; currentStreak: number; name: string }> {
+    const [hasRead, readDays, name] = await Promise.all([
+      this.quranRepository.hasReadTodayByUser(userId, timezoneOffsetMinutes, now.toISOString()),
+      this.quranRepository.getReadDays(userId, timezoneOffsetMinutes),
+      this.userRepository.getDisplayName(userId),
+    ]);
+    const streaks = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
+    return { hasRead, currentStreak: streaks.current, name };
+  }
 
-    debug(`📖 Found ${targets.length} reminder targets from group participants`);
-
-    return Promise.all(
-      targets.map(async (userId) => {
-        const [hasRead, readDays, name] = await Promise.all([
-          this.quranRepository.hasReadTodayByUser(userId, timezoneOffsetMinutes, now.toISOString()),
-          this.quranRepository.getReadDays(userId, timezoneOffsetMinutes),
-          this.userRepository.getDisplayName(userId),
-        ]);
-        const streaks = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
-        return { name, hasRead, currentStreak: streaks.current };
-      })
-    );
+  async listDistinctUsers(): Promise<string[]> {
+    return this.quranRepository.listDistinctUsers();
   }
 }

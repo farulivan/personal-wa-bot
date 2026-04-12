@@ -59,7 +59,8 @@ class InMemoryWorkoutRepository implements WorkoutRepository {
 
   async getTodayCount(user: string, _tz: number, nowIso: string): Promise<number> {
     const today = nowIso.slice(0, 10);
-    return this.logs.filter((l) => l.userId === user && l.createdAtIso.slice(0, 10) === today).length;
+    return this.logs.filter((l) => l.userId === user && l.createdAtIso.slice(0, 10) === today)
+      .length;
   }
 
   constructor(public readonly minForStreak: number = 3) {}

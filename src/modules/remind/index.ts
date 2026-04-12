@@ -25,7 +25,11 @@ export type RemindModuleRegistration = {
 };
 
 export function registerRemindModule(deps: RemindModuleDeps): RemindModuleRegistration {
-  const remindService = new RemindService(deps.remindRepository, deps.remindListLimit, deps.remindActiveLimit);
+  const remindService = new RemindService(
+    deps.remindRepository,
+    deps.remindListLimit,
+    deps.remindActiveLimit
+  );
 
   const controller = withErrorBoundary('remind', createRemindController(remindService));
 
