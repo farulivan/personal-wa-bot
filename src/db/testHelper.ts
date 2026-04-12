@@ -24,7 +24,8 @@ export async function setupTestDb(): Promise<{ db: DrizzleDb; close: () => Promi
 
 export async function cleanAllTables(db: DrizzleDb): Promise<void> {
   await db.delete(schema.reminders);
-  await db.delete(schema.workouts);
+  await db.delete(schema.workoutLifts);
+  await db.delete(schema.workoutCardios);
   await db.delete(schema.quranDailyReads);
   await db.delete(schema.quranMarks);
   await db.delete(schema.sholatDailyCache);

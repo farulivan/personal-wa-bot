@@ -1,6 +1,6 @@
 import { eq, sql, count } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
-import { workouts } from './schema.js';
+import { workoutLifts, workoutCardios } from './schema.js';
 import type { WorkoutRepository, WorkoutEntry, NewWorkoutLog } from './workoutRepository.js';
 
 export class DrizzleWorkoutRepository implements WorkoutRepository {
@@ -10,74 +10,82 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
   ) {}
 
   async countByUser(user: string): Promise<number> {
-    const rows = await this.db
-      .select({ total: count() })
-      .from(workouts)
-      .where(eq(workouts.userId, user));
+    const [liftRows, cardioRows] = await Promise.all([
+      this.db.select({ total: count() }).from(workoutLifts).where(eq(workoutLifts.userId, user)),
+      this.db
+        .select({ total: count() })
+        .from(workoutCardios)
+        .where(eq(workoutCardios.userId, user)),
+    ]);
 
-    return rows[0]?.total ?? 0;
+    return (liftRows[0]?.total ?? 0) + (cardioRows[0]?.total ?? 0);
   }
 
   async listByUser(user: string, limit: number, offset: number): Promise<WorkoutEntry[]> {
-    const rows = await this.db
-      .select({
-        createdAt: workouts.createdAt,
-        workoutMode: workouts.workoutMode,
-        type: workouts.type,
-        reps: workouts.reps,
-        sets: workouts.sets,
-        weight: workouts.weight,
-        durationMinutes: workouts.durationMinutes,
-        distanceKm: workouts.distanceKm,
-      })
-      .from(workouts)
-      .where(eq(workouts.userId, user))
-      .orderBy(sql`${workouts.createdAt} DESC`)
-      .limit(limit)
-      .offset(offset);
+    const rows = await this.db.execute<{
+      created_at: string;
+      workout_mode: string;
+      activity: string;
+      reps: number | null;
+      sets: number | null;
+      weight_kg: number | null;
+      duration_minutes: number | null;
+      distance_km: number | null;
+    }>(sql`
+      (
+        SELECT created_at, 'lift' AS workout_mode, activity,
+               reps, sets, weight_kg,
+               NULL::real AS duration_minutes, NULL::real AS distance_km
+        FROM workout_lifts
+        WHERE user_id = ${user}
+      )
+      UNION ALL
+      (
+        SELECT created_at, 'cardio' AS workout_mode, activity,
+               NULL::integer AS reps, NULL::integer AS sets, NULL::real AS weight_kg,
+               duration_minutes, distance_km
+        FROM workout_cardios
+        WHERE user_id = ${user}
+      )
+      ORDER BY created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `);
 
     return rows.map((r): WorkoutEntry => {
-      if (r.workoutMode === 'cardio') {
+      if (r.workout_mode === 'cardio') {
         return {
-          createdAt: r.createdAt,
+          createdAt: r.created_at,
           workoutMode: 'cardio',
-          type: r.type,
-          durationMinutes: r.durationMinutes,
-          distanceKm: r.distanceKm,
+          type: r.activity,
+          durationMinutes: r.duration_minutes ?? 0,
+          distanceKm: r.distance_km ?? 0,
         };
       }
       return {
-        createdAt: r.createdAt,
+        createdAt: r.created_at,
         workoutMode: 'lift',
-        type: r.type,
-        reps: r.reps,
-        sets: r.sets,
-        weight: r.weight,
+        type: r.activity,
+        reps: r.reps ?? 0,
+        sets: r.sets ?? 0,
+        weight: r.weight_kg ?? 0,
       };
     });
   }
 
   async insertWorkoutLog(log: NewWorkoutLog): Promise<void> {
     if (log.workoutMode === 'lift') {
-      await this.db.insert(workouts).values({
+      await this.db.insert(workoutLifts).values({
         userId: log.userId,
-        workoutMode: log.workoutMode,
-        type: log.type,
+        activity: log.type,
         reps: log.reps,
         sets: log.sets,
-        weight: log.weight,
-        durationMinutes: 0,
-        distanceKm: 0,
+        weightKg: log.weight,
         createdAt: log.createdAtIso,
       });
     } else {
-      await this.db.insert(workouts).values({
+      await this.db.insert(workoutCardios).values({
         userId: log.userId,
-        workoutMode: log.workoutMode,
-        type: log.type,
-        reps: 0,
-        sets: 0,
-        weight: 0,
+        activity: log.type,
         durationMinutes: log.durationMinutes,
         distanceKm: log.distanceKm,
         createdAt: log.createdAtIso,
@@ -86,25 +94,38 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
   }
 
   async listDistinctUsers(): Promise<string[]> {
-    const rows = await this.db.selectDistinct({ user: workouts.userId }).from(workouts);
+    const rows = await this.db.execute<{ user_id: string }>(sql`
+      SELECT DISTINCT user_id FROM (
+        SELECT user_id FROM workout_lifts
+        UNION
+        SELECT user_id FROM workout_cardios
+      ) AS combined
+    `);
 
-    return rows.map((r) => r.user);
+    return rows.map((r) => r.user_id);
   }
 
   async getQualifyingStreakDays(user: string, timezoneOffsetMinutes: number): Promise<string[]> {
     const offsetSeconds = timezoneOffsetMinutes * 60;
-    const dayExpr = sql`DATE(${workouts.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')`;
 
-    const rows = await this.db
-      .select({
-        day: dayExpr.as('day'),
-        cnt: count().as('cnt'),
-      })
-      .from(workouts)
-      .where(eq(workouts.userId, user))
-      .groupBy(dayExpr)
-      .having(sql`COUNT(*) >= ${this.minWorkoutsForStreak}`)
-      .orderBy(sql`day DESC`);
+    const rows = await this.db.execute<{ day: string }>(sql`
+      SELECT day, COUNT(*) AS cnt FROM (
+        (
+          SELECT DATE(created_at::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds') AS day
+          FROM workout_lifts
+          WHERE user_id = ${user}
+        )
+        UNION ALL
+        (
+          SELECT DATE(created_at::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds') AS day
+          FROM workout_cardios
+          WHERE user_id = ${user}
+        )
+      ) AS combined
+      GROUP BY day
+      HAVING COUNT(*) >= ${this.minWorkoutsForStreak}
+      ORDER BY day DESC
+    `);
 
     return rows.map((r) => r.day as string);
   }
@@ -115,14 +136,23 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
     nowIso: string
   ): Promise<number> {
     const offsetSeconds = timezoneOffsetMinutes * 60;
+    const dateExpr = sql`DATE(created_at::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')`;
+    const todayExpr = sql`DATE(${nowIso}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')`;
 
-    const rows = await this.db
-      .select({ cnt: count() })
-      .from(workouts)
-      .where(
-        sql`${workouts.userId} = ${user} AND DATE(${workouts.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds') = DATE(${nowIso}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')`
-      );
+    const rows = await this.db.execute<{ cnt: string }>(sql`
+      SELECT COUNT(*) AS cnt FROM (
+        (
+          SELECT created_at FROM workout_lifts
+          WHERE user_id = ${user} AND ${dateExpr} = ${todayExpr}
+        )
+        UNION ALL
+        (
+          SELECT created_at FROM workout_cardios
+          WHERE user_id = ${user} AND ${dateExpr} = ${todayExpr}
+        )
+      ) AS combined
+    `);
 
-    return rows[0]?.cnt ?? 0;
+    return Number(rows[0]?.cnt ?? 0);
   }
 }
