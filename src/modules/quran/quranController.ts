@@ -32,12 +32,12 @@ export function createQuranController(quranService: QuranService): NamespaceHand
       return parseResult.error;
     }
 
-    const now = ctx.now();
+    const now = ctx.time.now();
     const { pages, noMark } = parseResult.value;
 
     const result = await quranService.logRead(
       ctx.sender,
-      ctx.timezoneOffsetMinutes,
+      ctx.time.timezoneOffsetMinutes,
       pages,
       noMark,
       now
@@ -60,10 +60,15 @@ export function createQuranController(quranService: QuranService): NamespaceHand
   }
 
   async function handleList(ctx: CommandContext, invocation: CommandInvocation): Promise<string> {
-    const now = ctx.now();
+    const now = ctx.time.now();
     const page = parsePageNumber(invocation.firstLine);
 
-    const result = await quranService.listHistory(ctx.sender, page, ctx.timezoneOffsetMinutes, now);
+    const result = await quranService.listHistory(
+      ctx.sender,
+      page,
+      ctx.time.timezoneOffsetMinutes,
+      now
+    );
 
     if (result.totalDays === 0) {
       return formatEmptyListMessage();
@@ -73,7 +78,7 @@ export function createQuranController(quranService: QuranService): NamespaceHand
       return formatListPageOverflowMessage(page, result.totalPages);
     }
 
-    const list = formatHistoryList(result.rows, ctx.timezoneOffsetMinutes, now);
+    const list = formatHistoryList(result.rows, ctx.time.timezoneOffsetMinutes, now);
     const streakSection = formatStreakSection(result.streaks);
     const pageFooter = formatListPageFooter(result.page, result.totalPages);
 
@@ -146,7 +151,7 @@ export function createQuranController(quranService: QuranService): NamespaceHand
       return parseResult.error;
     }
 
-    const now = ctx.now();
+    const now = ctx.time.now();
     const { existed, previousPage } = await quranService.setMark(
       ctx.sender,
       parseResult.value,
@@ -174,8 +179,11 @@ export function createQuranController(quranService: QuranService): NamespaceHand
   }
 
   async function handleLeaderboard(ctx: CommandContext): Promise<string> {
-    const now = ctx.now();
-    const { mode, entries } = await quranService.getLeaderboard(ctx.timezoneOffsetMinutes, now);
+    const now = ctx.time.now();
+    const { mode, entries } = await quranService.getLeaderboard(
+      ctx.time.timezoneOffsetMinutes,
+      now
+    );
     const ranked = rankLeaderboardEntries(entries);
     return formatLeaderboardMessage(mode, ranked);
   }

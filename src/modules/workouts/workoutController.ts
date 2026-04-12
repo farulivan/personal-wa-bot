@@ -23,13 +23,13 @@ const WORKOUT_NAMESPACE = 'workout';
 
 export function createWorkoutController(workoutService: WorkoutService): NamespaceHandler {
   async function handleList(ctx: CommandContext, invocation: CommandInvocation): Promise<string> {
-    const now = ctx.now();
+    const now = ctx.time.now();
     const page = parsePageNumber(invocation.firstLine);
 
     const result = await workoutService.listWorkouts(
       ctx.sender,
       page,
-      ctx.timezoneOffsetMinutes,
+      ctx.time.timezoneOffsetMinutes,
       now
     );
 
@@ -41,7 +41,7 @@ export function createWorkoutController(workoutService: WorkoutService): Namespa
       return formatPageOverflowMessage(page, result.totalPages);
     }
 
-    const list = formatWorkoutList(result.rows, ctx.timezoneOffsetMinutes, now);
+    const list = formatWorkoutList(result.rows, ctx.time.timezoneOffsetMinutes, now);
     const streakSection = formatStreakSection(result.streaks);
     const pageFooter = formatListPageFooter(result.page, result.totalPages);
 
@@ -55,7 +55,7 @@ export function createWorkoutController(workoutService: WorkoutService): Namespa
       return parsed.error;
     }
 
-    const now = ctx.now();
+    const now = ctx.time.now();
     const payload = parsed.value;
 
     if (payload.mode === 'lift') {
@@ -71,20 +71,20 @@ export function createWorkoutController(workoutService: WorkoutService): Namespa
             payload.reps,
             payload.sets,
             payload.weight,
-            ctx.timezoneOffsetMinutes,
+            ctx.time.timezoneOffsetMinutes,
             now
           )
         : formatCardioLogResponse(
             payload.activity,
             payload.durationMinutes,
             payload.distanceKm,
-            ctx.timezoneOffsetMinutes,
+            ctx.time.timezoneOffsetMinutes,
             now
           );
 
     const streakResult = await workoutService.getStreakAfterLog(
       ctx.sender,
-      ctx.timezoneOffsetMinutes,
+      ctx.time.timezoneOffsetMinutes,
       now
     );
 

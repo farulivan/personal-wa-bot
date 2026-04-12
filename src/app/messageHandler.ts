@@ -6,6 +6,7 @@ import { error, createRequestLogger } from '../logger.js';
 import type { AppContext } from './appContext.js';
 import { normalizeUserId } from './normalizeUserId.js';
 import { isGreeting, handleGreeting } from './greetingHandler.js';
+import { createTimeContext } from './timeContext.js';
 
 export function createMessageHandler(router: CommandRouter, appContext: AppContext) {
   return async function handleMessage(msg: Message): Promise<void> {
@@ -86,12 +87,15 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
       const { namespace, subcommand } = invocation;
       reqLog.debug({ namespace, subcommand }, 'command parsed');
 
+      const time = createTimeContext(appContext.config.userTimezoneOffsetMinutes);
+
       const ctx: CommandContext = {
         sender,
         replyChatId: msg.from,
         isGroupChat: isGroup,
-        timezoneOffsetMinutes: appContext.config.userTimezoneOffsetMinutes,
-        now: () => new Date(),
+        time,
+        timezoneOffsetMinutes: time.timezoneOffsetMinutes,
+        now: time.now,
       };
 
       const startMs = Date.now();

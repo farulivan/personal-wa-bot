@@ -22,13 +22,13 @@ const REMIND_NAMESPACE = 'remind';
 
 export function createRemindController(remindService: RemindService): NamespaceHandler {
   async function handleCreate(ctx: CommandContext, parsed: ParsedReminderCommand): Promise<string> {
-    const now = ctx.now();
+    const now = ctx.time.now();
     const result = await remindService.createReminder(
       ctx.sender,
       ctx.replyChatId,
       ctx.isGroupChat,
       parsed,
-      ctx.timezoneOffsetMinutes,
+      ctx.time.timezoneOffsetMinutes,
       now
     );
 
@@ -41,14 +41,14 @@ export function createRemindController(remindService: RemindService): NamespaceH
 
     return formatReminderCreated(
       result.value.scheduledAt,
-      ctx.timezoneOffsetMinutes,
+      ctx.time.timezoneOffsetMinutes,
       result.value.reminderText,
       ctx.isGroupChat
     );
   }
 
   async function handleList(ctx: CommandContext, invocation: CommandInvocation): Promise<string> {
-    const now = ctx.now();
+    const now = ctx.time.now();
     const page = parsePageNumber(invocation.firstLine);
     const result = await remindService.listReminders(ctx.sender, page);
 
@@ -64,7 +64,7 @@ export function createRemindController(remindService: RemindService): NamespaceH
       result.rows,
       result.page,
       result.totalPages,
-      ctx.timezoneOffsetMinutes,
+      ctx.time.timezoneOffsetMinutes,
       now
     );
   }
@@ -96,8 +96,12 @@ export function createRemindController(remindService: RemindService): NamespaceH
     }
 
     // Validate date before passing to service (to surface user-facing error messages)
-    const now = ctx.now();
-    const dateResult = resolveDateInput(parsed.value.dateInput, now, ctx.timezoneOffsetMinutes);
+    const now = ctx.time.now();
+    const dateResult = resolveDateInput(
+      parsed.value.dateInput,
+      now,
+      ctx.time.timezoneOffsetMinutes
+    );
     if (!dateResult.ok) {
       return dateResult.error;
     }
