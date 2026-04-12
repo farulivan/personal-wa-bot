@@ -8,41 +8,53 @@ export type ScheduledJob = {
   run: () => Promise<void>;
 };
 
-function msUntilNextRun(hour: number, minute: number, timezoneOffsetMinutes: number): number {
+export type SchedulerHandle = { stop: () => void };
+
+function getUserHourMinute(timezoneOffsetMinutes: number): { hour: number; minute: number } {
   const now = new Date();
   const userNow = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
-
-  const targetToday = new Date(
-    Date.UTC(userNow.getUTCFullYear(), userNow.getUTCMonth(), userNow.getUTCDate(), hour, minute, 0)
-  );
-  // Convert target back to UTC
-  const targetUtc = new Date(targetToday.getTime() - timezoneOffsetMinutes * 60000);
-
-  let ms = targetUtc.getTime() - now.getTime();
-  if (ms <= 0) {
-    // Already past today's target, schedule for tomorrow
-    ms += 24 * 60 * 60 * 1000;
-  }
-  return ms;
+  return { hour: userNow.getUTCHours(), minute: userNow.getUTCMinutes() };
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+function msUntilNextMinute(): number {
+  const now = new Date();
+  return 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
+}
 
-export function startScheduler(jobs: ScheduledJob[]): void {
+export function startScheduler(jobs: ScheduledJob[]): SchedulerHandle {
+  const fired = new Set<string>();
+  let ticker: ReturnType<typeof setInterval> | null = null;
+
+  const tick = () => {
+    for (const job of jobs) {
+      const { hour, minute } = getUserHourMinute(job.timezoneOffsetMinutes);
+      if (hour === job.hour && minute === job.minute) {
+        const key = `${job.name}:${new Date().toISOString().slice(0, 16)}`;
+        if (!fired.has(key)) {
+          fired.add(key);
+          debug(`⏰ Running "${job.name}"`);
+          job.run().catch((err) => debug(`⏰ Job "${job.name}" failed:`, err));
+        }
+      }
+    }
+  };
+
   for (const job of jobs) {
-    const ms = msUntilNextRun(job.hour, job.minute, job.timezoneOffsetMinutes);
-    const minutesUntil = Math.round(ms / 60000);
-
-    log(`⏰ Scheduled "${job.name}" — first run in ${minutesUntil} min`);
-
-    setTimeout(() => {
-      debug(`⏰ Running "${job.name}" (first run)`);
-      job.run().catch((err) => debug(`⏰ Job "${job.name}" failed:`, err));
-
-      setInterval(() => {
-        debug(`⏰ Running "${job.name}" (interval)`);
-        job.run().catch((err) => debug(`⏰ Job "${job.name}" failed:`, err));
-      }, DAY_MS);
-    }, ms);
+    log(
+      `⏰ Scheduled "${job.name}" — runs daily at ${String(job.hour).padStart(2, '0')}:${String(job.minute).padStart(2, '0')} (user time)`
+    );
   }
+
+  // Align first tick to the next minute boundary, then tick every minute
+  const alignTimeout = setTimeout(() => {
+    tick();
+    ticker = setInterval(tick, 60000);
+  }, msUntilNextMinute());
+
+  return {
+    stop() {
+      clearTimeout(alignTimeout);
+      if (ticker) clearInterval(ticker);
+    },
+  };
 }

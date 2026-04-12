@@ -1,143 +1,200 @@
-import { client } from './bot.js';
-import { db } from './db.js';
+import http from 'http';
+import { createWhatsAppClient } from './bot.js';
 import { debug, log, error } from './logger.js';
 import { appConfig } from './config/env.js';
+import { runMigrations } from './db/migrate.js';
+import { createDrizzleDb } from './db/drizzle.js';
 
-// --- Wire up modules ---
+// --- App core ---
 import { CommandRouter } from './app/commandRouter.js';
 import { createMessageHandler } from './app/messageHandler.js';
 import { startScheduler } from './app/scheduler.js';
 import { createMessageGateway } from './adapters/whatsapp/messageGateway.js';
-import { registerWorkoutSchema } from './modules/workouts/workoutSchema.js';
-import { createWorkoutNamespaceHandler } from './modules/workouts/workoutNamespace.js';
-import { createDailyStreakDigestSender } from './modules/workouts/workoutDigest.js';
-import { SqliteWorkoutRepository } from './modules/workouts/infra/sqliteWorkoutRepository.js';
-import { registerSholatSchema } from './modules/sholat/sholatSchema.js';
-import { createSholatNamespaceHandler } from './modules/sholat/sholatNamespace.js';
-import { SqliteSholatRepository } from './modules/sholat/infra/sqliteSholatRepository.js';
+import { WhatsAppGroupMembershipAdapter } from './adapters/whatsapp/whatsAppGroupMembershipAdapter.js';
+
+// --- Infra ---
+import { DrizzleWorkoutRepository } from './modules/workouts/infra/drizzleWorkoutRepository.js';
+import { DrizzleSholatRepository } from './modules/sholat/infra/drizzleSholatRepository.js';
 import { MyQuranSholatClient } from './modules/sholat/infra/myQuranSholatClient.js';
-import { registerQuranSchema } from './modules/quran/quranSchema.js';
-import { createQuranNamespaceHandler } from './modules/quran/quranNamespace.js';
-import { SqliteQuranRepository } from './modules/quran/infra/sqliteQuranRepository.js';
-import { createQuranReminderSender } from './modules/quran/quranDigest.js';
-import { registerRemindSchema } from './modules/remind/remindSchema.js';
-import { createRemindNamespaceHandler } from './modules/remind/remindNamespace.js';
-import { SqliteRemindRepository } from './modules/remind/infra/sqliteRemindRepository.js';
-import { startReminderScheduler } from './modules/remind/remindScheduler.js';
-import { registerUserSchema } from './modules/users/userSchema.js';
-import { SqliteUserRepository } from './modules/users/infra/sqliteUserRepository.js';
-import {
-  USER_TIMEZONE_OFFSET,
-  DAILY_DIGEST_HOUR,
-  DAILY_DIGEST_MINUTE,
-  QURAN_REMINDER_HOUR,
-  QURAN_REMINDER_MINUTE,
-  DIGEST_GROUP_ID,
-} from './app/constants.js';
+import { DrizzleQuranRepository } from './modules/quran/infra/drizzleQuranRepository.js';
+import { DrizzleRemindRepository } from './modules/remind/infra/drizzleRemindRepository.js';
+import { DrizzleUserRepository } from './modules/users/infra/drizzleUserRepository.js';
 
-registerWorkoutSchema(db);
-registerSholatSchema(db);
-registerQuranSchema(db);
-registerRemindSchema(db);
-registerUserSchema(db);
+// --- Module registration ---
+import { registerWorkoutModule } from './modules/workouts/index.js';
+import { registerQuranModule } from './modules/quran/index.js';
+import { registerSholatModule } from './modules/sholat/index.js';
+import { registerRemindModule } from './modules/remind/index.js';
 
-const messageGateway = createMessageGateway(client);
-const workoutRepository = new SqliteWorkoutRepository(db);
-const sholatRepository = new SqliteSholatRepository(db);
-const sholatClient = new MyQuranSholatClient();
-const quranRepository = new SqliteQuranRepository(db);
-const remindRepository = new SqliteRemindRepository(db);
-const userRepository = new SqliteUserRepository(db);
+// --- Users ---
+import { UserService } from './modules/users/userService.js';
+import { createAuthGuard } from './app/authGuard.js';
 
-const router = new CommandRouter();
-router.registerNamespace('workout', createWorkoutNamespaceHandler(workoutRepository));
-router.registerNamespace(
-  'sholat',
-  createSholatNamespaceHandler({
+async function main() {
+  if (!appConfig.databaseUrl) {
+    throw new Error('DATABASE_URL environment variable is required');
+  }
+
+  // --- Run migrations before anything else ---
+  await runMigrations(appConfig.databaseUrl);
+
+  const { db: drizzleDb, close: closeDb } = createDrizzleDb(appConfig.databaseUrl);
+  const client = createWhatsAppClient();
+
+  const messageGateway = createMessageGateway(client);
+  const senderPort = messageGateway;
+
+  // --- Repositories ---
+  const workoutRepository = new DrizzleWorkoutRepository(drizzleDb, appConfig.minWorkoutsForStreak);
+  const sholatRepository = new DrizzleSholatRepository(drizzleDb);
+  const sholatClient = new MyQuranSholatClient();
+  const quranRepository = new DrizzleQuranRepository(drizzleDb);
+  const remindRepository = new DrizzleRemindRepository(drizzleDb);
+  const userRepository = new DrizzleUserRepository(drizzleDb);
+
+  const userService = new UserService(userRepository);
+
+  const isAllowedUser = createAuthGuard(appConfig.allowedNumbers);
+
+  // --- Register modules ---
+  const membershipPort = appConfig.digestGroupId
+    ? new WhatsAppGroupMembershipAdapter(client, appConfig.digestGroupId)
+    : new WhatsAppGroupMembershipAdapter(client, '');
+
+  const workout = registerWorkoutModule({
+    workoutRepository,
+    userRepository,
+    membershipPort,
+    senderPort,
+    timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
+    digestGroupId: appConfig.digestGroupId,
+    dailyDigestHour: appConfig.dailyDigestHour,
+    dailyDigestMinute: appConfig.dailyDigestMinute,
+    minWorkoutsForStreak: appConfig.minWorkoutsForStreak,
+    workoutListLimit: appConfig.workoutListLimit,
+  });
+
+  const quran = registerQuranModule({
+    quranRepository,
+    userRepository,
+    membershipPort,
+    senderPort,
+    timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
+    digestGroupId: appConfig.digestGroupId,
+    quranReminderHour: appConfig.quranReminderHour,
+    quranReminderMinute: appConfig.quranReminderMinute,
+    quranListLimit: appConfig.quranListLimit,
+    ramadhanCountEnabled: appConfig.quranRamadhanCountEnabled,
+    ramadhanStartDate: appConfig.quranRamadhanStartDate,
+    ramadhanEndDate: appConfig.quranRamadhanEndDate,
+  });
+
+  const sholat = registerSholatModule({
     sholatRepository,
     sholatClient,
     defaultLocation: appConfig.sholatDefaultLocation,
     defaultTimezone: appConfig.sholatTimezone,
-  })
-);
-router.registerNamespace('quran', createQuranNamespaceHandler(quranRepository, userRepository));
-router.registerNamespace('remind', createRemindNamespaceHandler(remindRepository));
-
-const appContext = {
-  db,
-  client,
-  config: appConfig,
-  messageGateway,
-  workoutRepository,
-  userRepository,
-};
-
-const sendDailyStreakDigest = createDailyStreakDigestSender({
-  client,
-  db,
-  workoutRepository,
-  userRepository,
-  timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-});
-
-const sendNightlyQuranReminder = createQuranReminderSender({
-  client,
-  db,
-  quranRepository,
-  userRepository,
-  timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-});
-
-let reminderSchedulerStarted = false;
-
-const handleMessage = createMessageHandler(router, appContext);
-
-// --- Start bot ---
-log('🚀 Starting bot initialization...');
-
-client.on('message', async (msg) => {
-  await handleMessage(msg);
-});
-
-client.on('ready', () => {
-  if (!reminderSchedulerStarted) {
-    startReminderScheduler({
-      client,
-      remindRepository,
-      userRepository,
-      timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-    });
-    reminderSchedulerStarted = true;
-    log('⏰ Reminder scheduler started');
-  }
-
-  if (DIGEST_GROUP_ID) {
-    startScheduler([
-      {
-        name: 'Daily Streak Standings',
-        hour: DAILY_DIGEST_HOUR,
-        minute: DAILY_DIGEST_MINUTE,
-        timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-        run: () => sendDailyStreakDigest(DIGEST_GROUP_ID),
-      },
-      {
-        name: 'Quran Night Reminder',
-        hour: QURAN_REMINDER_HOUR,
-        minute: QURAN_REMINDER_MINUTE,
-        timezoneOffsetMinutes: USER_TIMEZONE_OFFSET,
-        run: () => sendNightlyQuranReminder(DIGEST_GROUP_ID),
-      },
-    ]);
-  } else {
-    log('⚠️ DIGEST_GROUP_ID not set — daily digest disabled');
-  }
-});
-
-client
-  .initialize()
-  .then(() => {
-    debug('✅ client.initialize() completed');
-  })
-  .catch((err) => {
-    error('❌ client.initialize() failed:', err);
   });
+
+  const remind = registerRemindModule({
+    remindRepository,
+    userRepository,
+    client: senderPort,
+    timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
+    remindListLimit: appConfig.remindListLimit,
+  });
+
+  // --- Wire router ---
+  const router = new CommandRouter();
+  router.registerNamespace('workout', workout.controller);
+  router.registerNamespace('sholat', sholat.controller);
+  router.registerNamespace('quran', quran.controller);
+  router.registerNamespace('remind', remind.controller);
+
+  const appContext = {
+    client,
+    config: appConfig,
+    messageGateway,
+    userService,
+    isAllowedUser,
+  };
+
+  const handleMessage = createMessageHandler(router, appContext);
+
+  // --- Health check server ---
+  const healthPort = Number(process.env.PORT ?? 3000);
+  const healthServer = http.createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('OK');
+  });
+  healthServer.listen(healthPort, () => log(`❤️  Health check listening on :${healthPort}`));
+
+  // --- Start bot ---
+  log('🚀 Starting bot initialization...');
+
+  client.on('message', async (msg) => {
+    await handleMessage(msg);
+  });
+
+  let reminderHandle: { stop: () => void } | null = null;
+  let digestHandle: { stop: () => void } | null = null;
+  let reminderSchedulerStarted = false;
+  let digestSchedulerStarted = false;
+
+  async function shutdown(signal: string): Promise<void> {
+    log(`🛑 Received ${signal} — shutting down gracefully...`);
+    reminderHandle?.stop();
+    digestHandle?.stop();
+    healthServer.close();
+    try {
+      await client.destroy();
+      log('✅ WhatsApp client destroyed');
+    } catch (err) {
+      error('⚠️ Error destroying WA client:', err);
+    }
+    try {
+      await closeDb();
+      log('✅ Database connection closed');
+    } catch (err) {
+      error('⚠️ Error closing DB:', err);
+    }
+    process.exit(0);
+  }
+
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+
+  client.on('ready', () => {
+    log('🤖 WhatsApp bot ready');
+
+    if (!reminderSchedulerStarted) {
+      reminderHandle = remind.startScheduler();
+      reminderSchedulerStarted = true;
+      log('⏰ Reminder scheduler started');
+    }
+
+    if (!digestSchedulerStarted) {
+      const allJobs = [...workout.jobs, ...quran.jobs];
+      if (allJobs.length > 0) {
+        digestHandle = startScheduler(allJobs);
+      } else {
+        log('⚠️ DIGEST_GROUP_ID not set — daily digest disabled');
+      }
+      digestSchedulerStarted = true;
+    }
+  });
+
+  client
+    .initialize()
+    .then(() => {
+      debug('✅ client.initialize() completed');
+    })
+    .catch((err) => {
+      error('❌ client.initialize() failed:', err);
+    });
+}
+
+main().catch((err) => {
+  error('❌ Fatal startup error:', err);
+  process.exit(1);
+});

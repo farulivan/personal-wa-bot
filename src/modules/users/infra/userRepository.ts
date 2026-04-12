@@ -15,8 +15,8 @@ export type UpsertUserData = {
 };
 
 export interface UserRepository {
-  upsert(data: UpsertUserData): void;
-  findById(id: string): UserRow | null;
-  findByIds(ids: string[]): UserRow[];
-  getDisplayName(id: string): string;
+  upsert(data: UpsertUserData): Promise<void>;
+  findById(id: string): Promise<UserRow | null>;
+  findByIds(ids: string[]): Promise<UserRow[]>;
+  getDisplayName(id: string): Promise<string>;
 }

@@ -22,6 +22,7 @@ function parseBooleanEnv(name: string, fallback: boolean): boolean {
 const allowedNumbersEnv = process.env.ALLOWED_NUMBERS || '';
 
 export const appConfig = {
+  databaseUrl: process.env.DATABASE_URL || '',
   userTimezoneOffsetMinutes: parseIntegerEnv('USER_TIMEZONE_OFFSET_MINUTES', 420),
   minWorkoutsForStreak: parseIntegerEnv('MIN_WORKOUTS_FOR_STREAK', 3),
   workoutListLimit: parseIntegerEnv('WORKOUT_LIST_LIMIT', 10),

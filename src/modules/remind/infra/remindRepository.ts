@@ -23,10 +23,10 @@ export type ReminderListRow = {
 export type DueReminderRow = ReminderListRow;
 
 export interface RemindRepository {
-  insertReminder(input: NewReminder): void;
-  countByUser(userId: string): number;
-  countActiveByUser(userId: string): number;
-  listByUser(userId: string, limit: number, offset: number): ReminderListRow[];
-  listDuePending(nowIso: string, limit: number): DueReminderRow[];
-  markAsSent(id: number, sentAt: string): void;
+  insertReminder(input: NewReminder): Promise<void>;
+  countByUser(userId: string): Promise<number>;
+  countActiveByUser(userId: string): Promise<number>;
+  listByUser(userId: string, limit: number, offset: number): Promise<ReminderListRow[]>;
+  listDuePending(nowIso: string, limit: number): Promise<DueReminderRow[]>;
+  markAsSent(id: number, sentAt: string): Promise<void>;
 }

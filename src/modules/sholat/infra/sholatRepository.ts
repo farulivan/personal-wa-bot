@@ -43,13 +43,13 @@ export type NewSholatDailySchedule = {
 };
 
 export interface SholatRepository {
-  countLocations(): number;
-  upsertLocations(rows: NewSholatLocation[]): void;
-  listLocations(): SholatLocationRow[];
+  countLocations(): Promise<number>;
+  upsertLocations(rows: NewSholatLocation[]): Promise<void>;
+  listLocations(): Promise<SholatLocationRow[]>;
   findDailySchedule(
     locationId: string,
     scheduleDate: string,
     timezone: string
-  ): SholatDailyScheduleRow | null;
-  upsertDailySchedule(row: NewSholatDailySchedule): void;
+  ): Promise<SholatDailyScheduleRow | null>;
+  upsertDailySchedule(row: NewSholatDailySchedule): Promise<void>;
 }

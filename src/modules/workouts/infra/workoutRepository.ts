@@ -1,13 +1,21 @@
-export type WorkoutRow = {
-  created_at: string;
-  workout_mode: 'lift' | 'cardio';
+export type LiftWorkoutEntry = {
+  createdAt: string;
+  workoutMode: 'lift';
   type: string;
   reps: number;
   sets: number;
   weight: number;
-  duration_minutes: number;
-  distance_km: number;
 };
+
+export type CardioWorkoutEntry = {
+  createdAt: string;
+  workoutMode: 'cardio';
+  type: string;
+  durationMinutes: number;
+  distanceKm: number;
+};
+
+export type WorkoutEntry = LiftWorkoutEntry | CardioWorkoutEntry;
 
 export type NewLiftWorkoutLog = {
   user: string;
@@ -16,8 +24,6 @@ export type NewLiftWorkoutLog = {
   reps: number;
   sets: number;
   weight: number;
-  durationMinutes: number;
-  distanceKm: number;
   createdAtIso: string;
 };
 
@@ -25,9 +31,6 @@ export type NewCardioWorkoutLog = {
   user: string;
   workoutMode: 'cardio';
   type: string;
-  reps: number;
-  sets: number;
-  weight: number;
   durationMinutes: number;
   distanceKm: number;
   createdAtIso: string;
@@ -36,8 +39,10 @@ export type NewCardioWorkoutLog = {
 export type NewWorkoutLog = NewLiftWorkoutLog | NewCardioWorkoutLog;
 
 export interface WorkoutRepository {
-  countByUser(user: string): number;
-  listByUser(user: string, limit: number, offset: number): WorkoutRow[];
-  insertWorkoutLog(log: NewWorkoutLog): void;
-  listDistinctUsers(): string[];
+  countByUser(user: string): Promise<number>;
+  listByUser(user: string, limit: number, offset: number): Promise<WorkoutEntry[]>;
+  insertWorkoutLog(log: NewWorkoutLog): Promise<void>;
+  listDistinctUsers(): Promise<string[]>;
+  getQualifyingStreakDays(user: string, timezoneOffsetMinutes: number): Promise<string[]>;
+  getTodayCount(user: string, timezoneOffsetMinutes: number, nowIso: string): Promise<number>;
 }

@@ -1,8 +1,6 @@
-import type { Database } from 'better-sqlite3';
 import type { CommandInvocation } from './parseCommand.js';
 
 export type CommandContext = {
-  db: Database;
   sender: string;
   replyChatId: string;
   isGroupChat: boolean;

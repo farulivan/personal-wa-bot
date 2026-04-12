@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-# Install Chrome dependencies for Puppeteer + build tools for native modules (sqlite3)
+# Install Chrome dependencies for Puppeteer
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
@@ -19,10 +19,6 @@ RUN apt-get update && apt-get install -y \
     libxdamage1 \
     libxrandr2 \
     xdg-utils \
-    python3 \
-    make \
-    g++ \
-    sqlite3 \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
@@ -35,17 +31,14 @@ WORKDIR /app
 # Copy package files and pnpm config
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Install pnpm and dependencies (pnpm@9 for native module compatibility)
-RUN npm install -g pnpm@9 && pnpm install --frozen-lockfile
+# Install pnpm and dependencies
+RUN npm install -g pnpm@10.28.0 && pnpm install --frozen-lockfile
 
 # Copy source code
 COPY . .
 
-# Build TypeScript
+# Build TypeScript (also copies src/db/migrations → dist/db/migrations)
 RUN pnpm build
-
-# Create data directory for SQLite
-RUN mkdir -p /app/data
 
 # Run the bot
 CMD ["node", "dist/index.js"]
