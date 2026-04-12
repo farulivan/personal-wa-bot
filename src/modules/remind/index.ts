@@ -15,6 +15,7 @@ export type RemindModuleDeps = {
   client: WhatsAppSenderLike;
   timezoneOffsetMinutes: number;
   remindListLimit: number;
+  remindActiveLimit: number;
 };
 
 export type RemindModuleRegistration = {
@@ -24,7 +25,7 @@ export type RemindModuleRegistration = {
 };
 
 export function registerRemindModule(deps: RemindModuleDeps): RemindModuleRegistration {
-  const remindService = new RemindService(deps.remindRepository, deps.remindListLimit);
+  const remindService = new RemindService(deps.remindRepository, deps.remindListLimit, deps.remindActiveLimit);
 
   const controller = withErrorBoundary('remind', createRemindController(remindService));
 

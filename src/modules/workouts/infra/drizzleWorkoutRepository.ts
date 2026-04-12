@@ -13,7 +13,7 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
     const rows = await this.db
       .select({ total: count() })
       .from(workouts)
-      .where(eq(workouts.user, user));
+      .where(eq(workouts.userId, user));
 
     return rows[0]?.total ?? 0;
   }
@@ -31,7 +31,7 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
         distanceKm: workouts.distanceKm,
       })
       .from(workouts)
-      .where(eq(workouts.user, user))
+      .where(eq(workouts.userId, user))
       .orderBy(sql`${workouts.createdAt} DESC`)
       .limit(limit)
       .offset(offset);
@@ -60,7 +60,7 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
   async insertWorkoutLog(log: NewWorkoutLog): Promise<void> {
     if (log.workoutMode === 'lift') {
       await this.db.insert(workouts).values({
-        user: log.user,
+        userId: log.userId,
         workoutMode: log.workoutMode,
         type: log.type,
         reps: log.reps,
@@ -72,7 +72,7 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
       });
     } else {
       await this.db.insert(workouts).values({
-        user: log.user,
+        userId: log.userId,
         workoutMode: log.workoutMode,
         type: log.type,
         reps: 0,
@@ -86,7 +86,7 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
   }
 
   async listDistinctUsers(): Promise<string[]> {
-    const rows = await this.db.selectDistinct({ user: workouts.user }).from(workouts);
+    const rows = await this.db.selectDistinct({ user: workouts.userId }).from(workouts);
 
     return rows.map((r) => r.user);
   }
@@ -101,7 +101,7 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
         cnt: count().as('cnt'),
       })
       .from(workouts)
-      .where(eq(workouts.user, user))
+      .where(eq(workouts.userId, user))
       .groupBy(dayExpr)
       .having(sql`COUNT(*) >= ${this.minWorkoutsForStreak}`)
       .orderBy(sql`day DESC`);
@@ -120,7 +120,7 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
       .select({ cnt: count() })
       .from(workouts)
       .where(
-        sql`${workouts.user} = ${user} AND DATE(${workouts.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds') = DATE(${nowIso}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')`
+        sql`${workouts.userId} = ${user} AND DATE(${workouts.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds') = DATE(${nowIso}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')`
       );
 
     return rows[0]?.cnt ?? 0;

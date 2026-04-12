@@ -102,6 +102,7 @@ async function main() {
     client: senderPort,
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
     remindListLimit: appConfig.remindListLimit,
+    remindActiveLimit: appConfig.remindActiveLimit,
   });
 
   // --- Wire router ---

@@ -28,6 +28,7 @@ export const appConfig = {
   workoutListLimit: parseIntegerEnv('WORKOUT_LIST_LIMIT', 10),
   quranListLimit: parseIntegerEnv('QURAN_LIST_LIMIT', 10),
   remindListLimit: parseIntegerEnv('REMIND_LIST_LIMIT', 10),
+  remindActiveLimit: parseIntegerEnv('REMIND_ACTIVE_LIMIT', 50),
   quranRamadhanCountEnabled: parseBooleanEnv('QURAN_RAMADHAN_COUNT_ENABLED', false),
   quranRamadhanStartDate: process.env.QURAN_RAMADHAN_START_DATE || '',
   quranRamadhanEndDate: process.env.QURAN_RAMADHAN_END_DATE || '',

@@ -5,8 +5,6 @@ import type { RemindRepository, ReminderListRow } from './infra/remindRepository
 import { ok, err } from '../../shared/result.js';
 import type { Result } from '../../shared/result.js';
 
-const REMINDER_ACTIVE_LIMIT = 50;
-
 export type ReminderCreated = { scheduledAt: string; reminderText: string };
 export type ReminderError = { reason: 'past_time' | 'active_limit'; activeCount?: number };
 export type CreateReminderResult = Result<ReminderCreated, ReminderError>;
@@ -21,7 +19,8 @@ export type ReminderListResult = {
 export class RemindService {
   constructor(
     private readonly remindRepository: RemindRepository,
-    private readonly remindListLimit: number = 10
+    private readonly remindListLimit: number = 10,
+    private readonly remindActiveLimit: number = 50
   ) {}
 
   async createReminder(
@@ -51,7 +50,7 @@ export class RemindService {
     }
 
     const activeReminderCount = await this.remindRepository.countActiveByUser(sender);
-    if (activeReminderCount >= REMINDER_ACTIVE_LIMIT) {
+    if (activeReminderCount >= this.remindActiveLimit) {
       return err({ reason: 'active_limit', activeCount: activeReminderCount });
     }
 

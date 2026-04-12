@@ -2,7 +2,7 @@ import { pgTable, serial, text, integer, real } from 'drizzle-orm/pg-core';
 
 export const workouts = pgTable('workouts', {
   id: serial('id').primaryKey(),
-  user: text('user').notNull(),
+  userId: text('user_id').notNull(),
   type: text('type').notNull(),
   reps: integer('reps').notNull(),
   sets: integer('sets').notNull(),

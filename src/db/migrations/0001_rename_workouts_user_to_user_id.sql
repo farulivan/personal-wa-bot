@@ -1,0 +1,1 @@
+ALTER TABLE "workouts" RENAME COLUMN "user" TO "user_id";

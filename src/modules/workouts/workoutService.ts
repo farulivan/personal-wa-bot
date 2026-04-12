@@ -33,7 +33,7 @@ export class WorkoutService {
 
   async logLift(sender: string, payload: LiftPayload, now: Date): Promise<void> {
     await this.workoutRepository.insertWorkoutLog({
-      user: sender,
+      userId: sender,
       workoutMode: 'lift',
       type: payload.activity,
       reps: payload.reps,
@@ -49,7 +49,7 @@ export class WorkoutService {
 
   async logCardio(sender: string, payload: CardioPayload, now: Date): Promise<void> {
     await this.workoutRepository.insertWorkoutLog({
-      user: sender,
+      userId: sender,
       workoutMode: 'cardio',
       type: payload.activity,
       durationMinutes: payload.durationMinutes,
