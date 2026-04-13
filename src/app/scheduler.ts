@@ -22,7 +22,7 @@ function msUntilNextMinute(): number {
 }
 
 export function startScheduler(jobs: ScheduledJob[]): SchedulerHandle {
-  const fired = new Set<string>();
+  const lastFired = new Map<string, string>();
   let ticker: ReturnType<typeof setInterval> | null = null;
 
   const tick = () => {
@@ -30,8 +30,8 @@ export function startScheduler(jobs: ScheduledJob[]): SchedulerHandle {
       const { hour, minute } = getUserHourMinute(job.timezoneOffsetMinutes);
       if (hour === job.hour && minute === job.minute) {
         const key = `${job.name}:${new Date().toISOString().slice(0, 16)}`;
-        if (!fired.has(key)) {
-          fired.add(key);
+        if (lastFired.get(job.name) !== key) {
+          lastFired.set(job.name, key);
           debug(`⏰ Running "${job.name}"`);
           job.run().catch((err) => debug(`⏰ Job "${job.name}" failed:`, err));
         }

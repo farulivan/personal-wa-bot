@@ -18,7 +18,7 @@ export type CardioWorkoutEntry = {
 export type WorkoutEntry = LiftWorkoutEntry | CardioWorkoutEntry;
 
 export type NewLiftWorkoutLog = {
-  user: string;
+  userId: string;
   workoutMode: 'lift';
   type: string;
   reps: number;
@@ -28,7 +28,7 @@ export type NewLiftWorkoutLog = {
 };
 
 export type NewCardioWorkoutLog = {
-  user: string;
+  userId: string;
   workoutMode: 'cardio';
   type: string;
   durationMinutes: number;

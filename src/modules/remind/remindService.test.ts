@@ -83,7 +83,7 @@ describe('RemindService', () => {
     });
 
     it('rejects when active limit is reached', async () => {
-      const limitedService = new RemindService(repo, 10);
+      const limitedService = new RemindService(repo, 10, 50);
       const parsed = parse('#remind 2026-12-01 10:00 Task');
 
       for (let i = 0; i < 50; i++) {

@@ -2,10 +2,9 @@ name: CI
 
 on:
   push:
-    # TODO: Remove 'refactor' after merge
-    branches: [main, master, 'refactor/**'] 
+    branches: [main] 
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
   verify-and-test:

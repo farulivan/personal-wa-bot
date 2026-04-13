@@ -2,10 +2,11 @@ import type pkg from 'whatsapp-web.js';
 type Message = pkg.Message;
 import { parseCommand } from './parseCommand.js';
 import type { CommandRouter, CommandContext } from './commandRouter.js';
-import { debug, error } from '../logger.js';
+import { error, createRequestLogger } from '../logger.js';
 import type { AppContext } from './appContext.js';
 import { normalizeUserId } from './normalizeUserId.js';
 import { isGreeting, handleGreeting } from './greetingHandler.js';
+import { createTimeContext } from './timeContext.js';
 
 export function createMessageHandler(router: CommandRouter, appContext: AppContext) {
   return async function handleMessage(msg: Message): Promise<void> {
@@ -14,8 +15,9 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
       const isGroup = msg.from.endsWith('@g.us');
       const rawSender = msg.author ?? msg.from;
       const sender = normalizeUserId(rawSender);
+      const reqLog = createRequestLogger(sender);
 
-      debug(`📨 from=${msg.from}, rawSender=${rawSender}, sender=${sender}, isGroup=${isGroup}`);
+      reqLog.debug({ from: msg.from, rawSender, isGroup }, 'message received');
 
       // Capture user contact information for persistent storage (only if not already stored)
       try {
@@ -26,7 +28,7 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
           pushname: contact.pushname,
         });
       } catch (err) {
-        debug(`⚠️ Failed to capture user info for ${sender}:`, err);
+        reqLog.debug({ err }, 'failed to capture user info');
       }
 
       // Check if bot is mentioned (for groups)
@@ -40,7 +42,7 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
 
       // Handle greeting when bot is mentioned
       if (isBotMentioned && isGreeting(text)) {
-        debug(`👋 Greeting from ${sender}`);
+        reqLog.debug('greeting detected');
         await handleGreeting(
           sender,
           (reply) => appContext.messageGateway.reply(msg, reply),
@@ -73,7 +75,7 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
 
       // Security: Only allow whitelisted phone numbers
       if (!appContext.isAllowedUser(sender)) {
-        debug(`🚫 Blocked: ${sender}`);
+        reqLog.debug('blocked by auth guard');
         return;
       }
 
@@ -82,17 +84,25 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
         return;
       }
 
-      debug(`🎯 Command: ${invocation.namespace} --${invocation.subcommand}`);
+      const { namespace, subcommand } = invocation;
+      reqLog.debug({ namespace, subcommand }, 'command parsed');
+
+      const time = createTimeContext(appContext.config.userTimezoneOffsetMinutes);
 
       const ctx: CommandContext = {
         sender,
         replyChatId: msg.from,
         isGroupChat: isGroup,
-        timezoneOffsetMinutes: appContext.config.userTimezoneOffsetMinutes,
-        now: () => new Date(),
+        time,
+        timezoneOffsetMinutes: time.timezoneOffsetMinutes,
+        now: time.now,
       };
 
+      const startMs = Date.now();
       const responseText = await router.route(ctx, invocation);
+      const durationMs = Date.now() - startMs;
+
+      reqLog.info({ namespace, subcommand, durationMs }, 'command handled');
 
       if (responseText) {
         await appContext.messageGateway.reply(msg, responseText);

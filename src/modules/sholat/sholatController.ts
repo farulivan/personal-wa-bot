@@ -43,7 +43,7 @@ export function createSholatController(
     }
 
     const locationArg = extractFlagValue(invocation.firstLine, 'location');
-    const now = ctx.now();
+    const now = ctx.time.now();
 
     try {
       const result = await sholatService.getTodaySchedule(locationArg, now);

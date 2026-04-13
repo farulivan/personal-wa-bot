@@ -1,10 +1,14 @@
 import type { CommandInvocation } from './parseCommand.js';
+import type { TimeContext } from './timeContext.js';
 
 export type CommandContext = {
   sender: string;
   replyChatId: string;
   isGroupChat: boolean;
+  time: TimeContext;
+  /** @deprecated Use ctx.time.timezoneOffsetMinutes */
   timezoneOffsetMinutes: number;
+  /** @deprecated Use ctx.time.now() */
   now: () => Date;
 };
 

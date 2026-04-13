@@ -12,12 +12,12 @@ class InMemoryWorkoutRepository implements WorkoutRepository {
   }
 
   async countByUser(user: string): Promise<number> {
-    return this.logs.filter((l) => l.user === user).length;
+    return this.logs.filter((l) => l.userId === user).length;
   }
 
   async listByUser(user: string, limit: number, offset: number): Promise<WorkoutEntry[]> {
     return this.logs
-      .filter((l) => l.user === user)
+      .filter((l) => l.userId === user)
       .slice(offset, offset + limit)
       .map((l): WorkoutEntry => {
         if (l.workoutMode === 'cardio') {
@@ -41,12 +41,12 @@ class InMemoryWorkoutRepository implements WorkoutRepository {
   }
 
   async listDistinctUsers(): Promise<string[]> {
-    return [...new Set(this.logs.map((l) => l.user))];
+    return [...new Set(this.logs.map((l) => l.userId))];
   }
 
   async getQualifyingStreakDays(user: string, _tz: number): Promise<string[]> {
     const countsByDay = new Map<string, number>();
-    for (const log of this.logs.filter((l) => l.user === user)) {
+    for (const log of this.logs.filter((l) => l.userId === user)) {
       const day = log.createdAtIso.slice(0, 10);
       countsByDay.set(day, (countsByDay.get(day) ?? 0) + 1);
     }
@@ -59,7 +59,8 @@ class InMemoryWorkoutRepository implements WorkoutRepository {
 
   async getTodayCount(user: string, _tz: number, nowIso: string): Promise<number> {
     const today = nowIso.slice(0, 10);
-    return this.logs.filter((l) => l.user === user && l.createdAtIso.slice(0, 10) === today).length;
+    return this.logs.filter((l) => l.userId === user && l.createdAtIso.slice(0, 10) === today)
+      .length;
   }
 
   constructor(public readonly minForStreak: number = 3) {}

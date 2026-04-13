@@ -8,6 +8,20 @@
       "when": 1775297272830,
       "tag": "0000_spooky_red_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781308800000,
+      "tag": "0001_rename_workouts_user_to_user_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781308900000,
+      "tag": "0002_split_workouts_table",
+      "breakpoints": true
     }
   ]
 }

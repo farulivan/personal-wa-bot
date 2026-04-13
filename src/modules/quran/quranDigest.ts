@@ -1,7 +1,9 @@
 import { debug, error } from '../../logger.js';
 import { formatReminderMessage } from './quranPresenter.js';
+import type { UserReminder } from './quranPresenter.js';
 import type { QuranService } from './quranService.js';
 import type { GroupMembershipPort, MessageSenderPort } from '../../adapters/whatsapp/ports.js';
+import { resolveGroupDbUserIds } from '../../adapters/whatsapp/resolveGroupDbUserIds.js';
 
 type QuranReminderDeps = {
   membershipPort: GroupMembershipPort;
@@ -17,13 +19,22 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
       `📖 Quran reminder starting at ${now.toISOString()} (UTC), timezoneOffset=${deps.timezoneOffsetMinutes}min`
     );
 
-    let reminders;
+    let reminders: UserReminder[];
     try {
-      reminders = await deps.quranService.getReminderTargets(
-        deps.membershipPort,
-        groupChatId,
-        deps.timezoneOffsetMinutes,
-        now
+      const dbUsers = await deps.quranService.listDistinctUsers();
+      const targets = await resolveGroupDbUserIds(deps.membershipPort, groupChatId, dbUsers);
+
+      debug(`📖 Found ${targets.length} reminder targets from group participants`);
+
+      reminders = await Promise.all(
+        targets.map(async (userId) => {
+          const data = await deps.quranService.getReminderDataForUser(
+            userId,
+            deps.timezoneOffsetMinutes,
+            now
+          );
+          return { name: data.name, hasRead: data.hasRead, currentStreak: data.currentStreak };
+        })
       );
     } catch (err) {
       error(`📖 Failed to load group members for ${groupChatId}:`, err);

@@ -4,9 +4,6 @@ import type { StreakInfo } from './workoutStreaks.js';
 import type { WorkoutRepository, WorkoutEntry } from './infra/workoutRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 import type { LiftPayload, CardioPayload } from './workoutParser.js';
-import type { UserStreak } from './workoutPresenter.js';
-import { resolveGroupDbUserIds } from '../../adapters/whatsapp/resolveGroupDbUserIds.js';
-import type { GroupMembershipPort } from '../../adapters/whatsapp/ports.js';
 
 export type WorkoutListResult = {
   rows: WorkoutEntry[];
@@ -21,8 +18,6 @@ export type WorkoutLogResult = {
   streaks: StreakInfo | null;
 };
 
-export type { GroupMembershipPort };
-
 export class WorkoutService {
   constructor(
     private readonly workoutRepository: WorkoutRepository,
@@ -33,7 +28,7 @@ export class WorkoutService {
 
   async logLift(sender: string, payload: LiftPayload, now: Date): Promise<void> {
     await this.workoutRepository.insertWorkoutLog({
-      user: sender,
+      userId: sender,
       workoutMode: 'lift',
       type: payload.activity,
       reps: payload.reps,
@@ -49,7 +44,7 @@ export class WorkoutService {
 
   async logCardio(sender: string, payload: CardioPayload, now: Date): Promise<void> {
     await this.workoutRepository.insertWorkoutLog({
-      user: sender,
+      userId: sender,
       workoutMode: 'cardio',
       type: payload.activity,
       durationMinutes: payload.durationMinutes,
@@ -111,33 +106,23 @@ export class WorkoutService {
     return { rows, total, page, totalPages, streaks };
   }
 
-  async getDigestStandings(
-    port: GroupMembershipPort,
-    groupChatId: string,
+  async getStreaksByUser(
+    userId: string,
     timezoneOffsetMinutes: number,
     now: Date
-  ): Promise<UserStreak[]> {
-    const dbUsers = await this.workoutRepository.listDistinctUsers();
-    const targetUserIds = await resolveGroupDbUserIds(port, groupChatId, dbUsers);
-
-    if (targetUserIds.length === 0) {
-      return [];
-    }
-
-    const standingsRaw = await Promise.all(
-      targetUserIds.map(async (userId) => {
-        const days = await this.workoutRepository.getQualifyingStreakDays(
-          userId,
-          timezoneOffsetMinutes
-        );
-        const streaks = computeStreaks(days, timezoneOffsetMinutes, now);
-        const name = await this.userRepository.getDisplayName(userId);
-        return { name, current: streaks.current, best: streaks.best };
-      })
+  ): Promise<StreakInfo> {
+    const days = await this.workoutRepository.getQualifyingStreakDays(
+      userId,
+      timezoneOffsetMinutes
     );
+    return computeStreaks(days, timezoneOffsetMinutes, now);
+  }
 
-    return standingsRaw
-      .filter((standing) => standing.current > 0 || standing.best > 0)
-      .sort((a, b) => b.current - a.current || b.best - a.best);
+  async listDistinctUsers(): Promise<string[]> {
+    return this.workoutRepository.listDistinctUsers();
+  }
+
+  async getDisplayName(userId: string): Promise<string> {
+    return this.userRepository.getDisplayName(userId);
   }
 }
