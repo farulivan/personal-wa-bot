@@ -48,3 +48,52 @@ export const appConfig = {
 } as const;
 
 export type AppConfig = typeof appConfig;
+
+function isIsoDateString(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !isNaN(Date.parse(value));
+}
+
+export function validateConfig(config: AppConfig): void {
+  const errors: string[] = [];
+
+  if (!config.databaseUrl) {
+    errors.push('DATABASE_URL is required');
+  }
+
+  if (config.dailyDigestHour < 0 || config.dailyDigestHour > 23) {
+    errors.push(`DAILY_DIGEST_HOUR must be 0-23, got ${config.dailyDigestHour}`);
+  }
+  if (config.dailyDigestMinute < 0 || config.dailyDigestMinute > 59) {
+    errors.push(`DAILY_DIGEST_MINUTE must be 0-59, got ${config.dailyDigestMinute}`);
+  }
+  if (config.quranReminderHour < 0 || config.quranReminderHour > 23) {
+    errors.push(`QURAN_REMINDER_HOUR must be 0-23, got ${config.quranReminderHour}`);
+  }
+  if (config.quranReminderMinute < 0 || config.quranReminderMinute > 59) {
+    errors.push(`QURAN_REMINDER_MINUTE must be 0-59, got ${config.quranReminderMinute}`);
+  }
+  if (config.minWorkoutsForStreak < 1) {
+    errors.push(`MIN_WORKOUTS_FOR_STREAK must be >= 1, got ${config.minWorkoutsForStreak}`);
+  }
+
+  if (config.quranRamadhanCountEnabled) {
+    if (!config.quranRamadhanStartDate || !isIsoDateString(config.quranRamadhanStartDate)) {
+      errors.push(
+        'QURAN_RAMADHAN_START_DATE must be a valid YYYY-MM-DD date when QURAN_RAMADHAN_COUNT_ENABLED is true'
+      );
+    }
+    if (!config.quranRamadhanEndDate || !isIsoDateString(config.quranRamadhanEndDate)) {
+      errors.push(
+        'QURAN_RAMADHAN_END_DATE must be a valid YYYY-MM-DD date when QURAN_RAMADHAN_COUNT_ENABLED is true'
+      );
+    }
+  }
+
+  if (config.allowedNumbers.size === 0) {
+    console.warn('⚠️  ALLOWED_NUMBERS is empty — bot will reject all commands');
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Invalid configuration:\n  - ${errors.join('\n  - ')}`);
+  }
+}

@@ -1,7 +1,7 @@
 import http from 'http';
 import { createWhatsAppClient } from './bot.js';
 import { debug, log, error } from './logger.js';
-import { appConfig } from './config/env.js';
+import { appConfig, validateConfig } from './config/env.js';
 import { runMigrations } from './db/migrate.js';
 import { createDrizzleDb } from './db/drizzle.js';
 
@@ -31,9 +31,7 @@ import { UserService } from './modules/users/userService.js';
 import { createAuthGuard } from './app/authGuard.js';
 
 async function main() {
-  if (!appConfig.databaseUrl) {
-    throw new Error('DATABASE_URL environment variable is required');
-  }
+  validateConfig(appConfig);
 
   // --- Run migrations before anything else ---
   await runMigrations(appConfig.databaseUrl);
