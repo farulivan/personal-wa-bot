@@ -23,14 +23,6 @@ export function debug(msg: string, ...args: unknown[]): void {
   }
 }
 
-export function debugError(msg: string, ...args: unknown[]): void {
-  if (args.length > 0) {
-    logger.debug({ data: args }, msg);
-  } else {
-    logger.debug(msg);
-  }
-}
-
 export function log(msg: string, ...args: unknown[]): void {
   if (args.length > 0) {
     logger.info({ data: args }, msg);

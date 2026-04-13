@@ -1,8 +1,9 @@
 import { debug } from '../logger.js';
+import { normalizeUserId } from './normalizeUserId.js';
 
 export function createAuthGuard(allowedNumbers: ReadonlySet<string>) {
   return function isAllowedUser(phoneNumber: string): boolean {
-    const number = phoneNumber.replace(/@.*$/, '');
+    const number = normalizeUserId(phoneNumber);
 
     debug(`📞 Checking sender: ${phoneNumber} → extracted: ${number}`);
 

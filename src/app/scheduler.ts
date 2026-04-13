@@ -1,4 +1,4 @@
-import { debug, log } from '../logger.js';
+import { debug, log, error } from '../logger.js';
 
 export type ScheduledJob = {
   name: string;
@@ -33,7 +33,7 @@ export function startScheduler(jobs: ScheduledJob[]): SchedulerHandle {
         if (lastFired.get(job.name) !== key) {
           lastFired.set(job.name, key);
           debug(`⏰ Running "${job.name}"`);
-          job.run().catch((err) => debug(`⏰ Job "${job.name}" failed:`, err));
+          job.run().catch((err) => error(`⏰ Job "${job.name}" failed:`, err));
         }
       }
     }
