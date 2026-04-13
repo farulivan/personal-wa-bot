@@ -6,43 +6,46 @@ const level =
     ? 'debug'
     : (process.env.LOG_LEVEL ?? 'info');
 
-const logger = pino({ level, base: null });
+export const rootLogger = pino({ level, base: null });
 
 export type RequestLogger = pino.Logger;
 
 export function createRequestLogger(sender: string): RequestLogger {
   const requestId = crypto.randomUUID().slice(0, 8);
-  return logger.child({ requestId, sender });
+  return rootLogger.child({ requestId, sender });
 }
 
-export function debug(msg: string, ...args: unknown[]): void {
-  if (args.length > 0) {
-    logger.debug({ data: args }, msg);
+/**
+ * Structured: debug({ key: val }, 'message')
+ * Simple:     debug('message')
+ * Legacy:     debug('message', extra1, extra2)
+ */
+export function debug(first: string | Record<string, unknown>, ...rest: unknown[]): void {
+  if (typeof first === 'object') {
+    rootLogger.debug(first, (rest[0] as string) ?? '');
+  } else if (rest.length > 0) {
+    rootLogger.debug({ data: rest }, first);
   } else {
-    logger.debug(msg);
+    rootLogger.debug(first);
   }
 }
 
-export function debugError(msg: string, ...args: unknown[]): void {
-  if (args.length > 0) {
-    logger.debug({ data: args }, msg);
+export function log(first: string | Record<string, unknown>, ...rest: unknown[]): void {
+  if (typeof first === 'object') {
+    rootLogger.info(first, (rest[0] as string) ?? '');
+  } else if (rest.length > 0) {
+    rootLogger.info({ data: rest }, first);
   } else {
-    logger.debug(msg);
+    rootLogger.info(first);
   }
 }
 
-export function log(msg: string, ...args: unknown[]): void {
-  if (args.length > 0) {
-    logger.info({ data: args }, msg);
+export function error(first: string | Record<string, unknown>, ...rest: unknown[]): void {
+  if (typeof first === 'object') {
+    rootLogger.error(first, (rest[0] as string) ?? '');
+  } else if (rest.length > 0) {
+    rootLogger.error({ data: rest }, first);
   } else {
-    logger.info(msg);
-  }
-}
-
-export function error(msg: string, ...args: unknown[]): void {
-  if (args.length > 0) {
-    logger.error({ data: args }, msg);
-  } else {
-    logger.error(msg);
+    rootLogger.error(first);
   }
 }

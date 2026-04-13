@@ -20,7 +20,7 @@ function clearLockFiles(dir: string): void {
       } else if (lockFileNames.includes(item.name)) {
         try {
           fs.unlinkSync(fullPath);
-          debug(`🔓 Cleared lock: ${fullPath}`);
+          debug({ path: fullPath }, 'cleared lock file');
         } catch {
           // Ignore
         }
@@ -34,7 +34,7 @@ function clearLockFiles(dir: string): void {
 export function createWhatsAppClient(): InstanceType<typeof Client> {
   const dataPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || '.wwebjs_auth';
 
-  debug('🧹 Clearing stale Chromium locks...');
+  debug({ dataPath }, 'clearing stale chromium locks');
   clearLockFiles(dataPath);
 
   const client = new Client({
@@ -52,11 +52,11 @@ export function createWhatsAppClient(): InstanceType<typeof Client> {
   });
 
   client.on('loading_screen', (percent, message) => {
-    debug('⏳ Loading:', percent + '%', message);
+    debug({ percent, message }, 'loading screen');
   });
 
   client.on('change_state', (state) => {
-    debug('🔄 State changed:', state);
+    debug({ state }, 'state changed');
   });
 
   client.on('qr', (qr) => {
@@ -71,19 +71,19 @@ export function createWhatsAppClient(): InstanceType<typeof Client> {
   });
 
   client.on('authenticated', () => {
-    debug('🔐 Client authenticated');
+    debug('client authenticated');
   });
 
   client.on('message', () => {
-    debug('📩 Incoming message event received');
+    debug('incoming message event received');
   });
 
   client.on('auth_failure', (msg) => {
-    error('❌ Authentication failure:', msg);
+    error({ reason: msg }, 'authentication failure');
   });
 
   client.on('disconnected', (reason) => {
-    log('🔌 Client disconnected:', reason);
+    log({ reason }, 'client disconnected');
   });
 
   return client;

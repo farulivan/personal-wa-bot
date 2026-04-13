@@ -25,16 +25,16 @@ export function createMessageGateway(client: WhatsAppClientLike): MessageGateway
     try {
       await client.sendMessage(msg.from, text, { sendSeen: false });
     } catch (_err) {
-      debug('⚠️ sendMessage failed, trying chat.sendMessage');
+      debug({ method: 'client.sendMessage' }, 'send failed, trying chat.sendMessage');
       try {
         const chat = (await msg.getChat()) as ChatLike;
         await chat.sendMessage(text);
       } catch (_err2) {
-        debug('⚠️ chat.sendMessage failed, trying msg.reply');
+        debug({ method: 'chat.sendMessage' }, 'send failed, trying msg.reply');
         try {
           await msg.reply(text);
         } catch (_err3) {
-          error('❌ All send methods failed. Message content:', text);
+          error({ chatId: msg.from }, 'all send methods failed');
         }
       }
     }

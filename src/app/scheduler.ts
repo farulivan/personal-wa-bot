@@ -1,4 +1,4 @@
-import { debug, log } from '../logger.js';
+import { debug, log, error } from '../logger.js';
 
 export type ScheduledJob = {
   name: string;
@@ -32,17 +32,16 @@ export function startScheduler(jobs: ScheduledJob[]): SchedulerHandle {
         const key = `${job.name}:${new Date().toISOString().slice(0, 16)}`;
         if (lastFired.get(job.name) !== key) {
           lastFired.set(job.name, key);
-          debug(`⏰ Running "${job.name}"`);
-          job.run().catch((err) => debug(`⏰ Job "${job.name}" failed:`, err));
+          debug({ job: job.name }, 'running scheduled job');
+          job.run().catch((err) => error({ err, job: job.name }, 'scheduled job failed'));
         }
       }
     }
   };
 
   for (const job of jobs) {
-    log(
-      `⏰ Scheduled "${job.name}" — runs daily at ${String(job.hour).padStart(2, '0')}:${String(job.minute).padStart(2, '0')} (user time)`
-    );
+    const time = `${String(job.hour).padStart(2, '0')}:${String(job.minute).padStart(2, '0')}`;
+    log({ job: job.name, time }, 'scheduled daily job');
   }
 
   // Align first tick to the next minute boundary, then tick every minute

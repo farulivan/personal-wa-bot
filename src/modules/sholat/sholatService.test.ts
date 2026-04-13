@@ -1,0 +1,277 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { SholatService } from './sholatService.js';
+import type {
+  SholatRepository,
+  SholatLocationRow,
+  NewSholatLocation,
+  NewSholatDailySchedule,
+  SholatDailyScheduleRow,
+} from './infra/sholatRepository.js';
+import type {
+  MyQuranSholatClient,
+  MyQuranLocation,
+  MyQuranTodaySchedule,
+} from './infra/myQuranSholatClient.js';
+
+const LOCATIONS: MyQuranLocation[] = [
+  { id: '1301', locationName: 'KOTA JAKARTA' },
+  { id: '1302', locationName: 'KAB. BOGOR' },
+  { id: '1303', locationName: 'KOTA BOGOR' },
+  { id: '1304', locationName: 'KOTA BANDUNG' },
+];
+
+function makeSchedule(locationId: string): MyQuranTodaySchedule {
+  return {
+    locationId,
+    locationName: 'Test',
+    province: 'Test',
+    scheduleDate: '2026-04-08',
+    displayDate: 'Rabu, 08 Apr 2026',
+    imsak: '04:30',
+    subuh: '04:40',
+    terbit: '05:50',
+    dhuha: '06:15',
+    dzuhur: '11:55',
+    ashar: '15:10',
+    maghrib: '17:50',
+    isya: '19:00',
+  };
+}
+
+class InMemorySholatRepository implements SholatRepository {
+  locations: SholatLocationRow[] = [];
+  schedules: SholatDailyScheduleRow[] = [];
+
+  async countLocations(): Promise<number> {
+    return this.locations.length;
+  }
+
+  async upsertLocations(rows: NewSholatLocation[]): Promise<void> {
+    for (const row of rows) {
+      const idx = this.locations.findIndex((l) => l.id === row.id);
+      const locationRow = {
+        id: row.id,
+        locationName: row.locationName,
+        normalizedLocationName: row.normalizedLocationName,
+      };
+      if (idx >= 0) {
+        this.locations[idx] = locationRow;
+      } else {
+        this.locations.push(locationRow);
+      }
+    }
+  }
+
+  async listLocations(): Promise<SholatLocationRow[]> {
+    return this.locations;
+  }
+
+  async findDailySchedule(
+    locationId: string,
+    scheduleDate: string,
+    timezone: string
+  ): Promise<SholatDailyScheduleRow | null> {
+    return (
+      this.schedules.find(
+        (s) =>
+          s.locationId === locationId && s.scheduleDate === scheduleDate && s.timezone === timezone
+      ) ?? null
+    );
+  }
+
+  async upsertDailySchedule(row: NewSholatDailySchedule): Promise<void> {
+    const scheduleRow: SholatDailyScheduleRow = {
+      locationId: row.locationId,
+      scheduleDate: row.scheduleDate,
+      timezone: row.timezone,
+      displayDate: row.displayDate,
+      imsak: row.imsak,
+      subuh: row.subuh,
+      terbit: row.terbit,
+      dhuha: row.dhuha,
+      dzuhur: row.dzuhur,
+      ashar: row.ashar,
+      maghrib: row.maghrib,
+      isya: row.isya,
+    };
+    const idx = this.schedules.findIndex(
+      (s) =>
+        s.locationId === row.locationId &&
+        s.scheduleDate === row.scheduleDate &&
+        s.timezone === row.timezone
+    );
+    if (idx >= 0) {
+      this.schedules[idx] = scheduleRow;
+    } else {
+      this.schedules.push(scheduleRow);
+    }
+  }
+}
+
+class MockSholatClient implements Pick<
+  MyQuranSholatClient,
+  'fetchAllLocations' | 'fetchTodaySchedule'
+> {
+  fetchAllLocationsCalls = 0;
+  fetchTodayScheduleCalls = 0;
+  private shouldThrow404 = false;
+
+  async fetchAllLocations(): Promise<MyQuranLocation[]> {
+    this.fetchAllLocationsCalls++;
+    return LOCATIONS;
+  }
+
+  async fetchTodaySchedule(locationId: string): Promise<MyQuranTodaySchedule> {
+    this.fetchTodayScheduleCalls++;
+    if (this.shouldThrow404) {
+      this.shouldThrow404 = false; // only throw once
+      throw new Error('myQuran API error 404: Not Found');
+    }
+    return makeSchedule(locationId);
+  }
+
+  simulateNextFetch404(): void {
+    this.shouldThrow404 = true;
+  }
+}
+
+describe('SholatService', () => {
+  let repo: InMemorySholatRepository;
+  let client: MockSholatClient;
+  let service: SholatService;
+
+  const now = new Date('2026-04-08T10:00:00Z');
+  const defaultLocation = 'KAB. BOGOR';
+  const defaultTimezone = 'Asia/Jakarta';
+
+  beforeEach(() => {
+    repo = new InMemorySholatRepository();
+    client = new MockSholatClient();
+    service = new SholatService(
+      repo,
+      client as unknown as MyQuranSholatClient,
+      defaultLocation,
+      defaultTimezone
+    );
+  });
+
+  describe('ensureLocationCatalog', () => {
+    it('fetches locations when catalog is empty', async () => {
+      await service.ensureLocationCatalog();
+      expect(client.fetchAllLocationsCalls).toBe(1);
+      expect(repo.locations).toHaveLength(LOCATIONS.length);
+    });
+
+    it('skips fetch when catalog already populated', async () => {
+      await service.ensureLocationCatalog();
+      await service.ensureLocationCatalog();
+      expect(client.fetchAllLocationsCalls).toBe(1);
+    });
+  });
+
+  describe('resolveLocation', () => {
+    it('finds exact match', async () => {
+      await service.ensureLocationCatalog();
+      const result = service.resolveLocation(repo.locations, 'KAB. BOGOR');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.id).toBe('1302');
+      }
+    });
+
+    it('finds fuzzy match when only one result', async () => {
+      await service.ensureLocationCatalog();
+      const result = service.resolveLocation(repo.locations, 'bandung');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.id).toBe('1304');
+      }
+    });
+
+    it('returns ambiguous error when multiple fuzzy matches', async () => {
+      // Add locations that share a common substring not matching any exact normalized form
+      repo.locations.push(
+        { id: '2001', locationName: 'KAB. TANGERANG', normalizedLocationName: 'KAB TANGERANG' },
+        {
+          id: '2002',
+          locationName: 'KOTA TANGERANG SELATAN',
+          normalizedLocationName: 'KOTA TANGERANG SELATAN',
+        }
+      );
+      // "tangerang" normalizes to "KOTA TANGERANG" via normalizeUserLocationInput,
+      // then normalizeForMatch gives "KOTA TANGERANG". Exact match on KOTA TANGERANG
+      // fails (only KOTA TANGERANG SELATAN exists). Fuzzy .includes("KOTA TANGERANG")
+      // matches both entries.
+      const result = service.resolveLocation(repo.locations, 'tangerang');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe('ambiguous');
+      }
+    });
+
+    it('returns not found for unknown location', async () => {
+      await service.ensureLocationCatalog();
+      const result = service.resolveLocation(repo.locations, 'atlantis');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe('notfound');
+      }
+    });
+
+    it('uses default location when input is empty', async () => {
+      await service.ensureLocationCatalog();
+      const result = service.resolveLocation(repo.locations, '');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.id).toBe('1302'); // KAB. BOGOR
+      }
+    });
+  });
+
+  describe('getTodaySchedule', () => {
+    it('fetches from API on cache miss and caches result', async () => {
+      const result = await service.getTodaySchedule('bandung', now);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.schedule.subuh).toBe('04:40');
+      }
+      expect(client.fetchTodayScheduleCalls).toBe(1);
+
+      // Second call should hit cache
+      client.fetchTodayScheduleCalls = 0;
+      const cached = await service.getTodaySchedule('bandung', now);
+      expect(cached.ok).toBe(true);
+      expect(client.fetchTodayScheduleCalls).toBe(0);
+    });
+
+    it('uses default location when no location arg given', async () => {
+      const result = await service.getTodaySchedule('', now);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.locationName).toBe('KAB. BOGOR');
+      }
+    });
+
+    it('refreshes location catalog on 404 and retries', async () => {
+      // Pre-populate catalog
+      await service.ensureLocationCatalog();
+      const initialFetchCalls = client.fetchAllLocationsCalls;
+
+      // Simulate stale location ID causing 404
+      client.simulateNextFetch404();
+      const result = await service.getTodaySchedule('bandung', now);
+
+      expect(result.ok).toBe(true);
+      // Should have re-fetched locations after 404
+      expect(client.fetchAllLocationsCalls).toBe(initialFetchCalls + 1);
+    });
+
+    it('returns not found when location does not exist', async () => {
+      const result = await service.getTodaySchedule('atlantis', now);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe('notfound');
+      }
+    });
+  });
+});

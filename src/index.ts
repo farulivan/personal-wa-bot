@@ -1,7 +1,7 @@
 import http from 'http';
 import { createWhatsAppClient } from './bot.js';
 import { debug, log, error } from './logger.js';
-import { appConfig } from './config/env.js';
+import { appConfig, validateConfig } from './config/env.js';
 import { runMigrations } from './db/migrate.js';
 import { createDrizzleDb } from './db/drizzle.js';
 
@@ -31,9 +31,7 @@ import { UserService } from './modules/users/userService.js';
 import { createAuthGuard } from './app/authGuard.js';
 
 async function main() {
-  if (!appConfig.databaseUrl) {
-    throw new Error('DATABASE_URL environment variable is required');
-  }
+  validateConfig(appConfig);
 
   // --- Run migrations before anything else ---
   await runMigrations(appConfig.databaseUrl);
@@ -128,10 +126,10 @@ async function main() {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('OK');
   });
-  healthServer.listen(healthPort, () => log(`❤️  Health check listening on :${healthPort}`));
+  healthServer.listen(healthPort, () => log({ port: healthPort }, 'health check listening'));
 
   // --- Start bot ---
-  log('🚀 Starting bot initialization...');
+  log('starting bot initialization');
 
   client.on('message', async (msg) => {
     await handleMessage(msg);
@@ -143,21 +141,21 @@ async function main() {
   let digestSchedulerStarted = false;
 
   async function shutdown(signal: string): Promise<void> {
-    log(`🛑 Received ${signal} — shutting down gracefully...`);
+    log({ signal }, 'received signal, shutting down gracefully');
     reminderHandle?.stop();
     digestHandle?.stop();
     healthServer.close();
     try {
       await client.destroy();
-      log('✅ WhatsApp client destroyed');
+      log('whatsapp client destroyed');
     } catch (err) {
-      error('⚠️ Error destroying WA client:', err);
+      error({ err }, 'error destroying whatsapp client');
     }
     try {
       await closeDb();
-      log('✅ Database connection closed');
+      log('database connection closed');
     } catch (err) {
-      error('⚠️ Error closing DB:', err);
+      error({ err }, 'error closing database');
     }
     process.exit(0);
   }
@@ -166,12 +164,12 @@ async function main() {
   process.once('SIGINT', () => void shutdown('SIGINT'));
 
   client.on('ready', () => {
-    log('🤖 WhatsApp bot ready');
+    log('whatsapp bot ready');
 
     if (!reminderSchedulerStarted) {
       reminderHandle = remind.startScheduler();
       reminderSchedulerStarted = true;
-      log('⏰ Reminder scheduler started');
+      log('reminder scheduler started');
     }
 
     if (!digestSchedulerStarted) {
@@ -179,7 +177,7 @@ async function main() {
       if (allJobs.length > 0) {
         digestHandle = startScheduler(allJobs);
       } else {
-        log('⚠️ DIGEST_GROUP_ID not set — daily digest disabled');
+        log('DIGEST_GROUP_ID not set, daily digest disabled');
       }
       digestSchedulerStarted = true;
     }
@@ -188,14 +186,14 @@ async function main() {
   client
     .initialize()
     .then(() => {
-      debug('✅ client.initialize() completed');
+      debug('client.initialize() completed');
     })
     .catch((err) => {
-      error('❌ client.initialize() failed:', err);
+      error({ err }, 'client.initialize() failed');
     });
 }
 
 main().catch((err) => {
-  error('❌ Fatal startup error:', err);
+  error({ err }, 'fatal startup error');
   process.exit(1);
 });
