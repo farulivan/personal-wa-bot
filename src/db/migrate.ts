@@ -11,15 +11,15 @@ export async function runMigrations(databaseUrl: string): Promise<void> {
   const migrationClient = postgres(databaseUrl, { max: 1 });
   const db = drizzle(migrationClient);
 
-  log('🗄️  Running database migrations...');
+  log('running database migrations');
 
   try {
     await migrate(db, {
       migrationsFolder: resolve(__dirname, 'migrations'),
     });
-    log('🗄️  Migrations complete');
+    log('migrations complete');
   } catch (err) {
-    error('🗄️  Migration failed:', err);
+    error({ err }, 'migration failed');
     throw err;
   } finally {
     await migrationClient.end();

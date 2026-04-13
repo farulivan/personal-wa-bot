@@ -5,15 +5,15 @@ export function createAuthGuard(allowedNumbers: ReadonlySet<string>) {
   return function isAllowedUser(phoneNumber: string): boolean {
     const number = normalizeUserId(phoneNumber);
 
-    debug(`📞 Checking sender: ${phoneNumber} → extracted: ${number}`);
+    debug({ raw: phoneNumber, normalized: number }, 'checking sender');
 
     if (allowedNumbers.size === 0) {
-      debug('⚠️ No ALLOWED_NUMBERS configured. Rejecting all messages.');
+      debug('no ALLOWED_NUMBERS configured, rejecting all');
       return false;
     }
 
     const isAllowed = allowedNumbers.has(number);
-    debug(`✅ Is allowed: ${isAllowed}`);
+    debug({ isAllowed, number }, 'auth check result');
     return isAllowed;
   };
 }
