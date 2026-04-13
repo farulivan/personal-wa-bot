@@ -352,7 +352,6 @@ pnpm format           # Format with Prettier
 | Document | Description |
 |---|---|
 | [Architecture Guide](docs/architecture.md) | How the codebase is structured, key patterns, and step-by-step guide for adding new features |
-| [Improvement Backlog](docs/improvements.md) | Known technical debt with root cause analysis and fix plans |
 
 ---
 
