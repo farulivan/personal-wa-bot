@@ -29,6 +29,13 @@
       "when": 1781309000000,
       "tag": "0003_add_workout_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781309100000,
+      "tag": "0004_drop_workouts_deprecated",
+      "breakpoints": true
     }
   ]
 }
