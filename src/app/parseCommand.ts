@@ -4,6 +4,7 @@ export type CommandInvocation = {
   firstLine: string;
   payloadText: string;
   rawText: string;
+  deprecatedFlag: string | null;
 };
 
 export function parseCommand(text: string): CommandInvocation | null {
@@ -20,8 +21,15 @@ export function parseCommand(text: string): CommandInvocation | null {
 
   const namespace = nsToken.slice(1).toLowerCase();
 
-  const subToken = tokens.find((t) => t.startsWith('--'));
-  const subcommand = (subToken ? subToken.slice(2) : '').trim().toLowerCase() || 'log';
+  const secondToken = tokens[1] || '';
+  const subcommand =
+    secondToken && !secondToken.startsWith('--') ? secondToken.toLowerCase() : '';
+
+  const DEPRECATED_ACTION_FLAGS = ['list', 'leaderboard', 'mark'];
+  const deprecatedToken = tokens.find(
+    (t) => t.startsWith('--') && DEPRECATED_ACTION_FLAGS.includes(t.slice(2).toLowerCase())
+  );
+  const deprecatedFlag = deprecatedToken ? deprecatedToken.slice(2).toLowerCase() : null;
 
   const payloadText = rest.join('\n').trim();
 
@@ -31,5 +39,6 @@ export function parseCommand(text: string): CommandInvocation | null {
     firstLine,
     payloadText,
     rawText,
+    deprecatedFlag,
   };
 }
