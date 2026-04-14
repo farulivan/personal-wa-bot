@@ -16,15 +16,15 @@ describe('tokenize', () => {
 
 describe('parsePageNumber', () => {
   it('returns the first numeric token', () => {
-    expect(parsePageNumber('#quran --list 3')).toBe(3);
+    expect(parsePageNumber('#quran list 3')).toBe(3);
   });
 
   it('returns 1 when no numeric token exists', () => {
-    expect(parsePageNumber('#quran --list')).toBe(1);
+    expect(parsePageNumber('#quran list')).toBe(1);
   });
 
   it('clamps to minimum 1', () => {
-    expect(parsePageNumber('#quran --list 0')).toBe(1);
+    expect(parsePageNumber('#quran list 0')).toBe(1);
   });
 });
 
@@ -51,9 +51,9 @@ describe('parseReadInput', () => {
     expect(result).toEqual({ ok: true, value: { pages: 3, noMark: true } });
   });
 
-  it('accepts "log" as alias for "read"', () => {
+  it('rejects "log" (only "read" is accepted)', () => {
     const result = parseReadInput('#quran log 2');
-    expect(result).toEqual({ ok: true, value: { pages: 2, noMark: false } });
+    expect(result.ok).toBe(false);
   });
 
   it('rejects missing page count', () => {
