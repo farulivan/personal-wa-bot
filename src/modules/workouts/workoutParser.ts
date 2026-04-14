@@ -98,8 +98,8 @@ export function workoutHelpMessage(): string {
     `  Example: #workout cardio run 30min 5km\n` +
     `  Duration units: min, hour\n` +
     `  Distance unit: km\n\n` +
-    `• #workout --list\n` +
-    `• #workout --list 2`
+    `• #workout list\n` +
+    `• #workout list 2`
   );
 }
 

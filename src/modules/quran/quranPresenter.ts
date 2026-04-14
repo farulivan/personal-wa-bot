@@ -32,24 +32,22 @@ export function formatQuranHelpMessage(): string {
     `Perintah yang tersedia:\n\n` +
     `1) Catat bacaan hari ini\n` +
     `• #quran read 3\n` +
-    `• #quran log 3\n` +
     `• #quran read 3 --no-mark\n` +
     `Fungsi: menambahkan 3 halaman ke catatan hari ini.\n` +
     `Kalau kirim lagi di hari yang sama, otomatis dijumlahkan.\n` +
     `Tambah --no-mark kalau mau catat bacaan tanpa geser mark.\n\n` +
     `2) Lihat riwayat bacaan\n` +
-    `• #quran --list\n` +
+    `• #quran list\n` +
     `Fungsi: tampilkan riwayat terbaru + total halaman yang sudah dibaca.\n\n` +
     `3) Pindah halaman riwayat\n` +
-    `• #quran --list 2\n` +
+    `• #quran list 2\n` +
     `Fungsi: buka halaman ke-2 dari riwayat tilawah.\n\n` +
     `4) Lihat leaderboard tilawah\n` +
-    `• #quran --leaderboard\n` +
+    `• #quran leaderboard\n` +
     `Fungsi: ranking berdasarkan current streak, best streak, lalu total halaman periode aktif.\n\n` +
     `5) Simpan dan cek mark bacaan\n` +
     `• #quran mark 145\n` +
     `• #quran mark\n` +
-    `• #quran --mark\n` +
     `Fungsi: simpan posisi halaman terakhir dan cek mark aktif kamu.`
   );
 }
@@ -153,7 +151,7 @@ export function formatListPageFooter(page: number, totalPages: number): string {
 
   let footer = `\n\n📄 Halaman ${page} dari ${totalPages}`;
   if (page < totalPages) {
-    footer += ` — #quran --list ${page + 1} untuk lanjut`;
+    footer += ` — #quran list ${page + 1} untuk lanjut`;
   }
   return footer;
 }
@@ -171,7 +169,7 @@ export function formatListPageOverflowMessage(page: number, totalPages: number):
   return (
     `Riwayatnya sudah habis di situ 👀\n` +
     `Kamu di halaman ${page}, padahal halaman terakhir ${totalPages}.\n\n` +
-    `Coba: #quran --list${totalPages > 1 ? ` ${totalPages}` : ''}`
+    `Coba: #quran list${totalPages > 1 ? ` ${totalPages}` : ''}`
   );
 }
 

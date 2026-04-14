@@ -70,7 +70,7 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
 
       // Legacy alias: migrate `#list` -> `#workout --list`
       if (text.toLowerCase() === '#list') {
-        text = '#workout --list';
+        text = '#workout list';
       }
 
       // Security: Only allow whitelisted phone numbers

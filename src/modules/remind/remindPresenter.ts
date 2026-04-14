@@ -27,8 +27,8 @@ export function formatHelpMessage(): string {
     `• #remind tomorrow 8:15 Prepare morning update\n` +
     `• #remind 2026-03-10 10pm Start wind-down routine\n` +
     `View your reminders:\n` +
-    `• #remind --list\n` +
-    `• #remind --list 2\n\n` +
+    `• #remind list\n` +
+    `• #remind list 2\n\n` +
     `Safety limits:\n` +
     `• Message up to ${REMINDER_TEXT_MAX_CHARS} characters\n` +
     `• Up to ${REMINDER_ACTIVE_LIMIT} active reminders at a time`
@@ -81,7 +81,7 @@ export function formatReminderList(
   if (totalPages > 1) {
     footer = `\n\n📄 Page ${page} of ${totalPages}`;
     if (page < totalPages) {
-      footer += ` — #remind --list ${page + 1} for next page`;
+      footer += ` — #remind list ${page + 1} for next page`;
     }
   }
 
@@ -99,7 +99,7 @@ export function formatEmptyListMessage(): string {
 export function formatListPageOverflowMessage(page: number, totalPages: number): string {
   return (
     `Page ${page} is out of range. Last page is ${totalPages}.\n\n` +
-    `Try: #remind --list${totalPages > 1 ? ` ${totalPages}` : ''}`
+    `Try: #remind list${totalPages > 1 ? ` ${totalPages}` : ''}`
   );
 }
 
