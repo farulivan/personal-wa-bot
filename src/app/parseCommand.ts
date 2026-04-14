@@ -22,8 +22,7 @@ export function parseCommand(text: string): CommandInvocation | null {
   const namespace = nsToken.slice(1).toLowerCase();
 
   const secondToken = tokens[1] || '';
-  const subcommand =
-    secondToken && !secondToken.startsWith('--') ? secondToken.toLowerCase() : '';
+  const subcommand = secondToken && !secondToken.startsWith('--') ? secondToken.toLowerCase() : '';
 
   const DEPRECATED_ACTION_FLAGS = ['list', 'leaderboard', 'mark'];
   const deprecatedToken = tokens.find(
