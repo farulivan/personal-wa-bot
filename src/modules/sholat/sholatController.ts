@@ -26,15 +26,16 @@ export function createSholatController(
   return async (ctx, invocation) => {
     if (invocation.namespace !== SHOLAT_NAMESPACE) return null;
 
-    const isHelp = invocation.subcommand === 'help' || hasFlag(invocation.firstLine, 'help');
+    const tokens = invocation.firstLine.trim().split(/\s+/).filter(Boolean);
+    const actionToken = (tokens[1] || '').toLowerCase();
+
+    const isHelp = actionToken === 'help' || hasFlag(invocation.firstLine, 'help');
     if (isHelp) {
       return formatHelpMessage(defaultLocation);
     }
 
     const isToday =
-      invocation.subcommand === 'today' ||
-      invocation.subcommand === 'log' ||
-      invocation.subcommand === 'location' ||
+      tokens.length === 1 ||
       hasFlag(invocation.firstLine, 'today') ||
       hasFlag(invocation.firstLine, 'location');
 

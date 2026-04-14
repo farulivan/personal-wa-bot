@@ -103,11 +103,11 @@ export function createWorkoutController(workoutService: WorkoutService): Namespa
     const tokens = tokenize(invocation.firstLine);
     const actionToken = (tokens[1] || '').toLowerCase();
 
-    if (invocation.subcommand === 'help' || actionToken === 'help') {
+    if (actionToken === 'help' || invocation.firstLine.toLowerCase().includes('--help')) {
       return workoutHelpMessage();
     }
 
-    if (invocation.subcommand === 'list' || actionToken === 'list') {
+    if (actionToken === 'list') {
       return handleList(ctx, invocation);
     }
 
