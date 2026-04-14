@@ -27,6 +27,19 @@ export class CommandRouter {
   async route(ctx: CommandContext, invocation: CommandInvocation): Promise<string | null> {
     const handler = this.namespaceHandlers.get(invocation.namespace.toLowerCase());
     if (!handler) return null;
+
+    if (invocation.deprecatedFlag) {
+      const flag = invocation.deprecatedFlag;
+      const corrected = invocation.firstLine
+        .replace(new RegExp(`\\s*--${flag}\\b`, 'i'), ` ${flag}`)
+        .trim();
+      return (
+        `Syntax has changed — actions no longer use --.\n\n` +
+        `Try:\n${corrected}\n\n` +
+        `For details, send: #${invocation.namespace} help`
+      );
+    }
+
     return handler(ctx, invocation);
   }
 }
