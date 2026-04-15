@@ -76,7 +76,6 @@ export function createRemindController(remindService: RemindService): NamespaceH
     const actionToken = (tokens[1] || '').toLowerCase();
 
     const isHelp =
-      invocation.subcommand === 'help' ||
       invocation.firstLine.toLowerCase().includes('--help') ||
       actionToken === 'help' ||
       tokens.length === 1;
@@ -85,7 +84,7 @@ export function createRemindController(remindService: RemindService): NamespaceH
       return formatHelpMessage();
     }
 
-    const isList = invocation.subcommand === 'list' || actionToken === 'list';
+    const isList = actionToken === 'list';
     if (isList) {
       return handleList(ctx, invocation);
     }

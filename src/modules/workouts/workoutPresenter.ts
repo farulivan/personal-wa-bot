@@ -140,7 +140,7 @@ export function formatListPageFooter(page: number, totalPages: number): string {
 
   let footer = `\n\n📄 Page ${page} of ${totalPages}`;
   if (page < totalPages) {
-    footer += ` — #workout --list ${page + 1} for next`;
+    footer += ` — #workout list ${page + 1} for next`;
   }
   return footer;
 }
@@ -160,7 +160,7 @@ export function formatPageOverflowMessage(page: number, totalPages: number): str
   return (
     `That's all the history 👀\n` +
     `You're on page ${page} but the last page is ${totalPages}.\n\n` +
-    `Try: #workout --list${totalPages > 1 ? ` ${totalPages}` : ''}`
+    `Try: #workout list${totalPages > 1 ? ` ${totalPages}` : ''}`
   );
 }
 

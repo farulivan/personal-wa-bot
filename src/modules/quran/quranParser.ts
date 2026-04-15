@@ -26,7 +26,7 @@ export function parsePageNumber(firstLine: string): number {
 
 export function parseReadInput(firstLine: string): ParseReadResult {
   const normalized = firstLine.trim().replace(/\s+/g, ' ');
-  const readPrefix = /^#quran\s+(?:read|log)\s+(.+)$/i;
+  const readPrefix = /^#quran\s+read\s+(.+)$/i;
   const match = normalized.match(readPrefix);
 
   if (!match || !match[1]) {

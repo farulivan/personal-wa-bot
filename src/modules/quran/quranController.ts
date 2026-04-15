@@ -103,20 +103,8 @@ export function createQuranController(quranService: QuranService): NamespaceHand
 
   async function handleMark(ctx: CommandContext, invocation: CommandInvocation): Promise<string> {
     const tokens = tokenize(invocation.firstLine);
-    const secondToken = (tokens[1] || '').toLowerCase();
-    const isDashMarkAlias = secondToken.startsWith('--mark');
 
-    if (isDashMarkAlias && tokens.length > 2) {
-      return (
-        `Untuk set mark, gunakan format ini ya 👇\n` +
-        `#quran mark <halaman>\n\n` +
-        `Contoh:\n` +
-        `#quran mark 145\n\n` +
-        `Sedangkan #quran --mark dipakai untuk cek mark saat ini.`
-      );
-    }
-
-    // Check-only: #quran mark or #quran --mark with no page arg
+    // Check-only: #quran mark with no page arg
     if (tokens.length === 2) {
       const page = await quranService.getMark(ctx.sender);
       if (page === null) {
@@ -125,17 +113,13 @@ export function createQuranController(quranService: QuranService): NamespaceHand
           `Simpan dulu dengan:\n` +
           `#quran mark 145\n\n` +
           `Nanti untuk cek lagi cukup kirim:\n` +
-          `#quran mark atau #quran --mark`
+          `#quran mark`
         );
       }
       return (
         `Mark tilawah kamu saat ini ada di halaman *${page}* 📍\n\n` +
         `Semoga Allah mudahkan lanjut bacanya hari ini 🤲`
       );
-    }
-
-    if (secondToken !== 'mark') {
-      return formatQuranHelpMessage();
     }
 
     if (tokens.length > 3) {
@@ -195,7 +179,6 @@ export function createQuranController(quranService: QuranService): NamespaceHand
     const tokens = tokenize(invocation.firstLine);
 
     const isHelp =
-      invocation.subcommand === 'help' ||
       invocation.firstLine.toLowerCase().includes('--help') ||
       actionToken === 'help' ||
       tokens.length === 1;
@@ -203,19 +186,19 @@ export function createQuranController(quranService: QuranService): NamespaceHand
       return formatQuranHelpMessage();
     }
 
-    if (invocation.subcommand === 'list' || actionToken === 'list') {
+    if (actionToken === 'list') {
       return handleList(ctx, invocation);
     }
 
-    if (invocation.subcommand === 'leaderboard' || actionToken === 'leaderboard') {
+    if (actionToken === 'leaderboard') {
       return handleLeaderboard(ctx);
     }
 
-    if (invocation.subcommand === 'mark' || actionToken === 'mark') {
+    if (actionToken === 'mark') {
       return handleMark(ctx, invocation);
     }
 
-    if (actionToken !== 'read' && actionToken !== 'log') {
+    if (actionToken !== 'read') {
       return formatQuranHelpMessage();
     }
 

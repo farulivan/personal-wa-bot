@@ -187,14 +187,14 @@ describe('parseWorkoutPayload', () => {
 
 describe('parsePageNumber', () => {
   it('returns 1 by default', () => {
-    expect(parsePageNumber('#workout --list')).toBe(1);
+    expect(parsePageNumber('#workout list')).toBe(1);
   });
 
   it('extracts page number from token', () => {
-    expect(parsePageNumber('#workout --list 3')).toBe(3);
+    expect(parsePageNumber('#workout list 3')).toBe(3);
   });
 
   it('clamps to minimum 1', () => {
-    expect(parsePageNumber('#workout --list 0')).toBe(1);
+    expect(parsePageNumber('#workout list 0')).toBe(1);
   });
 });

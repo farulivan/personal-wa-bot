@@ -20,7 +20,7 @@ const HELP_TEXT =
   `*What I can do:*\n` +
   `• #workout lift ... - log lift workout\n` +
   `• #workout cardio ... - log cardio workout\n` +
-  `• #workout --list - see your recent workouts\n` +
+  `• #workout list - see your recent workouts\n` +
   `• #sholat --today - get today's prayer times\n` +
   `• #quran read 3 - log today's quran pages\n\n` +
   `*Examples:*\n` +
