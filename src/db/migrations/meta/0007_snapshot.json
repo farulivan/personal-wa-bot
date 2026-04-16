@@ -1,9 +1,34 @@
 {
-  "id": "4cce2931-b35e-4c24-8095-5022720e73a0",
-  "prevId": "380ceb1f-7fc0-46cb-9a09-9d1111fcd7d1",
+  "id": "c4543f2c-4e33-41c5-aade-52c07fb61266",
+  "prevId": "4cce2931-b35e-4c24-8095-5022720e73a0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public._migration_test": {
+      "name": "_migration_test",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.quran_daily_reads": {
       "name": "quran_daily_reads",
       "schema": "",
@@ -336,8 +361,12 @@
           "name": "sholat_daily_cache_location_id_sholat_locations_id_fk",
           "tableFrom": "sholat_daily_cache",
           "tableTo": "sholat_locations",
-          "columnsFrom": ["location_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "location_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -345,7 +374,11 @@
       "compositePrimaryKeys": {
         "sholat_daily_cache_location_id_schedule_date_timezone_pk": {
           "name": "sholat_daily_cache_location_id_schedule_date_timezone_pk",
-          "columns": ["location_id", "schedule_date", "timezone"]
+          "columns": [
+            "location_id",
+            "schedule_date",
+            "timezone"
+          ]
         }
       },
       "uniqueConstraints": {},

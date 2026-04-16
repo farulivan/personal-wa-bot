@@ -7,21 +7,35 @@ import { log, error } from '../logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+const MAX_RETRIES = 3;
+const INITIAL_DELAY_MS = 2000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function runMigrations(databaseUrl: string): Promise<void> {
-  const migrationClient = postgres(databaseUrl, { max: 1 });
-  const db = drizzle(migrationClient);
+  const migrationsFolder = resolve(__dirname, 'migrations');
 
-  log('running database migrations');
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const migrationClient = postgres(databaseUrl, { max: 1 });
+    const db = drizzle(migrationClient);
 
-  try {
-    await migrate(db, {
-      migrationsFolder: resolve(__dirname, 'migrations'),
-    });
-    log('migrations complete');
-  } catch (err) {
-    error({ err }, 'migration failed');
-    throw err;
-  } finally {
-    await migrationClient.end();
+    try {
+      log({ attempt }, 'running database migrations');
+      await migrate(db, { migrationsFolder });
+      log('migrations complete');
+      return;
+    } catch (err) {
+      error({ err, attempt }, 'migration failed');
+      if (attempt === MAX_RETRIES) {
+        throw err;
+      }
+      const delayMs = INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
+      log({ delayMs, attempt }, 'retrying migration');
+      await sleep(delayMs);
+    } finally {
+      await migrationClient.end();
+    }
   }
 }
