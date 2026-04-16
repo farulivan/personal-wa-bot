@@ -57,6 +57,13 @@
       "when": 1781309200000,
       "tag": "0007_certain_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781309300000,
+      "tag": "0008_loud_the_watchers",
+      "breakpoints": true
     }
   ]
 }

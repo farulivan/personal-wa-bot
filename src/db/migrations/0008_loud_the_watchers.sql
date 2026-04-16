@@ -1,0 +1,1 @@
+ALTER TABLE "_migration_test" ADD COLUMN "verify_count" integer DEFAULT 0;
