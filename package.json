@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsc -w",
-    "build": "tsc && cp -r src/db/migrations dist/db/migrations",
+    "build": "tsc && rm -rf dist/db/migrations && cp -r src/db/migrations dist/db/migrations",
     "start": "node dist/index.js",
     "clean": "rm -rf dist",
     "verify": "tsc --noEmit && eslint src/",
