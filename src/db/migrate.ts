@@ -18,7 +18,7 @@ export async function runMigrations(databaseUrl: string): Promise<void> {
   const migrationsFolder = resolve(__dirname, 'migrations');
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    const migrationClient = postgres(databaseUrl, { max: 1 });
+    const migrationClient = postgres(databaseUrl, { max: 1, onnotice: () => {} });
     const db = drizzle(migrationClient);
 
     try {
