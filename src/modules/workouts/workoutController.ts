@@ -16,6 +16,9 @@ import {
   formatListPageFooter,
   formatEmptyListMessage,
   formatPageOverflowMessage,
+  formatUndoSuccess,
+  formatUndoNoLogs,
+  formatUndoTooLate,
 } from './workoutPresenter.js';
 import type { WorkoutService } from './workoutService.js';
 
@@ -47,6 +50,17 @@ export function createWorkoutController(workoutService: WorkoutService): Namespa
 
     debug(`📋 Listed ${result.rows.length} workouts (page ${result.page}/${result.totalPages})`);
     return `Recent work 💪\n\n${list}${streakSection}${pageFooter}`;
+  }
+
+  async function handleUndo(ctx: CommandContext): Promise<string> {
+    const result = await workoutService.undoLastLog(ctx.sender, ctx.time.now());
+    if (!result.undone) {
+      if (result.reason === 'too_late') {
+        return formatUndoTooLate(result.entry);
+      }
+      return formatUndoNoLogs();
+    }
+    return formatUndoSuccess(result.entry);
   }
 
   async function handleLog(ctx: CommandContext, invocation: CommandInvocation): Promise<string> {
@@ -109,6 +123,10 @@ export function createWorkoutController(workoutService: WorkoutService): Namespa
 
     if (actionToken === 'list') {
       return handleList(ctx, invocation);
+    }
+
+    if (actionToken === 'undo') {
+      return handleUndo(ctx);
     }
 
     return handleLog(ctx, invocation);

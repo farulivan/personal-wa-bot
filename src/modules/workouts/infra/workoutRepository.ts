@@ -17,6 +17,8 @@ export type CardioWorkoutEntry = {
 
 export type WorkoutEntry = LiftWorkoutEntry | CardioWorkoutEntry;
 
+export type DeletedWorkoutEntry = WorkoutEntry & { id: number };
+
 export type NewLiftWorkoutLog = {
   userId: string;
   workoutMode: 'lift';
@@ -45,4 +47,6 @@ export interface WorkoutRepository {
   listDistinctUsers(): Promise<string[]>;
   getQualifyingStreakDays(user: string, timezoneOffsetMinutes: number): Promise<string[]>;
   getTodayCount(user: string, timezoneOffsetMinutes: number, nowIso: string): Promise<number>;
+  findLastByUser(user: string): Promise<DeletedWorkoutEntry | null>;
+  softDeleteById(id: number, workoutMode: 'lift' | 'cardio', deletedAtIso: string): Promise<void>;
 }
