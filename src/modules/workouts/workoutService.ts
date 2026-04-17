@@ -18,6 +18,13 @@ export type WorkoutLogResult = {
   streaks: StreakInfo | null;
 };
 
+export const UNDO_WINDOW_MS = 5 * 60 * 1000;
+
+export type UndoResult =
+  | { undone: true; entry: WorkoutEntry }
+  | { undone: false; reason: 'no_logs' }
+  | { undone: false; reason: 'too_late'; entry: WorkoutEntry };
+
 export class WorkoutService {
   constructor(
     private readonly workoutRepository: WorkoutRepository,
@@ -124,5 +131,25 @@ export class WorkoutService {
 
   async getDisplayName(userId: string): Promise<string> {
     return this.userRepository.getDisplayName(userId);
+  }
+
+  async undoLastLog(sender: string, now: Date): Promise<UndoResult> {
+    const last = await this.workoutRepository.findLastByUser(sender);
+    if (!last) {
+      return { undone: false, reason: 'no_logs' };
+    }
+
+    const elapsed = now.getTime() - new Date(last.createdAt).getTime();
+    if (elapsed > UNDO_WINDOW_MS) {
+      const { id: _id, ...entry } = last;
+      return { undone: false, reason: 'too_late', entry };
+    }
+
+    await this.workoutRepository.softDeleteById(last.id, last.workoutMode, now.toISOString());
+
+    const { id: _id, ...entry } = last;
+    debug(`🗑️ Workout undone: [${entry.workoutMode}] ${entry.type} (${entry.createdAt})`);
+
+    return { undone: true, entry };
   }
 }

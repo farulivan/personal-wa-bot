@@ -1,6 +1,7 @@
 import type { CommandInvocation } from '../../app/parseCommand.js';
 import { ok, err } from '../../shared/result.js';
 import type { Result } from '../../shared/result.js';
+import { UNDO_WINDOW_MS } from './workoutService.js';
 
 export type LiftPayload = {
   mode: 'lift';
@@ -99,7 +100,9 @@ export function workoutHelpMessage(): string {
     `  Duration units: min, hour\n` +
     `  Distance unit: km\n\n` +
     `• #workout list\n` +
-    `• #workout list 2`
+    `• #workout list 2\n\n` +
+    `• #workout undo\n` +
+    `  Removes your last logged workout (within ${UNDO_WINDOW_MS / 60_000} minutes).`
   );
 }
 

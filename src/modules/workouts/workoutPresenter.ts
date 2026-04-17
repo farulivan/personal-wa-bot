@@ -1,5 +1,6 @@
 import type { WorkoutEntry } from './infra/workoutRepository.js';
 import type { StreakInfo } from './workoutStreaks.js';
+import { UNDO_WINDOW_MS } from './workoutService.js';
 
 export type UserStreak = {
   name: string;
@@ -161,6 +162,34 @@ export function formatPageOverflowMessage(page: number, totalPages: number): str
     `That's all the history 👀\n` +
     `You're on page ${page} but the last page is ${totalPages}.\n\n` +
     `Try: #workout list${totalPages > 1 ? ` ${totalPages}` : ''}`
+  );
+}
+
+export function formatUndoSuccess(entry: WorkoutEntry): string {
+  if (entry.workoutMode === 'cardio') {
+    const distancePart = entry.distanceKm > 0 ? ` | ${entry.distanceKm}km` : '';
+    return `Undone 🗑️\n[cardio] ${entry.type} | ${entry.durationMinutes}min${distancePart}`;
+  }
+
+  const weightStr = entry.weight === 0 ? 'bodyweight' : `${entry.weight}kg`;
+  return `Undone 🗑️\n[lift] ${entry.type} | ${entry.reps} × ${entry.sets} @ ${weightStr}`;
+}
+
+export function formatUndoNoLogs(): string {
+  return `Nothing to undo 👀\nNo workout logs found.`;
+}
+
+export function formatUndoTooLate(entry: WorkoutEntry): string {
+  const windowMinutes = UNDO_WINDOW_MS / 60_000;
+  const detail =
+    entry.workoutMode === 'cardio'
+      ? `[cardio] ${entry.type} | ${entry.durationMinutes}min${entry.distanceKm > 0 ? ` | ${entry.distanceKm}km` : ''}`
+      : `[lift] ${entry.type} | ${entry.reps} × ${entry.sets} @ ${entry.weight === 0 ? 'bodyweight' : `${entry.weight}kg`}`;
+
+  return (
+    `Can't undo ⏳\n` +
+    `Undo is only available within ${windowMinutes} minutes of logging.\n\n` +
+    `Last entry:\n${detail}`
   );
 }
 

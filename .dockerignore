@@ -5,4 +5,11 @@ dist
 *.md
 .wwebjs_auth
 .wwebjs_cache
+.windsurf
 data
+scripts
+docker-compose.yml
+vitest.config.ts
+vitest.integration.config.ts
+.env
+.env.*

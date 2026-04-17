@@ -1,22 +1,31 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { WorkoutService } from './workoutService.js';
-import type { WorkoutRepository, WorkoutEntry, NewWorkoutLog } from './infra/workoutRepository.js';
+import type {
+  WorkoutRepository,
+  WorkoutEntry,
+  NewWorkoutLog,
+  DeletedWorkoutEntry,
+} from './infra/workoutRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 
 class InMemoryWorkoutRepository implements WorkoutRepository {
-  private logs: (NewWorkoutLog & { id: number })[] = [];
+  private logs: (NewWorkoutLog & { id: number; deletedAt: string | null })[] = [];
   private nextId = 1;
 
+  private active() {
+    return this.logs.filter((l) => l.deletedAt === null);
+  }
+
   async insertWorkoutLog(log: NewWorkoutLog): Promise<void> {
-    this.logs.push({ ...log, id: this.nextId++ });
+    this.logs.push({ ...log, id: this.nextId++, deletedAt: null });
   }
 
   async countByUser(user: string): Promise<number> {
-    return this.logs.filter((l) => l.userId === user).length;
+    return this.active().filter((l) => l.userId === user).length;
   }
 
   async listByUser(user: string, limit: number, offset: number): Promise<WorkoutEntry[]> {
-    return this.logs
+    return this.active()
       .filter((l) => l.userId === user)
       .slice(offset, offset + limit)
       .map((l): WorkoutEntry => {
@@ -41,12 +50,12 @@ class InMemoryWorkoutRepository implements WorkoutRepository {
   }
 
   async listDistinctUsers(): Promise<string[]> {
-    return [...new Set(this.logs.map((l) => l.userId))];
+    return [...new Set(this.active().map((l) => l.userId))];
   }
 
   async getQualifyingStreakDays(user: string, _tz: number): Promise<string[]> {
     const countsByDay = new Map<string, number>();
-    for (const log of this.logs.filter((l) => l.userId === user)) {
+    for (const log of this.active().filter((l) => l.userId === user)) {
       const day = log.createdAtIso.slice(0, 10);
       countsByDay.set(day, (countsByDay.get(day) ?? 0) + 1);
     }
@@ -59,8 +68,46 @@ class InMemoryWorkoutRepository implements WorkoutRepository {
 
   async getTodayCount(user: string, _tz: number, nowIso: string): Promise<number> {
     const today = nowIso.slice(0, 10);
-    return this.logs.filter((l) => l.userId === user && l.createdAtIso.slice(0, 10) === today)
+    return this.active().filter((l) => l.userId === user && l.createdAtIso.slice(0, 10) === today)
       .length;
+  }
+
+  async findLastByUser(user: string): Promise<DeletedWorkoutEntry | null> {
+    const userLogs = this.active()
+      .filter((l) => l.userId === user)
+      .sort((a, b) => b.createdAtIso.localeCompare(a.createdAtIso));
+
+    if (userLogs.length === 0) return null;
+
+    const l = userLogs[0];
+    if (l.workoutMode === 'cardio') {
+      return {
+        id: l.id,
+        createdAt: l.createdAtIso,
+        workoutMode: 'cardio',
+        type: l.type,
+        durationMinutes: l.durationMinutes,
+        distanceKm: l.distanceKm,
+      };
+    }
+    return {
+      id: l.id,
+      createdAt: l.createdAtIso,
+      workoutMode: 'lift',
+      type: l.type,
+      reps: l.reps,
+      sets: l.sets,
+      weight: l.weight,
+    };
+  }
+
+  async softDeleteById(
+    id: number,
+    _workoutMode: 'lift' | 'cardio',
+    deletedAtIso: string
+  ): Promise<void> {
+    const log = this.logs.find((l) => l.id === id);
+    if (log) log.deletedAt = deletedAtIso;
   }
 
   constructor(public readonly minForStreak: number = 3) {}
@@ -175,6 +222,105 @@ describe('WorkoutService', () => {
       );
       const result = await service.listWorkouts(user, 99, TZ, now);
       expect(result.rows).toHaveLength(0);
+    });
+  });
+
+  describe('undoLastLog', () => {
+    it('returns no_logs when user has no logs', async () => {
+      const result = await service.undoLastLog(user, now);
+      expect(result.undone).toBe(false);
+      if (!result.undone) {
+        expect(result.reason).toBe('no_logs');
+      }
+    });
+
+    it('undoes the most recent lift within 5 minutes', async () => {
+      await service.logLift(
+        user,
+        { mode: 'lift', activity: 'bench', reps: 10, sets: 3, weight: 60 },
+        now
+      );
+      const undoTime = new Date(now.getTime() + 2 * 60 * 1000); // 2 min later
+      const result = await service.undoLastLog(user, undoTime);
+      expect(result.undone).toBe(true);
+      if (result.undone) {
+        expect(result.entry.workoutMode).toBe('lift');
+        expect(result.entry.type).toBe('bench');
+      }
+      expect(await repo.countByUser(user)).toBe(0);
+    });
+
+    it('undoes the most recent cardio when it is newer than lift', async () => {
+      const earlier = new Date('2026-04-08T09:00:00Z');
+      await service.logLift(
+        user,
+        { mode: 'lift', activity: 'bench', reps: 10, sets: 3, weight: 60 },
+        earlier
+      );
+      await service.logCardio(
+        user,
+        { mode: 'cardio', activity: 'run', durationMinutes: 30, distanceKm: 5 },
+        now
+      );
+      const undoTime = new Date(now.getTime() + 1 * 60 * 1000);
+      const result = await service.undoLastLog(user, undoTime);
+      expect(result.undone).toBe(true);
+      if (result.undone) {
+        expect(result.entry.workoutMode).toBe('cardio');
+        expect(result.entry.type).toBe('run');
+      }
+      expect(await repo.countByUser(user)).toBe(1);
+    });
+
+    it('rejects undo after 5 minutes with too_late and shows entry', async () => {
+      await service.logLift(
+        user,
+        { mode: 'lift', activity: 'bench', reps: 10, sets: 3, weight: 60 },
+        now
+      );
+      const tooLate = new Date(now.getTime() + 6 * 60 * 1000); // 6 min later
+      const result = await service.undoLastLog(user, tooLate);
+      expect(result.undone).toBe(false);
+      if (!result.undone) {
+        expect(result.reason).toBe('too_late');
+        if (result.reason === 'too_late') {
+          expect(result.entry.type).toBe('bench');
+        }
+      }
+      expect(await repo.countByUser(user)).toBe(1);
+    });
+
+    it('does not return soft-deleted entries on second undo', async () => {
+      await service.logLift(
+        user,
+        { mode: 'lift', activity: 'bench', reps: 10, sets: 3, weight: 0 },
+        now
+      );
+      await service.undoLastLog(user, new Date(now.getTime() + 1000));
+      const result = await service.undoLastLog(user, new Date(now.getTime() + 2000));
+      expect(result.undone).toBe(false);
+      if (!result.undone) {
+        expect(result.reason).toBe('no_logs');
+      }
+    });
+
+    it('soft-deleted entries are excluded from countByUser and listWorkouts', async () => {
+      await service.logLift(
+        user,
+        { mode: 'lift', activity: 'bench', reps: 10, sets: 3, weight: 0 },
+        now
+      );
+      await service.logLift(
+        user,
+        { mode: 'lift', activity: 'squat', reps: 8, sets: 4, weight: 80 },
+        new Date(now.getTime() + 1000)
+      );
+      await service.undoLastLog(user, new Date(now.getTime() + 2000));
+
+      expect(await repo.countByUser(user)).toBe(1);
+      const list = await service.listWorkouts(user, 1, TZ, now);
+      expect(list.total).toBe(1);
+      expect(list.rows[0].type).toBe('bench');
     });
   });
 });
