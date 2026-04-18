@@ -4,8 +4,8 @@ const GREETINGS = ['halo', 'hello', 'hi '];
 
 const ALLOWED_RESPONSE = [
   `Yo! 👊`,
-  `What's up 👊 Ready to log a workout?`,
-  `Hey. Let's put today's work on the board 💪`,
+  `Hey 👋 Ready to track today's wins?`,
+  `What's up 👊 Let's keep those streaks alive 💪`,
 ];
 
 const BLOCKED_RESPONSE =
@@ -15,18 +15,25 @@ const BLOCKED_RESPONSE =
   `then you're good to go 💪`;
 
 const HELP_TEXT =
-  `I'm your workout tracker.\n\n` +
-  `Log it. Track it. Get stronger.\n\n` +
-  `*What I can do:*\n` +
-  `• #workout lift ... - log lift workout\n` +
-  `• #workout cardio ... - log cardio workout\n` +
-  `• #workout list - see your recent workouts\n` +
-  `• #sholat --today - get today's prayer times\n` +
-  `• #quran read 3 - log today's quran pages\n\n` +
-  `*Examples:*\n` +
-  `#workout lift bench press 20reps 4sets 10kg\n` +
-  `#workout cardio run 30min 5km\n\n` +
-  `(lift accepts rep/reps and set/sets; weight is optional bodyweight)`;
+  `I'm your daily tracker.\n` +
+  `Workouts, sholat, Qur'an, and reminders — all in one chat.\n\n` +
+  `*What I can do:*\n\n` +
+  `💪 *Workout* — log lifts & cardio\n` +
+  `• #workout lift bench press 20reps 4sets 10kg\n` +
+  `• #workout cardio run 30min 5km\n` +
+  `• #workout list\n\n` +
+  `🕌 *Sholat* — today's prayer times\n` +
+  `• #sholat --today\n` +
+  `• #sholat --today --location bandung\n\n` +
+  `📖 *Quran* — track pages & bookmarks\n` +
+  `• #quran read 3\n` +
+  `• #quran mark 145\n` +
+  `• #quran list\n\n` +
+  `⏰ *Remind* — schedule reminders\n` +
+  `• #remind tomorrow 9am Team sync\n` +
+  `• #remind 2026-03-10 10:30 Review proposal\n` +
+  `• #remind list\n\n` +
+  `Need details? Send *#<command> help* (e.g. #workout help)`;
 
 export function isGreeting(text: string): boolean {
   const lower = text.toLowerCase();
