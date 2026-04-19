@@ -29,4 +29,6 @@ export interface RemindRepository {
   listByUser(userId: string, limit: number, offset: number): Promise<ReminderListRow[]>;
   listDuePending(nowIso: string, limit: number): Promise<DueReminderRow[]>;
   markAsSent(id: number, sentAt: string): Promise<void>;
+  findLastActiveByUser(userId: string): Promise<ReminderListRow | null>;
+  softDeleteById(id: number, deletedAtIso: string): Promise<void>;
 }

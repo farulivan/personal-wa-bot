@@ -131,4 +131,81 @@ describe('DrizzleRemindRepository', () => {
       expect(updated[0].sentAt).toBe('2026-04-12T12:00:00.000Z');
     });
   });
+
+  describe('findLastActiveByUser', () => {
+    it('returns null when the user has no reminders', async () => {
+      expect(await repo.findLastActiveByUser(user)).toBeNull();
+    });
+
+    it('returns the newest unsent reminder', async () => {
+      await repo.insertReminder(
+        makeReminder({ createdAt: '2026-04-12T08:00:00.000Z', reminderText: 'First' })
+      );
+      await repo.insertReminder(
+        makeReminder({ createdAt: '2026-04-12T10:00:00.000Z', reminderText: 'Second' })
+      );
+
+      const latest = await repo.findLastActiveByUser(user);
+      expect(latest?.reminderText).toBe('Second');
+    });
+
+    it('skips sent reminders', async () => {
+      await repo.insertReminder(
+        makeReminder({ createdAt: '2026-04-12T08:00:00.000Z', reminderText: 'First' })
+      );
+      await repo.insertReminder(
+        makeReminder({ createdAt: '2026-04-12T10:00:00.000Z', reminderText: 'Second' })
+      );
+
+      const rows = await repo.listByUser(user, 10, 0);
+      // Mark the newest (Second) as sent
+      await repo.markAsSent(rows[0].id, '2026-04-12T10:30:00.000Z');
+
+      const latest = await repo.findLastActiveByUser(user);
+      expect(latest?.reminderText).toBe('First');
+    });
+  });
+
+  describe('softDeleteById (undo)', () => {
+    it('hides the reminder from countByUser, listByUser, and listDuePending', async () => {
+      await repo.insertReminder(
+        makeReminder({ scheduledAt: '2026-04-12T08:00:00.000Z', reminderText: 'Due task' })
+      );
+      const rows = await repo.listByUser(user, 10, 0);
+      const targetId = rows[0].id;
+
+      await repo.softDeleteById(targetId, '2026-04-12T09:00:00.000Z');
+
+      expect(await repo.countByUser(user)).toBe(0);
+      expect(await repo.countActiveByUser(user)).toBe(0);
+      expect(await repo.listByUser(user, 10, 0)).toHaveLength(0);
+      expect(await repo.listDuePending('2026-04-12T10:00:00.000Z', 10)).toHaveLength(0);
+    });
+
+    it('excludes soft-deleted reminders from findLastActiveByUser', async () => {
+      await repo.insertReminder(
+        makeReminder({ createdAt: '2026-04-12T08:00:00.000Z', reminderText: 'First' })
+      );
+      await repo.insertReminder(
+        makeReminder({ createdAt: '2026-04-12T10:00:00.000Z', reminderText: 'Second' })
+      );
+      const rows = await repo.listByUser(user, 10, 0);
+      // Soft-delete the newest (Second)
+      await repo.softDeleteById(rows[0].id, '2026-04-12T10:30:00.000Z');
+
+      const latest = await repo.findLastActiveByUser(user);
+      expect(latest?.reminderText).toBe('First');
+    });
+
+    it('is idempotent when called twice on the same id', async () => {
+      await repo.insertReminder(makeReminder());
+      const rows = await repo.listByUser(user, 10, 0);
+      const targetId = rows[0].id;
+
+      await repo.softDeleteById(targetId, '2026-04-12T09:00:00.000Z');
+      await repo.softDeleteById(targetId, '2026-04-12T11:00:00.000Z'); // no-op
+
+      expect(await repo.countByUser(user)).toBe(0);
+    });
+  });
 });
