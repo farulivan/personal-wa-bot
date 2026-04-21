@@ -109,33 +109,16 @@ export class QuranService {
   ): Promise<ReadLogResult> {
     const nowIsoUtc = now.toISOString();
 
-    await this.quranRepository.addDailyReadPages({
-      user: sender,
-      pages: pagesAdded,
-      timezoneOffsetMinutes,
-      nowIsoUtc,
-      createdAtIsoUtc: nowIsoUtc,
-      updatedAtUtc: nowIsoUtc,
-    });
-
-    const todayRecord = await this.quranRepository.findTodayByUser(
-      sender,
-      timezoneOffsetMinutes,
-      nowIsoUtc
-    );
-    const totalToday = todayRecord?.pages ?? pagesAdded;
-
-    const readDays = await this.quranRepository.getReadDays(sender, timezoneOffsetMinutes);
-    const streaks = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
-
     let existingMarkPage: number | null = null;
     let newMarkPage: number | null = null;
+    let markBefore: number | null = null;
 
     if (!noMark) {
       const existingMark = await this.quranRepository.findMarkByUser(sender);
 
       if (existingMark) {
         existingMarkPage = existingMark.page;
+        markBefore = existingMark.page;
         const computed = existingMark.page + pagesAdded;
 
         if (computed > MAX_QURAN_PAGE) {
@@ -152,6 +135,26 @@ export class QuranService {
         }
       }
     }
+
+    await this.quranRepository.addDailyReadPages({
+      user: sender,
+      pages: pagesAdded,
+      timezoneOffsetMinutes,
+      nowIsoUtc,
+      createdAtIsoUtc: nowIsoUtc,
+      updatedAtUtc: nowIsoUtc,
+      markBefore,
+    });
+
+    const todayRecord = await this.quranRepository.findTodayByUser(
+      sender,
+      timezoneOffsetMinutes,
+      nowIsoUtc
+    );
+    const totalToday = todayRecord?.pages ?? pagesAdded;
+
+    const readDays = await this.quranRepository.getReadDays(sender, timezoneOffsetMinutes);
+    const streaks = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
 
     debug(`📖 Quran read logged: +${pagesAdded} page(s) by ${sender} at ${nowIsoUtc}`);
 
@@ -320,6 +323,19 @@ export class QuranService {
     }
 
     await this.quranRepository.softDeleteById(entry.id, nowIsoUtc);
+
+    // Revert mark if this read had advanced it
+    if (entry.markBefore !== null) {
+      const currentMark = await this.quranRepository.findMarkByUser(sender);
+      if (currentMark) {
+        await this.quranRepository.upsertMark(
+          sender,
+          entry.markBefore,
+          currentMark.createdAtUtc,
+          nowIsoUtc
+        );
+      }
+    }
 
     debug(`📖 Quran read undone: id=${entry.id}, user=${sender}, updatedAt=${entry.updatedAtUtc}`);
 

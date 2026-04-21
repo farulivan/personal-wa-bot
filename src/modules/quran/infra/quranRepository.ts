@@ -5,6 +5,7 @@ export type NewQuranReadLog = {
   nowIsoUtc: string;
   createdAtIsoUtc: string;
   updatedAtUtc: string;
+  markBefore: number | null;
 };
 
 export type QuranDailyReadRow = {
@@ -13,6 +14,7 @@ export type QuranDailyReadRow = {
   pages: number;
   createdAtUtc: string;
   updatedAtUtc: string;
+  markBefore: number | null;
 };
 
 export type QuranHistoryRow = {

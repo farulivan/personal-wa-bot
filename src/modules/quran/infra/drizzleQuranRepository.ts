@@ -1,4 +1,4 @@
-import { eq, sql, count, sum, isNull, and } from 'drizzle-orm';
+import { eq, sql, sum, isNull, and } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
 import { quranDailyReads, quranMarks } from './schema.js';
 import type {
@@ -14,32 +14,12 @@ export class DrizzleQuranRepository implements QuranRepository {
   constructor(private readonly db: DrizzleDb) {}
 
   async addDailyReadPages(input: NewQuranReadLog): Promise<void> {
-    const offsetSeconds = input.timezoneOffsetMinutes * 60;
-
-    // Try update first (same user, same local date, not soft-deleted)
-    const updateResult = await this.db
-      .update(quranDailyReads)
-      .set({
-        pages: sql`${quranDailyReads.pages} + ${input.pages}`,
-        updatedAt: input.updatedAtUtc,
-      })
-      .where(
-        sql`${quranDailyReads.user} = ${input.user}
-          AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
-            = DATE(${input.nowIsoUtc}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
-          AND ${quranDailyReads.deletedAt} IS NULL`
-      );
-
-    if ((updateResult as unknown as { rowCount: number }).rowCount > 0) {
-      return;
-    }
-
-    // Insert new row
     await this.db.insert(quranDailyReads).values({
       user: input.user,
       pages: input.pages,
       createdAt: input.createdAtIsoUtc,
       updatedAt: input.updatedAtUtc,
+      markBefore: input.markBefore,
     });
   }
 
@@ -52,11 +32,9 @@ export class DrizzleQuranRepository implements QuranRepository {
 
     const rows = await this.db
       .select({
-        id: quranDailyReads.id,
-        user: quranDailyReads.user,
-        pages: quranDailyReads.pages,
-        createdAtUtc: quranDailyReads.createdAt,
-        updatedAtUtc: quranDailyReads.updatedAt,
+        totalPages: sum(quranDailyReads.pages),
+        minCreatedAt: sql<string>`MIN(${quranDailyReads.createdAt})`,
+        maxUpdatedAt: sql<string>`MAX(${quranDailyReads.updatedAt})`,
       })
       .from(quranDailyReads)
       .where(
@@ -64,10 +42,19 @@ export class DrizzleQuranRepository implements QuranRepository {
           AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
             = DATE(${nowIsoUtc}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
           AND ${quranDailyReads.deletedAt} IS NULL`
-      )
-      .limit(1);
+      );
 
-    return rows[0] ?? null;
+    const total = Number(rows[0]?.totalPages ?? 0);
+    if (total === 0) return null;
+
+    return {
+      id: 0,
+      user,
+      pages: total,
+      createdAtUtc: rows[0].minCreatedAt,
+      updatedAtUtc: rows[0].maxUpdatedAt,
+      markBefore: null,
+    };
   }
 
   async hasReadTodayByUser(
@@ -94,11 +81,11 @@ export class DrizzleQuranRepository implements QuranRepository {
 
   async countByUser(user: string): Promise<number> {
     const rows = await this.db
-      .select({ total: count() })
+      .select({ total: sql<number>`COUNT(DISTINCT ${quranDailyReads.createdAt}::date)` })
       .from(quranDailyReads)
       .where(and(eq(quranDailyReads.user, user), isNull(quranDailyReads.deletedAt)));
 
-    return rows[0]?.total ?? 0;
+    return Number(rows[0]?.total ?? 0);
   }
 
   async sumPagesByUser(user: string): Promise<number> {
@@ -164,16 +151,17 @@ export class DrizzleQuranRepository implements QuranRepository {
   async listByUser(user: string, limit: number, offset: number): Promise<QuranHistoryRow[]> {
     const rows = await this.db
       .select({
-        pages: quranDailyReads.pages,
-        createdAtUtc: quranDailyReads.createdAt,
+        pages: sql<number>`SUM(${quranDailyReads.pages})::int`,
+        createdAtUtc: sql<string>`MIN(${quranDailyReads.createdAt})`,
       })
       .from(quranDailyReads)
       .where(and(eq(quranDailyReads.user, user), isNull(quranDailyReads.deletedAt)))
-      .orderBy(sql`${quranDailyReads.createdAt} DESC`)
+      .groupBy(sql`${quranDailyReads.createdAt}::date`)
+      .orderBy(sql`MIN(${quranDailyReads.createdAt}) DESC`)
       .limit(limit)
       .offset(offset);
 
-    return rows;
+    return rows.map((r) => ({ pages: Number(r.pages), createdAtUtc: r.createdAtUtc }));
   }
 
   async listDistinctUsers(): Promise<string[]> {
@@ -225,6 +213,7 @@ export class DrizzleQuranRepository implements QuranRepository {
         pages: quranDailyReads.pages,
         createdAtUtc: quranDailyReads.createdAt,
         updatedAtUtc: quranDailyReads.updatedAt,
+        markBefore: quranDailyReads.markBefore,
       })
       .from(quranDailyReads)
       .where(
@@ -233,6 +222,7 @@ export class DrizzleQuranRepository implements QuranRepository {
             = DATE(${nowIsoUtc}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
           AND ${quranDailyReads.deletedAt} IS NULL`
       )
+      .orderBy(sql`${quranDailyReads.createdAt} DESC`)
       .limit(1);
 
     return rows[0] ?? null;

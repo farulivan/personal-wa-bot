@@ -1,0 +1,1 @@
+ALTER TABLE "quran_daily_reads" ADD COLUMN "mark_before" integer;
