@@ -8,6 +8,7 @@ export type NewQuranReadLog = {
 };
 
 export type QuranDailyReadRow = {
+  id: number;
   user: string;
   pages: number;
   createdAtUtc: string;
@@ -60,4 +61,10 @@ export interface QuranRepository {
     timezoneOffsetMinutes: number,
     range?: QuranStreakDateRange
   ): Promise<string[]>;
+  findLastReadByUser(
+    user: string,
+    timezoneOffsetMinutes: number,
+    nowIsoUtc: string
+  ): Promise<QuranDailyReadRow | null>;
+  softDeleteById(id: number, deletedAtIso: string): Promise<void>;
 }

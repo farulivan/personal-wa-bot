@@ -1,4 +1,4 @@
-import { eq, sql, count, sum } from 'drizzle-orm';
+import { eq, sql, count, sum, isNull, and } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
 import { quranDailyReads, quranMarks } from './schema.js';
 import type {
@@ -16,7 +16,7 @@ export class DrizzleQuranRepository implements QuranRepository {
   async addDailyReadPages(input: NewQuranReadLog): Promise<void> {
     const offsetSeconds = input.timezoneOffsetMinutes * 60;
 
-    // Try update first (same user, same local date)
+    // Try update first (same user, same local date, not soft-deleted)
     const updateResult = await this.db
       .update(quranDailyReads)
       .set({
@@ -26,7 +26,8 @@ export class DrizzleQuranRepository implements QuranRepository {
       .where(
         sql`${quranDailyReads.user} = ${input.user}
           AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
-            = DATE(${input.nowIsoUtc}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')`
+            = DATE(${input.nowIsoUtc}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
+          AND ${quranDailyReads.deletedAt} IS NULL`
       );
 
     if ((updateResult as unknown as { rowCount: number }).rowCount > 0) {
@@ -51,6 +52,7 @@ export class DrizzleQuranRepository implements QuranRepository {
 
     const rows = await this.db
       .select({
+        id: quranDailyReads.id,
         user: quranDailyReads.user,
         pages: quranDailyReads.pages,
         createdAtUtc: quranDailyReads.createdAt,
@@ -60,7 +62,8 @@ export class DrizzleQuranRepository implements QuranRepository {
       .where(
         sql`${quranDailyReads.user} = ${user}
           AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
-            = DATE(${nowIsoUtc}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')`
+            = DATE(${nowIsoUtc}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
+          AND ${quranDailyReads.deletedAt} IS NULL`
       )
       .limit(1);
 
@@ -81,7 +84,8 @@ export class DrizzleQuranRepository implements QuranRepository {
         sql`${quranDailyReads.user} = ${user}
           AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
             = DATE(${nowIsoUtc}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
-          AND ${quranDailyReads.pages} > 0`
+          AND ${quranDailyReads.pages} > 0
+          AND ${quranDailyReads.deletedAt} IS NULL`
       )
       .limit(1);
 
@@ -92,7 +96,7 @@ export class DrizzleQuranRepository implements QuranRepository {
     const rows = await this.db
       .select({ total: count() })
       .from(quranDailyReads)
-      .where(eq(quranDailyReads.user, user));
+      .where(and(eq(quranDailyReads.user, user), isNull(quranDailyReads.deletedAt)));
 
     return rows[0]?.total ?? 0;
   }
@@ -101,7 +105,7 @@ export class DrizzleQuranRepository implements QuranRepository {
     const rows = await this.db
       .select({ total: sum(quranDailyReads.pages) })
       .from(quranDailyReads)
-      .where(eq(quranDailyReads.user, user));
+      .where(and(eq(quranDailyReads.user, user), isNull(quranDailyReads.deletedAt)));
 
     return Number(rows[0]?.total ?? 0);
   }
@@ -120,7 +124,8 @@ export class DrizzleQuranRepository implements QuranRepository {
       .where(
         sql`${quranDailyReads.user} = ${user}
           AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds') >= DATE(${startDateInclusive}::timestamp)
-          AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds') <= DATE(${endDateInclusive}::timestamp)`
+          AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds') <= DATE(${endDateInclusive}::timestamp)
+          AND ${quranDailyReads.deletedAt} IS NULL`
       );
 
     return Number(rows[0]?.total ?? 0);
@@ -163,7 +168,7 @@ export class DrizzleQuranRepository implements QuranRepository {
         createdAtUtc: quranDailyReads.createdAt,
       })
       .from(quranDailyReads)
-      .where(eq(quranDailyReads.user, user))
+      .where(and(eq(quranDailyReads.user, user), isNull(quranDailyReads.deletedAt)))
       .orderBy(sql`${quranDailyReads.createdAt} DESC`)
       .limit(limit)
       .offset(offset);
@@ -172,7 +177,10 @@ export class DrizzleQuranRepository implements QuranRepository {
   }
 
   async listDistinctUsers(): Promise<string[]> {
-    const rows = await this.db.selectDistinct({ user: quranDailyReads.user }).from(quranDailyReads);
+    const rows = await this.db
+      .selectDistinct({ user: quranDailyReads.user })
+      .from(quranDailyReads)
+      .where(isNull(quranDailyReads.deletedAt));
 
     return rows.map((r) => r.user);
   }
@@ -187,7 +195,7 @@ export class DrizzleQuranRepository implements QuranRepository {
 
     let query = sql`SELECT ${dayExpr} AS "localDate"
       FROM ${quranDailyReads}
-      WHERE ${quranDailyReads.user} = ${user} AND ${quranDailyReads.pages} > 0`;
+      WHERE ${quranDailyReads.user} = ${user} AND ${quranDailyReads.pages} > 0 AND ${quranDailyReads.deletedAt} IS NULL`;
 
     if (range) {
       query = sql`${query}
@@ -201,5 +209,39 @@ export class DrizzleQuranRepository implements QuranRepository {
 
     const rows = await this.db.execute(query);
     return (rows as unknown as Array<{ localDate: string }>).map((r) => r.localDate);
+  }
+
+  async findLastReadByUser(
+    user: string,
+    timezoneOffsetMinutes: number,
+    nowIsoUtc: string
+  ): Promise<QuranDailyReadRow | null> {
+    const offsetSeconds = timezoneOffsetMinutes * 60;
+
+    const rows = await this.db
+      .select({
+        id: quranDailyReads.id,
+        user: quranDailyReads.user,
+        pages: quranDailyReads.pages,
+        createdAtUtc: quranDailyReads.createdAt,
+        updatedAtUtc: quranDailyReads.updatedAt,
+      })
+      .from(quranDailyReads)
+      .where(
+        sql`${quranDailyReads.user} = ${user}
+          AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
+            = DATE(${nowIsoUtc}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
+          AND ${quranDailyReads.deletedAt} IS NULL`
+      )
+      .limit(1);
+
+    return rows[0] ?? null;
+  }
+
+  async softDeleteById(id: number, deletedAtIso: string): Promise<void> {
+    await this.db
+      .update(quranDailyReads)
+      .set({ deletedAt: deletedAtIso })
+      .where(and(eq(quranDailyReads.id, id), isNull(quranDailyReads.deletedAt)));
   }
 }
