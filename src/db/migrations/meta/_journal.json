@@ -78,6 +78,13 @@
       "when": 1776570000000,
       "tag": "0010_add_reminders_deleted_at",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776739008837,
+      "tag": "0011_fuzzy_loki",
+      "breakpoints": true
     }
   ]
 }

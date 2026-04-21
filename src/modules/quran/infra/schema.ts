@@ -8,6 +8,7 @@ export const quranDailyReads = pgTable(
     pages: integer('pages').notNull(),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
+    deletedAt: text('deleted_at'),
   },
   (table) => [
     index('idx_quran_daily_reads_user_created_at').on(table.user, table.createdAt),
