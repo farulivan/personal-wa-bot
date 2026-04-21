@@ -1,5 +1,6 @@
-import type { QuranHistoryRow } from './infra/quranRepository.js';
+import type { QuranDailyReadRow, QuranHistoryRow } from './infra/quranRepository.js';
 import type { QuranLeaderboardEntry, QuranLeaderboardMode } from './quranService.js';
+import { QURAN_UNDO_WINDOW_MS } from './quranService.js';
 import type { StreakInfo } from './quranStreaks.js';
 
 const QURAN_LEADERBOARD_LIMIT = 10;
@@ -27,6 +28,7 @@ function joinHumanNames(names: string[]): string {
 }
 
 export function formatQuranHelpMessage(): string {
+  const undoWindowMinutes = QURAN_UNDO_WINDOW_MS / 60_000;
   return (
     `Bismillah, yuk jaga konsistensi tilawah harian 🤲\n\n` +
     `Perintah yang tersedia:\n\n` +
@@ -48,7 +50,10 @@ export function formatQuranHelpMessage(): string {
     `5) Simpan dan cek mark bacaan\n` +
     `• #quran mark 145\n` +
     `• #quran mark\n` +
-    `Fungsi: simpan posisi halaman terakhir dan cek mark aktif kamu.`
+    `Fungsi: simpan posisi halaman terakhir dan cek mark aktif kamu.\n\n` +
+    `6) Batalkan catatan tilawah hari ini\n` +
+    `• #quran undo\n` +
+    `Fungsi: hapus catatan tilawah hari ini (hanya bisa dalam ${undoWindowMinutes} menit setelah catat).`
   );
 }
 
@@ -221,6 +226,34 @@ export function formatLeaderboardMessage(
     .join('\n');
 
   return `${title}\n\n${list}`;
+}
+
+export function formatUndoSuccess(entry: QuranDailyReadRow, timezoneOffsetMinutes: number): string {
+  const dateLabel = toUserDate(entry.updatedAtUtc, timezoneOffsetMinutes);
+  return (
+    `Catatan tilawah berhasil dibatalkan 🗑️\n` +
+    `Tanggal: ${dateLabel}\n` +
+    `Halaman yang dibatalkan: ${entry.pages} halaman\n\n` +
+    `Kalau mau catat ulang, kirim lagi:\n#quran read <jumlah halaman>`
+  );
+}
+
+export function formatUndoNoReads(): string {
+  return (
+    `Tidak ada catatan tilawah hari ini yang bisa dibatalkan 👀\n\n` +
+    `Belum ada yang tercatat hari ini.`
+  );
+}
+
+export function formatUndoTooLate(entry: QuranDailyReadRow, timezoneOffsetMinutes: number): string {
+  const undoWindowMinutes = QURAN_UNDO_WINDOW_MS / 60_000;
+  const dateLabel = toUserDate(entry.updatedAtUtc, timezoneOffsetMinutes);
+  return (
+    `Tidak bisa lagi dibatalkan ⏳\n` +
+    `Undo hanya tersedia dalam ${undoWindowMinutes} menit setelah mencatat.\n\n` +
+    `Catatan terakhir hari ini:\n` +
+    `[${dateLabel}] ${entry.pages} halaman`
+  );
 }
 
 export function formatReminderMessage(reminders: UserReminder[]): string {
