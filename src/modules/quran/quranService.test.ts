@@ -11,23 +11,27 @@ import type {
 import type { UserRepository } from '../users/infra/userRepository.js';
 
 class InMemoryQuranRepository implements QuranRepository {
-  dailyReads: QuranDailyReadRow[] = [];
+  dailyReads: (QuranDailyReadRow & { deletedAt: string | null })[] = [];
   marks: QuranMarkRow[] = [];
+  private nextId = 1;
 
   async addDailyReadPages(input: NewQuranReadLog): Promise<void> {
     const dateKey = input.nowIsoUtc.slice(0, 10);
     const existing = this.dailyReads.find(
-      (r) => r.user === input.user && r.createdAtUtc.slice(0, 10) === dateKey
+      (r) =>
+        r.user === input.user && r.createdAtUtc.slice(0, 10) === dateKey && r.deletedAt === null
     );
     if (existing) {
       existing.pages += input.pages;
       existing.updatedAtUtc = input.updatedAtUtc;
     } else {
       this.dailyReads.push({
+        id: this.nextId++,
         user: input.user,
         pages: input.pages,
         createdAtUtc: input.createdAtIsoUtc,
         updatedAtUtc: input.updatedAtUtc,
+        deletedAt: null,
       });
     }
   }
@@ -39,22 +43,27 @@ class InMemoryQuranRepository implements QuranRepository {
   ): Promise<QuranDailyReadRow | null> {
     const dateKey = nowIsoUtc.slice(0, 10);
     return (
-      this.dailyReads.find((r) => r.user === user && r.createdAtUtc.slice(0, 10) === dateKey) ??
-      null
+      this.dailyReads.find(
+        (r) => r.user === user && r.createdAtUtc.slice(0, 10) === dateKey && r.deletedAt === null
+      ) ?? null
     );
   }
 
   async hasReadTodayByUser(user: string, _tz: number, nowIsoUtc: string): Promise<boolean> {
     const dateKey = nowIsoUtc.slice(0, 10);
-    return this.dailyReads.some((r) => r.user === user && r.createdAtUtc.slice(0, 10) === dateKey);
+    return this.dailyReads.some(
+      (r) => r.user === user && r.createdAtUtc.slice(0, 10) === dateKey && r.deletedAt === null
+    );
   }
 
   async countByUser(user: string): Promise<number> {
-    return this.dailyReads.filter((r) => r.user === user).length;
+    return this.dailyReads.filter((r) => r.user === user && r.deletedAt === null).length;
   }
 
   async sumPagesByUser(user: string): Promise<number> {
-    return this.dailyReads.filter((r) => r.user === user).reduce((sum, r) => sum + r.pages, 0);
+    return this.dailyReads
+      .filter((r) => r.user === user && r.deletedAt === null)
+      .reduce((sum, r) => sum + r.pages, 0);
   }
 
   async sumPagesByUserInDateRange(
@@ -65,7 +74,7 @@ class InMemoryQuranRepository implements QuranRepository {
   ): Promise<number> {
     return this.dailyReads
       .filter((r) => {
-        if (r.user !== user) return false;
+        if (r.user !== user || r.deletedAt !== null) return false;
         const d = r.createdAtUtc.slice(0, 10);
         return d >= start && d <= end;
       })
@@ -94,23 +103,43 @@ class InMemoryQuranRepository implements QuranRepository {
 
   async listByUser(user: string, limit: number, offset: number): Promise<QuranHistoryRow[]> {
     return this.dailyReads
-      .filter((r) => r.user === user)
+      .filter((r) => r.user === user && r.deletedAt === null)
       .sort((a, b) => b.createdAtUtc.localeCompare(a.createdAtUtc))
       .slice(offset, offset + limit)
       .map((r) => ({ pages: r.pages, createdAtUtc: r.createdAtUtc }));
   }
 
   async listDistinctUsers(): Promise<string[]> {
-    return [...new Set(this.dailyReads.map((r) => r.user))];
+    return [...new Set(this.dailyReads.filter((r) => r.deletedAt === null).map((r) => r.user))];
   }
 
   async getReadDays(user: string, _tz: number, _range?: QuranStreakDateRange): Promise<string[]> {
     const days = [
       ...new Set(
-        this.dailyReads.filter((r) => r.user === user).map((r) => r.createdAtUtc.slice(0, 10))
+        this.dailyReads
+          .filter((r) => r.user === user && r.deletedAt === null)
+          .map((r) => r.createdAtUtc.slice(0, 10))
       ),
     ];
     return days.sort().reverse();
+  }
+
+  async findLastReadByUser(
+    user: string,
+    _tz: number,
+    nowIsoUtc: string
+  ): Promise<QuranDailyReadRow | null> {
+    const dateKey = nowIsoUtc.slice(0, 10);
+    return (
+      this.dailyReads.find(
+        (r) => r.user === user && r.createdAtUtc.slice(0, 10) === dateKey && r.deletedAt === null
+      ) ?? null
+    );
+  }
+
+  async softDeleteById(id: number, deletedAtIso: string): Promise<void> {
+    const row = this.dailyReads.find((r) => r.id === id && r.deletedAt === null);
+    if (row) row.deletedAt = deletedAtIso;
   }
 }
 
@@ -261,6 +290,47 @@ describe('QuranService', () => {
       await service.logRead(user, TZ, 3, true, now);
       const result = await service.listHistory(user, 99, TZ, now);
       expect(result.rows).toHaveLength(0);
+    });
+  });
+
+  describe('undoTodayRead', () => {
+    it('returns no_reads when user has no read today', async () => {
+      const result = await service.undoTodayRead(user, TZ, now);
+      expect(result.undone).toBe(false);
+      if (!result.undone) expect(result.reason).toBe('no_reads');
+    });
+
+    it('undoes today read if within undo window', async () => {
+      await service.logRead(user, TZ, 3, true, now);
+      const undoNow = new Date(now.getTime() + 2 * 60 * 1000); // 2 min later
+      const result = await service.undoTodayRead(user, TZ, undoNow);
+      expect(result.undone).toBe(true);
+      if (result.undone) expect(result.entry.pages).toBe(3);
+
+      // row should now be soft-deleted
+      const today = await repo.findTodayByUser(user, TZ, undoNow.toISOString());
+      expect(today).toBeNull();
+    });
+
+    it('returns too_late when undo window has passed', async () => {
+      await service.logRead(user, TZ, 3, true, now);
+      const undoNow = new Date(now.getTime() + 6 * 60 * 1000); // 6 min later
+      const result = await service.undoTodayRead(user, TZ, undoNow);
+      expect(result.undone).toBe(false);
+      if (!result.undone) expect(result.reason).toBe('too_late');
+    });
+
+    it('allows re-logging after undo', async () => {
+      await service.logRead(user, TZ, 3, true, now);
+      const undoNow = new Date(now.getTime() + 1 * 60 * 1000);
+      await service.undoTodayRead(user, TZ, undoNow);
+
+      const relogNow = new Date(now.getTime() + 2 * 60 * 1000);
+      await service.logRead(user, TZ, 5, true, relogNow);
+
+      const history = await service.listHistory(user, 1, TZ, relogNow);
+      expect(history.totalDays).toBe(1);
+      expect(history.totalPagesRead).toBe(5);
     });
   });
 });
