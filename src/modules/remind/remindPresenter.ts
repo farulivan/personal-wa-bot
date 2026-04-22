@@ -1,4 +1,5 @@
 import type { ReminderListRow } from './infra/remindRepository.js';
+import { REMIND_UNDO_WINDOW_MS } from './remindService.js';
 
 const REMINDER_TEXT_MAX_CHARS = 200;
 const REMINDER_ACTIVE_LIMIT = 50;
@@ -17,6 +18,7 @@ export function toLocalDateTimeLabel(utcIso: string, timezoneOffsetMinutes: numb
 }
 
 export function formatHelpMessage(): string {
+  const undoWindowMinutes = REMIND_UNDO_WINDOW_MS / 60_000;
   return (
     `I can help you set reminders clearly and reliably. ⏰\n\n` +
     `Main format:\n` +
@@ -29,6 +31,8 @@ export function formatHelpMessage(): string {
     `View your reminders:\n` +
     `• #remind list\n` +
     `• #remind list 2\n\n` +
+    `Undo the last reminder (within ${undoWindowMinutes} minutes):\n` +
+    `• #remind undo\n\n` +
     `Safety limits:\n` +
     `• Message up to ${REMINDER_TEXT_MAX_CHARS} characters\n` +
     `• Up to ${REMINDER_ACTIVE_LIMIT} active reminders at a time`
@@ -127,5 +131,29 @@ export function formatSchedulerReminderMessage(
     `Schedule: ${localDateTimeLabel} (GMT+7)\n\n` +
     `${reminderText}\n\n` +
     `Hope this helps you stay on track.`
+  );
+}
+
+export function formatUndoSuccess(entry: ReminderListRow, timezoneOffsetMinutes: number): string {
+  const scheduleLabel = toLocalDateTimeLabel(entry.scheduledAt, timezoneOffsetMinutes);
+  return (
+    `Reminder undone 🗑️\n` +
+    `Previously scheduled for: ${scheduleLabel} (GMT+7)\n\n` +
+    `${entry.reminderText}`
+  );
+}
+
+export function formatUndoNoReminders(): string {
+  return `Nothing to undo.\n` + `You don't have any active reminders I can remove right now.`;
+}
+
+export function formatUndoTooLate(entry: ReminderListRow, timezoneOffsetMinutes: number): string {
+  const undoWindowMinutes = REMIND_UNDO_WINDOW_MS / 60_000;
+  const scheduleLabel = toLocalDateTimeLabel(entry.scheduledAt, timezoneOffsetMinutes);
+  return (
+    `I can't undo that one anymore ⏳\n` +
+    `Undo is only available within ${undoWindowMinutes} minutes of creating a reminder.\n\n` +
+    `Last active reminder:\n` +
+    `[${scheduleLabel}] ${entry.reminderText}`
   );
 }

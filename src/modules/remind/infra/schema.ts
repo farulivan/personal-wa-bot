@@ -11,6 +11,7 @@ export const reminders = pgTable(
     scheduledAt: text('scheduled_at').notNull(),
     createdAt: text('created_at').notNull(),
     sentAt: text('sent_at'),
+    deletedAt: text('deleted_at'),
   },
   (table) => [
     index('idx_reminders_user_created').on(table.userId, table.createdAt),

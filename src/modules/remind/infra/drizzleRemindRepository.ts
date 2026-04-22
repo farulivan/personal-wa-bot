@@ -49,7 +49,7 @@ export class DrizzleRemindRepository implements RemindRepository {
     const rows = await this.db
       .select({ total: count() })
       .from(reminders)
-      .where(eq(reminders.userId, userId));
+      .where(and(eq(reminders.userId, userId), isNull(reminders.deletedAt)));
 
     return rows[0]?.total ?? 0;
   }
@@ -58,7 +58,9 @@ export class DrizzleRemindRepository implements RemindRepository {
     const rows = await this.db
       .select({ total: count() })
       .from(reminders)
-      .where(and(eq(reminders.userId, userId), isNull(reminders.sentAt)));
+      .where(
+        and(eq(reminders.userId, userId), isNull(reminders.sentAt), isNull(reminders.deletedAt))
+      );
 
     return rows[0]?.total ?? 0;
   }
@@ -76,7 +78,7 @@ export class DrizzleRemindRepository implements RemindRepository {
         sentAt: reminders.sentAt,
       })
       .from(reminders)
-      .where(eq(reminders.userId, userId))
+      .where(and(eq(reminders.userId, userId), isNull(reminders.deletedAt)))
       .orderBy(sql`${reminders.createdAt} DESC`)
       .limit(limit)
       .offset(offset);
@@ -97,7 +99,13 @@ export class DrizzleRemindRepository implements RemindRepository {
         sentAt: reminders.sentAt,
       })
       .from(reminders)
-      .where(and(isNull(reminders.sentAt), lte(reminders.scheduledAt, nowIso)))
+      .where(
+        and(
+          isNull(reminders.sentAt),
+          isNull(reminders.deletedAt),
+          lte(reminders.scheduledAt, nowIso)
+        )
+      )
       .orderBy(sql`${reminders.scheduledAt} ASC`)
       .limit(limit);
 
@@ -108,6 +116,35 @@ export class DrizzleRemindRepository implements RemindRepository {
     await this.db
       .update(reminders)
       .set({ sentAt })
-      .where(and(eq(reminders.id, id), isNull(reminders.sentAt)));
+      .where(and(eq(reminders.id, id), isNull(reminders.sentAt), isNull(reminders.deletedAt)));
+  }
+
+  async findLastActiveByUser(userId: string): Promise<ReminderListRow | null> {
+    const rows = await this.db
+      .select({
+        id: reminders.id,
+        userId: reminders.userId,
+        targetChatId: reminders.targetChatId,
+        sourceType: reminders.sourceType,
+        reminderText: reminders.reminderText,
+        scheduledAt: reminders.scheduledAt,
+        createdAt: reminders.createdAt,
+        sentAt: reminders.sentAt,
+      })
+      .from(reminders)
+      .where(
+        and(eq(reminders.userId, userId), isNull(reminders.sentAt), isNull(reminders.deletedAt))
+      )
+      .orderBy(sql`${reminders.createdAt} DESC`)
+      .limit(1);
+
+    return rows[0] ? toReminderListRow(rows[0]) : null;
+  }
+
+  async softDeleteById(id: number, deletedAtIso: string): Promise<void> {
+    await this.db
+      .update(reminders)
+      .set({ deletedAt: deletedAtIso })
+      .where(and(eq(reminders.id, id), isNull(reminders.deletedAt)));
   }
 }

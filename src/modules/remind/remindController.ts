@@ -15,6 +15,9 @@ import {
   formatListPageOverflowMessage,
   formatPastTimeMessage,
   formatActiveLimitMessage,
+  formatUndoSuccess,
+  formatUndoNoReminders,
+  formatUndoTooLate,
 } from './remindPresenter.js';
 import type { RemindService } from './remindService.js';
 
@@ -69,6 +72,17 @@ export function createRemindController(remindService: RemindService): NamespaceH
     );
   }
 
+  async function handleUndo(ctx: CommandContext): Promise<string> {
+    const result = await remindService.undoLastReminder(ctx.sender, ctx.time.now());
+    if (!result.undone) {
+      if (result.reason === 'too_late') {
+        return formatUndoTooLate(result.entry, ctx.time.timezoneOffsetMinutes);
+      }
+      return formatUndoNoReminders();
+    }
+    return formatUndoSuccess(result.entry, ctx.time.timezoneOffsetMinutes);
+  }
+
   return async (ctx, invocation) => {
     if (invocation.namespace !== REMIND_NAMESPACE) return null;
 
@@ -84,9 +98,12 @@ export function createRemindController(remindService: RemindService): NamespaceH
       return formatHelpMessage();
     }
 
-    const isList = actionToken === 'list';
-    if (isList) {
+    if (actionToken === 'list') {
       return handleList(ctx, invocation);
+    }
+
+    if (actionToken === 'undo') {
+      return handleUndo(ctx);
     }
 
     const parsed = parseReminderCommand(invocation.firstLine);

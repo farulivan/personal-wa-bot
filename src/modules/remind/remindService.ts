@@ -5,6 +5,8 @@ import type { RemindRepository, ReminderListRow } from './infra/remindRepository
 import { ok, err } from '../../shared/result.js';
 import type { Result } from '../../shared/result.js';
 
+export const REMIND_UNDO_WINDOW_MS = 5 * 60 * 1000;
+
 export type ReminderCreated = { scheduledAt: string; reminderText: string };
 export type ReminderError = { reason: 'past_time' | 'active_limit'; activeCount?: number };
 export type CreateReminderResult = Result<ReminderCreated, ReminderError>;
@@ -15,6 +17,11 @@ export type ReminderListResult = {
   page: number;
   totalPages: number;
 };
+
+export type UndoReminderResult =
+  | { undone: true; entry: ReminderListRow }
+  | { undone: false; reason: 'no_reminders' }
+  | { undone: false; reason: 'too_late'; entry: ReminderListRow };
 
 export class RemindService {
   constructor(
@@ -81,5 +88,23 @@ export class RemindService {
         : await this.remindRepository.listByUser(sender, this.remindListLimit, offset);
 
     return { rows, total, page, totalPages };
+  }
+
+  async undoLastReminder(sender: string, now: Date): Promise<UndoReminderResult> {
+    const last = await this.remindRepository.findLastActiveByUser(sender);
+    if (!last) {
+      return { undone: false, reason: 'no_reminders' };
+    }
+
+    const elapsed = now.getTime() - new Date(last.createdAt).getTime();
+    if (elapsed > REMIND_UNDO_WINDOW_MS) {
+      return { undone: false, reason: 'too_late', entry: last };
+    }
+
+    await this.remindRepository.softDeleteById(last.id, now.toISOString());
+
+    debug(`⏰ Reminder undone: id=${last.id}, user=${sender}, createdAt=${last.createdAt}`);
+
+    return { undone: true, entry: last };
   }
 }

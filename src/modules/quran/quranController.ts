@@ -19,6 +19,9 @@ import {
   formatListPageOverflowMessage,
   rankLeaderboardEntries,
   formatLeaderboardMessage,
+  formatUndoSuccess,
+  formatUndoNoReads,
+  formatUndoTooLate,
 } from './quranPresenter.js';
 import type { QuranService } from './quranService.js';
 
@@ -162,6 +165,21 @@ export function createQuranController(quranService: QuranService): NamespaceHand
     );
   }
 
+  async function handleUndo(ctx: CommandContext): Promise<string> {
+    const result = await quranService.undoTodayRead(
+      ctx.sender,
+      ctx.time.timezoneOffsetMinutes,
+      ctx.time.now()
+    );
+    if (!result.undone) {
+      if (result.reason === 'too_late') {
+        return formatUndoTooLate(result.entry, ctx.time.timezoneOffsetMinutes);
+      }
+      return formatUndoNoReads();
+    }
+    return formatUndoSuccess(result.entry, ctx.time.timezoneOffsetMinutes);
+  }
+
   async function handleLeaderboard(ctx: CommandContext): Promise<string> {
     const now = ctx.time.now();
     const { mode, entries } = await quranService.getLeaderboard(
@@ -196,6 +214,10 @@ export function createQuranController(quranService: QuranService): NamespaceHand
 
     if (actionToken === 'mark') {
       return handleMark(ctx, invocation);
+    }
+
+    if (actionToken === 'undo') {
+      return handleUndo(ctx);
     }
 
     if (actionToken !== 'read') {

@@ -3,6 +3,7 @@ import { computeQuranStreaks } from './quranStreaks.js';
 import type { StreakInfo } from './quranStreaks.js';
 import type {
   QuranRepository,
+  QuranDailyReadRow,
   QuranHistoryRow,
   QuranStreakDateRange,
 } from './infra/quranRepository.js';
@@ -36,6 +37,13 @@ export type QuranListResult = {
   currentMarkPage: number | null;
   ramadhanPagesRead: number | null;
 };
+
+export const QURAN_UNDO_WINDOW_MS = 5 * 60 * 1000;
+
+export type UndoReadResult =
+  | { undone: true; entry: QuranDailyReadRow }
+  | { undone: false; reason: 'no_reads' }
+  | { undone: false; reason: 'too_late'; entry: QuranDailyReadRow };
 
 const MAX_QURAN_PAGE = 604;
 
@@ -101,33 +109,16 @@ export class QuranService {
   ): Promise<ReadLogResult> {
     const nowIsoUtc = now.toISOString();
 
-    await this.quranRepository.addDailyReadPages({
-      user: sender,
-      pages: pagesAdded,
-      timezoneOffsetMinutes,
-      nowIsoUtc,
-      createdAtIsoUtc: nowIsoUtc,
-      updatedAtUtc: nowIsoUtc,
-    });
-
-    const todayRecord = await this.quranRepository.findTodayByUser(
-      sender,
-      timezoneOffsetMinutes,
-      nowIsoUtc
-    );
-    const totalToday = todayRecord?.pages ?? pagesAdded;
-
-    const readDays = await this.quranRepository.getReadDays(sender, timezoneOffsetMinutes);
-    const streaks = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
-
     let existingMarkPage: number | null = null;
     let newMarkPage: number | null = null;
+    let markBefore: number | null = null;
 
     if (!noMark) {
       const existingMark = await this.quranRepository.findMarkByUser(sender);
 
       if (existingMark) {
         existingMarkPage = existingMark.page;
+        markBefore = existingMark.page;
         const computed = existingMark.page + pagesAdded;
 
         if (computed > MAX_QURAN_PAGE) {
@@ -144,6 +135,26 @@ export class QuranService {
         }
       }
     }
+
+    await this.quranRepository.addDailyReadPages({
+      user: sender,
+      pages: pagesAdded,
+      timezoneOffsetMinutes,
+      nowIsoUtc,
+      createdAtIsoUtc: nowIsoUtc,
+      updatedAtUtc: nowIsoUtc,
+      markBefore,
+    });
+
+    const todayRecord = await this.quranRepository.findTodayByUser(
+      sender,
+      timezoneOffsetMinutes,
+      nowIsoUtc
+    );
+    const totalToday = todayRecord?.pages ?? pagesAdded;
+
+    const readDays = await this.quranRepository.getReadDays(sender, timezoneOffsetMinutes);
+    const streaks = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
 
     debug(`📖 Quran read logged: +${pagesAdded} page(s) by ${sender} at ${nowIsoUtc}`);
 
@@ -288,6 +299,47 @@ export class QuranService {
     ]);
     const streaks = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
     return { hasRead, currentStreak: streaks.current, name };
+  }
+
+  async undoTodayRead(
+    sender: string,
+    timezoneOffsetMinutes: number,
+    now: Date
+  ): Promise<UndoReadResult> {
+    const nowIsoUtc = now.toISOString();
+    const entry = await this.quranRepository.findLastReadByUser(
+      sender,
+      timezoneOffsetMinutes,
+      nowIsoUtc
+    );
+
+    if (!entry) {
+      return { undone: false, reason: 'no_reads' };
+    }
+
+    const elapsed = now.getTime() - new Date(entry.updatedAtUtc).getTime();
+    if (elapsed > QURAN_UNDO_WINDOW_MS) {
+      return { undone: false, reason: 'too_late', entry };
+    }
+
+    await this.quranRepository.softDeleteById(entry.id, nowIsoUtc);
+
+    // Revert mark if this read had advanced it
+    if (entry.markBefore !== null) {
+      const currentMark = await this.quranRepository.findMarkByUser(sender);
+      if (currentMark) {
+        await this.quranRepository.upsertMark(
+          sender,
+          entry.markBefore,
+          currentMark.createdAtUtc,
+          nowIsoUtc
+        );
+      }
+    }
+
+    debug(`📖 Quran read undone: id=${entry.id}, user=${sender}, updatedAt=${entry.updatedAtUtc}`);
+
+    return { undone: true, entry };
   }
 
   async listDistinctUsers(): Promise<string[]> {

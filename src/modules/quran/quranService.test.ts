@@ -11,25 +11,20 @@ import type {
 import type { UserRepository } from '../users/infra/userRepository.js';
 
 class InMemoryQuranRepository implements QuranRepository {
-  dailyReads: QuranDailyReadRow[] = [];
+  dailyReads: (QuranDailyReadRow & { deletedAt: string | null; markBefore: number | null })[] = [];
   marks: QuranMarkRow[] = [];
+  private nextId = 1;
 
   async addDailyReadPages(input: NewQuranReadLog): Promise<void> {
-    const dateKey = input.nowIsoUtc.slice(0, 10);
-    const existing = this.dailyReads.find(
-      (r) => r.user === input.user && r.createdAtUtc.slice(0, 10) === dateKey
-    );
-    if (existing) {
-      existing.pages += input.pages;
-      existing.updatedAtUtc = input.updatedAtUtc;
-    } else {
-      this.dailyReads.push({
-        user: input.user,
-        pages: input.pages,
-        createdAtUtc: input.createdAtIsoUtc,
-        updatedAtUtc: input.updatedAtUtc,
-      });
-    }
+    this.dailyReads.push({
+      id: this.nextId++,
+      user: input.user,
+      pages: input.pages,
+      createdAtUtc: input.createdAtIsoUtc,
+      updatedAtUtc: input.updatedAtUtc,
+      deletedAt: null,
+      markBefore: input.markBefore,
+    });
   }
 
   async findTodayByUser(
@@ -38,23 +33,41 @@ class InMemoryQuranRepository implements QuranRepository {
     nowIsoUtc: string
   ): Promise<QuranDailyReadRow | null> {
     const dateKey = nowIsoUtc.slice(0, 10);
-    return (
-      this.dailyReads.find((r) => r.user === user && r.createdAtUtc.slice(0, 10) === dateKey) ??
-      null
+    const todayRows = this.dailyReads.filter(
+      (r) => r.user === user && r.createdAtUtc.slice(0, 10) === dateKey && r.deletedAt === null
     );
+    if (todayRows.length === 0) return null;
+    const totalPages = todayRows.reduce((sum, r) => sum + r.pages, 0);
+    return {
+      id: 0,
+      user,
+      pages: totalPages,
+      createdAtUtc: todayRows[0].createdAtUtc,
+      updatedAtUtc: todayRows[todayRows.length - 1].updatedAtUtc,
+      markBefore: null,
+    };
   }
 
   async hasReadTodayByUser(user: string, _tz: number, nowIsoUtc: string): Promise<boolean> {
     const dateKey = nowIsoUtc.slice(0, 10);
-    return this.dailyReads.some((r) => r.user === user && r.createdAtUtc.slice(0, 10) === dateKey);
+    return this.dailyReads.some(
+      (r) => r.user === user && r.createdAtUtc.slice(0, 10) === dateKey && r.deletedAt === null
+    );
   }
 
   async countByUser(user: string): Promise<number> {
-    return this.dailyReads.filter((r) => r.user === user).length;
+    const dates = new Set(
+      this.dailyReads
+        .filter((r) => r.user === user && r.deletedAt === null)
+        .map((r) => r.createdAtUtc.slice(0, 10))
+    );
+    return dates.size;
   }
 
   async sumPagesByUser(user: string): Promise<number> {
-    return this.dailyReads.filter((r) => r.user === user).reduce((sum, r) => sum + r.pages, 0);
+    return this.dailyReads
+      .filter((r) => r.user === user && r.deletedAt === null)
+      .reduce((sum, r) => sum + r.pages, 0);
   }
 
   async sumPagesByUserInDateRange(
@@ -65,7 +78,7 @@ class InMemoryQuranRepository implements QuranRepository {
   ): Promise<number> {
     return this.dailyReads
       .filter((r) => {
-        if (r.user !== user) return false;
+        if (r.user !== user || r.deletedAt !== null) return false;
         const d = r.createdAtUtc.slice(0, 10);
         return d >= start && d <= end;
       })
@@ -93,24 +106,53 @@ class InMemoryQuranRepository implements QuranRepository {
   }
 
   async listByUser(user: string, limit: number, offset: number): Promise<QuranHistoryRow[]> {
-    return this.dailyReads
-      .filter((r) => r.user === user)
-      .sort((a, b) => b.createdAtUtc.localeCompare(a.createdAtUtc))
+    const grouped = new Map<string, number>();
+    const firstCreated = new Map<string, string>();
+    this.dailyReads
+      .filter((r) => r.user === user && r.deletedAt === null)
+      .forEach((r) => {
+        const dateKey = r.createdAtUtc.slice(0, 10);
+        grouped.set(dateKey, (grouped.get(dateKey) ?? 0) + r.pages);
+        if (!firstCreated.has(dateKey)) firstCreated.set(dateKey, r.createdAtUtc);
+      });
+    return [...grouped.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
       .slice(offset, offset + limit)
-      .map((r) => ({ pages: r.pages, createdAtUtc: r.createdAtUtc }));
+      .map(([dateKey, pages]) => ({ pages, createdAtUtc: firstCreated.get(dateKey)! }));
   }
 
   async listDistinctUsers(): Promise<string[]> {
-    return [...new Set(this.dailyReads.map((r) => r.user))];
+    return [...new Set(this.dailyReads.filter((r) => r.deletedAt === null).map((r) => r.user))];
   }
 
   async getReadDays(user: string, _tz: number, _range?: QuranStreakDateRange): Promise<string[]> {
     const days = [
       ...new Set(
-        this.dailyReads.filter((r) => r.user === user).map((r) => r.createdAtUtc.slice(0, 10))
+        this.dailyReads
+          .filter((r) => r.user === user && r.deletedAt === null)
+          .map((r) => r.createdAtUtc.slice(0, 10))
       ),
     ];
     return days.sort().reverse();
+  }
+
+  async findLastReadByUser(
+    user: string,
+    _tz: number,
+    nowIsoUtc: string
+  ): Promise<QuranDailyReadRow | null> {
+    const dateKey = nowIsoUtc.slice(0, 10);
+    const todayRows = this.dailyReads
+      .filter(
+        (r) => r.user === user && r.createdAtUtc.slice(0, 10) === dateKey && r.deletedAt === null
+      )
+      .sort((a, b) => b.createdAtUtc.localeCompare(a.createdAtUtc));
+    return todayRows[0] ?? null;
+  }
+
+  async softDeleteById(id: number, deletedAtIso: string): Promise<void> {
+    const row = this.dailyReads.find((r) => r.id === id && r.deletedAt === null);
+    if (row) row.deletedAt = deletedAtIso;
   }
 }
 
@@ -261,6 +303,133 @@ describe('QuranService', () => {
       await service.logRead(user, TZ, 3, true, now);
       const result = await service.listHistory(user, 99, TZ, now);
       expect(result.rows).toHaveLength(0);
+    });
+  });
+
+  describe('undoTodayRead', () => {
+    it('returns no_reads when user has no read today', async () => {
+      const result = await service.undoTodayRead(user, TZ, now);
+      expect(result.undone).toBe(false);
+      if (!result.undone) expect(result.reason).toBe('no_reads');
+    });
+
+    it('undoes today read if within undo window', async () => {
+      await service.logRead(user, TZ, 3, true, now);
+      const undoNow = new Date(now.getTime() + 2 * 60 * 1000); // 2 min later
+      const result = await service.undoTodayRead(user, TZ, undoNow);
+      expect(result.undone).toBe(true);
+      if (result.undone) expect(result.entry.pages).toBe(3);
+
+      // row should now be soft-deleted
+      const today = await repo.findTodayByUser(user, TZ, undoNow.toISOString());
+      expect(today).toBeNull();
+    });
+
+    it('returns too_late when undo window has passed', async () => {
+      await service.logRead(user, TZ, 3, true, now);
+      const undoNow = new Date(now.getTime() + 6 * 60 * 1000); // 6 min later
+      const result = await service.undoTodayRead(user, TZ, undoNow);
+      expect(result.undone).toBe(false);
+      if (!result.undone) expect(result.reason).toBe('too_late');
+    });
+
+    it('allows re-logging after undo', async () => {
+      await service.logRead(user, TZ, 3, true, now);
+      const undoNow = new Date(now.getTime() + 1 * 60 * 1000);
+      await service.undoTodayRead(user, TZ, undoNow);
+
+      const relogNow = new Date(now.getTime() + 2 * 60 * 1000);
+      await service.logRead(user, TZ, 5, true, relogNow);
+
+      const history = await service.listHistory(user, 1, TZ, relogNow);
+      expect(history.totalDays).toBe(1);
+      expect(history.totalPagesRead).toBe(5);
+    });
+
+    it('reverts mark when undoing a read that advanced it', async () => {
+      await service.setMark(user, 100, now);
+      await service.logRead(user, TZ, 5, false, now);
+      const markAfterRead = await service.getMark(user);
+      expect(markAfterRead).toBe(105);
+
+      const undoNow = new Date(now.getTime() + 1 * 60 * 1000);
+      const result = await service.undoTodayRead(user, TZ, undoNow);
+      expect(result.undone).toBe(true);
+
+      const markAfterUndo = await service.getMark(user);
+      expect(markAfterUndo).toBe(100);
+    });
+
+    it('reverts mark to pre-overflow value when undoing a khatam-triggering read', async () => {
+      await service.setMark(user, 600, now);
+      await service.logRead(user, TZ, 10, false, now);
+      const markAfterRead = await service.getMark(user);
+      expect(markAfterRead).toBe(0);
+
+      const undoNow = new Date(now.getTime() + 1 * 60 * 1000);
+      await service.undoTodayRead(user, TZ, undoNow);
+
+      const markAfterUndo = await service.getMark(user);
+      expect(markAfterUndo).toBe(600);
+    });
+
+    it('does not touch mark when undoing a --no-mark read', async () => {
+      await service.setMark(user, 100, now);
+      await service.logRead(user, TZ, 5, true, now);
+      expect(await service.getMark(user)).toBe(100);
+
+      const undoNow = new Date(now.getTime() + 1 * 60 * 1000);
+      await service.undoTodayRead(user, TZ, undoNow);
+
+      expect(await service.getMark(user)).toBe(100);
+    });
+
+    it('undoes only the last read when multiple reads exist for today', async () => {
+      await service.logRead(user, TZ, 3, true, now);
+      const laterNow = new Date(now.getTime() + 1 * 60 * 1000);
+      await service.logRead(user, TZ, 2, true, laterNow);
+
+      const undoNow = new Date(now.getTime() + 2 * 60 * 1000);
+      const result = await service.undoTodayRead(user, TZ, undoNow);
+      expect(result.undone).toBe(true);
+      if (result.undone) expect(result.entry.pages).toBe(2);
+
+      const today = await repo.findTodayByUser(user, TZ, undoNow.toISOString());
+      expect(today).not.toBeNull();
+      expect(today!.pages).toBe(3);
+    });
+
+    it('can undo multiple reads sequentially if within window', async () => {
+      await service.logRead(user, TZ, 3, true, now);
+      const laterNow = new Date(now.getTime() + 1 * 60 * 1000);
+      await service.logRead(user, TZ, 2, true, laterNow);
+
+      const undo1 = new Date(now.getTime() + 2 * 60 * 1000);
+      await service.undoTodayRead(user, TZ, undo1);
+
+      const undo2 = new Date(now.getTime() + 3 * 60 * 1000);
+      const result = await service.undoTodayRead(user, TZ, undo2);
+      expect(result.undone).toBe(true);
+      if (result.undone) expect(result.entry.pages).toBe(3);
+
+      const today = await repo.findTodayByUser(user, TZ, undo2.toISOString());
+      expect(today).toBeNull();
+    });
+
+    it('reverts mark correctly when undoing latest of multiple reads', async () => {
+      await service.setMark(user, 100, now);
+      await service.logRead(user, TZ, 5, false, now);
+      const laterNow = new Date(now.getTime() + 1 * 60 * 1000);
+      await service.logRead(user, TZ, 3, false, laterNow);
+
+      const undoNow = new Date(now.getTime() + 2 * 60 * 1000);
+      await service.undoTodayRead(user, TZ, undoNow);
+
+      const mark = await service.getMark(user);
+      expect(mark).toBe(105);
+
+      const today = await repo.findTodayByUser(user, TZ, undoNow.toISOString());
+      expect(today!.pages).toBe(5);
     });
   });
 });

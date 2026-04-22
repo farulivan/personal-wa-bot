@@ -1,0 +1,1 @@
+ALTER TABLE "quran_daily_reads" ADD COLUMN "deleted_at" text;
