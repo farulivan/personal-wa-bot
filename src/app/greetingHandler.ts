@@ -1,6 +1,6 @@
 import type { AppContext } from './appContext.js';
 
-const GREETINGS = ['halo', 'hello', 'hi '];
+const GREETINGS = ['halo', 'hello', 'hi'];
 
 const ALLOWED_RESPONSE = [
   `Yo! 👊`,
@@ -37,7 +37,7 @@ const HELP_TEXT =
 
 export function isGreeting(text: string): boolean {
   const lower = text.toLowerCase();
-  return GREETINGS.some((g) => lower.includes(g));
+  return GREETINGS.some((g) => new RegExp(`\\b${g}\\b`).test(lower));
 }
 
 export async function handleGreeting(
