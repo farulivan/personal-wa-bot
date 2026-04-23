@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { formatUndoSuccess, formatUndoNoLogs, formatUndoTooLate } from './workoutPresenter.js';
+import {
+  formatUndoSuccess,
+  formatUndoNoLogs,
+  formatUndoTooLate,
+  formatDigestMessage,
+} from './workoutPresenter.js';
 import { UNDO_WINDOW_MS } from './workoutService.js';
 import type { WorkoutEntry } from './infra/workoutRepository.js';
 
@@ -64,6 +69,13 @@ describe('formatUndoNoLogs', () => {
   it('returns appropriate message', () => {
     const result = formatUndoNoLogs();
     expect(result).toContain('Nothing to undo');
+  });
+});
+
+describe('formatDigestMessage', () => {
+  it('returns fallback message for empty standings', () => {
+    const result = formatDigestMessage([]);
+    expect(result).toContain('No active streaks');
   });
 });
 

@@ -10,13 +10,10 @@ import type { GroupMembershipPort } from './ports.js';
 type AdapterClient = GroupMemberClientLike & BotInfoClientLike;
 
 export class WhatsAppGroupMembershipAdapter implements GroupMembershipPort {
-  constructor(
-    private readonly client: AdapterClient,
-    private readonly groupId: string
-  ) {}
+  constructor(private readonly client: AdapterClient) {}
 
-  listMemberIdentities(_groupId: string): Promise<GroupMemberIdentity[]> {
-    return listGroupMemberIdentities(this.client, this.groupId);
+  listMemberIdentities(groupId: string): Promise<GroupMemberIdentity[]> {
+    return listGroupMemberIdentities(this.client, groupId);
   }
 
   resolveBotUserId(): Promise<string | null> {

@@ -55,9 +55,7 @@ async function main() {
   const isAllowedUser = createAuthGuard(appConfig.allowedNumbers);
 
   // --- Register modules ---
-  const membershipPort = appConfig.digestGroupId
-    ? new WhatsAppGroupMembershipAdapter(client, appConfig.digestGroupId)
-    : new WhatsAppGroupMembershipAdapter(client, '');
+  const membershipPort = new WhatsAppGroupMembershipAdapter(client);
 
   const workout = registerWorkoutModule({
     workoutRepository,
