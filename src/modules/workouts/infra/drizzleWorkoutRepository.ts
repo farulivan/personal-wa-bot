@@ -119,13 +119,13 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
     const rows = await this.db.execute<{ day: string }>(sql`
       SELECT day, COUNT(*) AS cnt FROM (
         (
-          SELECT DATE(created_at::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds') AS day
+          SELECT DATE(created_at::timestamp + (INTERVAL '1 second' * ${offsetSeconds})) AS day
           FROM workout_lifts
           WHERE user_id = ${user} AND deleted_at IS NULL
         )
         UNION ALL
         (
-          SELECT DATE(created_at::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds') AS day
+          SELECT DATE(created_at::timestamp + (INTERVAL '1 second' * ${offsetSeconds})) AS day
           FROM workout_cardios
           WHERE user_id = ${user} AND deleted_at IS NULL
         )
@@ -144,8 +144,8 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
     nowIso: string
   ): Promise<number> {
     const offsetSeconds = timezoneOffsetMinutes * 60;
-    const dateExpr = sql`DATE(created_at::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')`;
-    const todayExpr = sql`DATE(${nowIso}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')`;
+    const dateExpr = sql`DATE(created_at::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))`;
+    const todayExpr = sql`DATE(${nowIso}::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))`;
 
     const rows = await this.db.execute<{ cnt: string }>(sql`
       SELECT COUNT(*) AS cnt FROM (
