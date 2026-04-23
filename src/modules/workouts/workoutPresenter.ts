@@ -194,6 +194,10 @@ export function formatUndoTooLate(entry: WorkoutEntry): string {
 }
 
 export function formatDigestMessage(standings: UserStreak[]): string {
+  if (standings.length === 0) {
+    return `Morning team 👋\n\nNo active streaks today. Time to start one! 💪`;
+  }
+
   const top3 = standings.slice(0, 3);
   const rest = standings.slice(3);
 
