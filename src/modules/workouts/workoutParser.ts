@@ -2,6 +2,8 @@ import type { CommandInvocation } from '../../app/parseCommand.js';
 import { ok, err } from '../../shared/result.js';
 import type { Result } from '../../shared/result.js';
 import { UNDO_WINDOW_MS } from './workoutService.js';
+import { tokenize } from '../../shared/parsing.js';
+export { tokenize, parsePageNumber } from '../../shared/parsing.js';
 
 export type LiftPayload = {
   mode: 'lift';
@@ -27,10 +29,6 @@ type DurationParseResult = Result<{ minutes: number }>;
 type DistanceParseResult = Result<{ distanceKm: number }>;
 
 type WeightResult = Result<{ value: number }>;
-
-export function tokenize(firstLine: string): string[] {
-  return firstLine.trim().split(/\s+/).filter(Boolean);
-}
 
 export function isLegacyMultiline(rawText: string): boolean {
   return /\n/.test(rawText) || /\btype\s*:|\breps\s*:|\bsets\s*:|\bweight\s*:/i.test(rawText);
@@ -208,10 +206,4 @@ export function parseWorkoutPayload(invocation: CommandInvocation): ParseWorkout
   }
 
   return err(`Please choose an explicit mode: lift or cardio.\n\n${workoutHelpMessage()}`);
-}
-
-export function parsePageNumber(firstLine: string): number {
-  const tokens = tokenize(firstLine);
-  const pageToken = tokens.find((t) => /^\d+$/.test(t));
-  return pageToken ? Math.max(1, Number(pageToken)) : 1;
 }

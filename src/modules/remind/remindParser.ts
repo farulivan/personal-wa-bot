@@ -1,5 +1,6 @@
 import { ok, err } from '../../shared/result.js';
 import type { Result } from '../../shared/result.js';
+export { tokenize, parsePageNumber } from '../../shared/parsing.js';
 
 const REMINDER_TEXT_MAX_CHARS = 200;
 
@@ -16,16 +17,6 @@ export type ParseDateInfo = { year: number; month: number; day: number; normaliz
 export type ParseTimeResult = Result<ParseTimeInfo>;
 export type ParseDateResult = Result<ParseDateInfo>;
 export type ParseReminderResult = Result<ParsedReminderCommand>;
-
-export function tokenize(firstLine: string): string[] {
-  return firstLine.trim().split(/\s+/).filter(Boolean);
-}
-
-export function parsePageNumber(firstLine: string): number {
-  const tokens = tokenize(firstLine);
-  const pageToken = tokens.find((token) => /^\d+$/.test(token));
-  return pageToken ? Math.max(1, Number(pageToken)) : 1;
-}
 
 export function parseDateInput(rawDate: string): ParseDateResult {
   const match = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
