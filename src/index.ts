@@ -118,9 +118,18 @@ async function main() {
 
   const handleMessage = createMessageHandler(router, appContext);
 
+  let isReady = false;
+
   // --- Health check server ---
   const healthPort = Number(process.env.PORT ?? 3000);
-  const healthServer = http.createServer((_req, res) => {
+  const healthServer = http.createServer((req, res) => {
+    if (req.url === '/ready') {
+      const status = isReady ? 200 : 503;
+      res.writeHead(status, { 'Content-Type': 'text/plain' });
+      res.end(isReady ? 'READY' : 'NOT_READY');
+      return;
+    }
+
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('OK');
   });
@@ -140,6 +149,7 @@ async function main() {
 
   async function shutdown(signal: string): Promise<void> {
     log({ signal }, 'received signal, shutting down gracefully');
+    isReady = false;
     reminderHandle?.stop();
     digestHandle?.stop();
     healthServer.close();
@@ -163,6 +173,7 @@ async function main() {
 
   client.on('ready', () => {
     log('whatsapp bot ready');
+    isReady = true;
 
     if (!reminderSchedulerStarted) {
       reminderHandle = remind.startScheduler();
