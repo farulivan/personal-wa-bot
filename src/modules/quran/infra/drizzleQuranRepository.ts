@@ -39,8 +39,8 @@ export class DrizzleQuranRepository implements QuranRepository {
       .from(quranDailyReads)
       .where(
         sql`${quranDailyReads.user} = ${user}
-          AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
-            = DATE(${nowIsoUtc}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
+          AND DATE(${quranDailyReads.createdAt}::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))
+            = DATE(${nowIsoUtc}::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))
           AND ${quranDailyReads.deletedAt} IS NULL`
       );
 
@@ -69,8 +69,8 @@ export class DrizzleQuranRepository implements QuranRepository {
       .from(quranDailyReads)
       .where(
         sql`${quranDailyReads.user} = ${user}
-          AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
-            = DATE(${nowIsoUtc}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
+          AND DATE(${quranDailyReads.createdAt}::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))
+            = DATE(${nowIsoUtc}::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))
           AND ${quranDailyReads.pages} > 0
           AND ${quranDailyReads.deletedAt} IS NULL`
       )
@@ -110,8 +110,8 @@ export class DrizzleQuranRepository implements QuranRepository {
       .from(quranDailyReads)
       .where(
         sql`${quranDailyReads.user} = ${user}
-          AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds') >= DATE(${startDateInclusive}::timestamp)
-          AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds') <= DATE(${endDateInclusive}::timestamp)
+          AND DATE(${quranDailyReads.createdAt}::timestamp + (INTERVAL '1 second' * ${offsetSeconds})) >= DATE(${startDateInclusive}::timestamp)
+          AND DATE(${quranDailyReads.createdAt}::timestamp + (INTERVAL '1 second' * ${offsetSeconds})) <= DATE(${endDateInclusive}::timestamp)
           AND ${quranDailyReads.deletedAt} IS NULL`
       );
 
@@ -179,7 +179,7 @@ export class DrizzleQuranRepository implements QuranRepository {
     range?: QuranStreakDateRange
   ): Promise<string[]> {
     const offsetSeconds = timezoneOffsetMinutes * 60;
-    const dayExpr = sql`DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')`;
+    const dayExpr = sql`DATE(${quranDailyReads.createdAt}::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))`;
 
     let query = sql`SELECT ${dayExpr} AS "localDate"
       FROM ${quranDailyReads}
@@ -218,8 +218,8 @@ export class DrizzleQuranRepository implements QuranRepository {
       .from(quranDailyReads)
       .where(
         sql`${quranDailyReads.user} = ${user}
-          AND DATE(${quranDailyReads.createdAt}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
-            = DATE(${nowIsoUtc}::timestamp + INTERVAL '${sql.raw(String(offsetSeconds))} seconds')
+          AND DATE(${quranDailyReads.createdAt}::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))
+            = DATE(${nowIsoUtc}::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))
           AND ${quranDailyReads.deletedAt} IS NULL`
       )
       .orderBy(sql`${quranDailyReads.createdAt} DESC`)
