@@ -1,7 +1,11 @@
 import { debug } from '../../logger.js';
 import { computeStreaks } from './workoutStreaks.js';
 import type { StreakInfo } from './workoutStreaks.js';
-import type { WorkoutRepository, WorkoutEntry } from './infra/workoutRepository.js';
+import type {
+  WorkoutRepository,
+  WorkoutEntry,
+  DeletedWorkoutEntry,
+} from './infra/workoutRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 import type { LiftPayload, CardioPayload } from './workoutParser.js';
 
@@ -24,6 +28,26 @@ export type UndoResult =
   | { undone: true; entry: WorkoutEntry }
   | { undone: false; reason: 'no_logs' }
   | { undone: false; reason: 'too_late'; entry: WorkoutEntry };
+
+function toWorkoutEntry(row: DeletedWorkoutEntry): WorkoutEntry {
+  if (row.workoutMode === 'cardio') {
+    return {
+      createdAt: row.createdAt,
+      workoutMode: row.workoutMode,
+      type: row.type,
+      durationMinutes: row.durationMinutes,
+      distanceKm: row.distanceKm,
+    };
+  }
+  return {
+    createdAt: row.createdAt,
+    workoutMode: row.workoutMode,
+    type: row.type,
+    reps: row.reps,
+    sets: row.sets,
+    weight: row.weight,
+  };
+}
 
 export class WorkoutService {
   constructor(
@@ -141,13 +165,12 @@ export class WorkoutService {
 
     const elapsed = now.getTime() - new Date(last.createdAt).getTime();
     if (elapsed > UNDO_WINDOW_MS) {
-      const { id: _id, ...entry } = last;
-      return { undone: false, reason: 'too_late', entry };
+      return { undone: false, reason: 'too_late', entry: toWorkoutEntry(last) };
     }
 
     await this.workoutRepository.softDeleteById(last.id, last.workoutMode, now.toISOString());
 
-    const { id: _id, ...entry } = last;
+    const entry = toWorkoutEntry(last);
     debug(`🗑️ Workout undone: [${entry.workoutMode}] ${entry.type} (${entry.createdAt})`);
 
     return { undone: true, entry };
