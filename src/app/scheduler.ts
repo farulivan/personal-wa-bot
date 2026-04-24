@@ -28,14 +28,14 @@ export function startScheduler(jobs: ScheduledJob[]): SchedulerHandle {
   const tick = () => {
     for (const job of jobs) {
       const { hour, minute } = getUserHourMinute(job.timezoneOffsetMinutes);
-      if (hour === job.hour && minute === job.minute) {
-        const key = `${job.name}:${new Date().toISOString().slice(0, 16)}`;
-        if (lastFired.get(job.name) !== key) {
-          lastFired.set(job.name, key);
-          debug({ job: job.name }, 'running scheduled job');
-          job.run().catch((err) => error({ err, job: job.name }, 'scheduled job failed'));
-        }
-      }
+      if (hour !== job.hour || minute !== job.minute) continue;
+
+      const key = `${hour}:${minute}:${new Date().toISOString().slice(0, 10)}`;
+      if (lastFired.get(job.name) === key) continue;
+
+      lastFired.set(job.name, key);
+      debug({ job: job.name }, 'running scheduled job');
+      job.run().catch((err) => error({ err, job: job.name }, 'scheduled job failed'));
     }
   };
 
