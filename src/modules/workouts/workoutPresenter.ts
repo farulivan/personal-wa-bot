@@ -1,6 +1,9 @@
 import type { WorkoutEntry } from './infra/workoutRepository.js';
 import type { StreakInfo } from './workoutStreaks.js';
 import { UNDO_WINDOW_MS } from './workoutService.js';
+import type { WorkoutLeaderboardEntry } from './workoutService.js';
+
+const WORKOUT_LEADERBOARD_LIMIT = 10;
 
 export type UserStreak = {
   name: string;
@@ -191,6 +194,46 @@ export function formatUndoTooLate(entry: WorkoutEntry): string {
     `Undo is only available within ${windowMinutes} minutes of logging.\n\n` +
     `Last entry:\n${detail}`
   );
+}
+
+export function rankLeaderboardEntries(
+  entries: WorkoutLeaderboardEntry[],
+  limit: number = WORKOUT_LEADERBOARD_LIMIT
+): WorkoutLeaderboardEntry[] {
+  return [...entries]
+    .sort(
+      (a, b) =>
+        b.sessionsInMonth - a.sessionsInMonth ||
+        b.currentStreak - a.currentStreak ||
+        b.bestStreak - a.bestStreak ||
+        a.user.localeCompare(b.user)
+    )
+    .slice(0, limit);
+}
+
+export function formatLeaderboardMessage(entries: WorkoutLeaderboardEntry[]): string {
+  if (entries.length === 0) {
+    return (
+      `Workout Leaderboard Bulan Ini 🏆\n\n` +
+      `Belum ada workout bulan ini 👀\n\n` +
+      `Yuk mulai: #workout lift push up 20reps 4sets`
+    );
+  }
+
+  const medals = ['🥇', '🥈', '🥉'];
+  const list = entries
+    .map((e, i) => {
+      const prefix = medals[i] ?? '🌱';
+      const bestPart = e.bestStreak > e.currentStreak ? ` (Best ${e.bestStreak} hari)` : '';
+      const streakPart =
+        e.currentStreak > 0 || e.bestStreak > 0
+          ? ` | 🔥 Streak ${e.currentStreak} hari${bestPart}`
+          : '';
+      return `${prefix} ${e.user}\n   🏋️ ${e.sessionsInMonth} sesi${streakPart}`;
+    })
+    .join('\n');
+
+  return `Workout Leaderboard Bulan Ini 🏆\n\n${list}`;
 }
 
 export function formatDigestMessage(standings: UserStreak[]): string {
