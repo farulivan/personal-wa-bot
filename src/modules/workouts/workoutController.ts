@@ -68,7 +68,7 @@ export function createWorkoutController(workoutService: WorkoutService): Namespa
   async function handleLeaderboard(ctx: CommandContext): Promise<string> {
     const { entries } = await workoutService.getLeaderboard(
       ctx.time.timezoneOffsetMinutes,
-      ctx.time.now(),
+      ctx.time.now()
     );
     const ranked = rankLeaderboardEntries(entries);
     return formatLeaderboardMessage(ranked);

@@ -46,7 +46,7 @@ export interface WorkoutRepository {
     user: string,
     timezoneOffsetMinutes: number,
     startDateInclusive: string,
-    endDateInclusive: string,
+    endDateInclusive: string
   ): Promise<number>;
   listByUser(user: string, limit: number, offset: number): Promise<WorkoutEntry[]>;
   insertWorkoutLog(log: NewWorkoutLog): Promise<void>;

@@ -207,4 +207,114 @@ describe('DrizzleWorkoutRepository', () => {
       expect(days).toHaveLength(0);
     });
   });
+
+  describe('countSessionsByUserInDateRange', () => {
+    const makeLift = (userId: string, createdAtIso: string) =>
+      repo.insertWorkoutLog({
+        userId,
+        workoutMode: 'lift',
+        type: 'bench',
+        reps: 10,
+        sets: 3,
+        weight: 60,
+        createdAtIso,
+      });
+
+    const makeCardio = (userId: string, createdAtIso: string) =>
+      repo.insertWorkoutLog({
+        userId,
+        workoutMode: 'cardio',
+        type: 'run',
+        durationMinutes: 30,
+        distanceKm: 5,
+        createdAtIso,
+      });
+
+    it('counts lift and cardio in range together', async () => {
+      // Both rows fall in April 2026 (UTC+7 local)
+      await makeLift(user, '2026-04-12T03:00:00.000Z'); // 2026-04-12 10:00 UTC+7
+      await makeCardio(user, '2026-04-15T03:00:00.000Z'); // 2026-04-15 10:00 UTC+7
+
+      const count = await repo.countSessionsByUserInDateRange(user, TZ, '2026-04-01', '2026-04-30');
+      expect(count).toBe(2);
+    });
+
+    it('excludes rows from previous month', async () => {
+      // March row — outside April range
+      await makeLift(user, '2026-03-20T03:00:00.000Z'); // 2026-03-20 10:00 UTC+7
+
+      const count = await repo.countSessionsByUserInDateRange(user, TZ, '2026-04-01', '2026-04-30');
+      expect(count).toBe(0);
+    });
+
+    it('excludes soft-deleted rows', async () => {
+      await makeLift(user, '2026-04-12T03:00:00.000Z'); // will be soft-deleted
+      await makeCardio(user, '2026-04-13T03:00:00.000Z'); // stays active
+
+      // Soft-delete the lift row via findLastByUser on the lift
+      // Insert an extra lift so findLastByUser returns the one we want to delete.
+      // Strategy: insert the cardio last so findLastByUser returns it — instead,
+      // insert lift after cardio so it's the most recent, then delete it.
+      // Re-insert in the order: cardio first, then lift.
+      await cleanAllTables(db);
+      await makeCardio(user, '2026-04-13T03:00:00.000Z');
+      await makeLift(user, '2026-04-14T03:00:00.000Z'); // most recent → returned by findLastByUser
+
+      const last = await repo.findLastByUser(user);
+      expect(last).not.toBeNull();
+      await repo.softDeleteById(last!.id, last!.workoutMode, '2026-04-14T04:00:00.000Z');
+
+      const count = await repo.countSessionsByUserInDateRange(user, TZ, '2026-04-01', '2026-04-30');
+      expect(count).toBe(1); // only the cardio survives
+    });
+
+    it("excludes other users' rows", async () => {
+      const other = 'other-user-2';
+      await makeLift(user, '2026-04-12T03:00:00.000Z');
+      await makeCardio(user, '2026-04-13T03:00:00.000Z');
+      await makeLift(other, '2026-04-12T03:00:00.000Z');
+
+      const countUser = await repo.countSessionsByUserInDateRange(
+        user,
+        TZ,
+        '2026-04-01',
+        '2026-04-30'
+      );
+      const countOther = await repo.countSessionsByUserInDateRange(
+        other,
+        TZ,
+        '2026-04-01',
+        '2026-04-30'
+      );
+
+      expect(countUser).toBe(2);
+      expect(countOther).toBe(1);
+    });
+
+    it('handles timezone boundary correctly', async () => {
+      // TZ = UTC+7 (420 minutes)
+      // Row A: created_at = 2026-04-01T02:00:00Z → local 2026-04-01 09:00 → counts in April
+      await makeLift(user, '2026-04-01T02:00:00.000Z');
+      // Row B: created_at = 2026-04-30T17:30:00Z → local 2026-05-01 00:30 → does NOT count in April
+      await makeCardio(user, '2026-04-30T17:30:00.000Z');
+
+      const countApril = await repo.countSessionsByUserInDateRange(
+        user,
+        TZ,
+        '2026-04-01',
+        '2026-04-30'
+      );
+      // Only row A falls in April local time
+      expect(countApril).toBe(1);
+
+      // Row B should count in May
+      const countMay = await repo.countSessionsByUserInDateRange(
+        user,
+        TZ,
+        '2026-05-01',
+        '2026-05-31'
+      );
+      expect(countMay).toBe(1);
+    });
+  });
 });

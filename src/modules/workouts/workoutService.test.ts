@@ -439,8 +439,12 @@ describe('WorkoutService', () => {
       const nameMap = new Map<string, string>([[userA, 'Farul']]);
       const customUserRepo: UserRepository = {
         async upsert() {},
-        async findById() { return null; },
-        async findByIds() { return []; },
+        async findById() {
+          return null;
+        },
+        async findByIds() {
+          return [];
+        },
         async getDisplayName(userId: string) {
           return nameMap.get(userId) ?? userId;
         },

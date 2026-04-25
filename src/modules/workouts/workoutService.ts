@@ -26,7 +26,7 @@ export type WorkoutLeaderboardEntry = {
 
 export function getCurrentMonthDateRange(
   now: Date,
-  timezoneOffsetMinutes: number,
+  timezoneOffsetMinutes: number
 ): { startDateInclusive: string; endDateInclusive: string } {
   const local = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
   const year = local.getUTCFullYear();
@@ -181,25 +181,28 @@ export class WorkoutService {
 
   async getLeaderboard(
     timezoneOffsetMinutes: number,
-    now: Date,
+    now: Date
   ): Promise<{ entries: WorkoutLeaderboardEntry[] }> {
     const range = getCurrentMonthDateRange(now, timezoneOffsetMinutes);
     const userIds = await this.workoutRepository.listDistinctUsers();
     const raw = await Promise.all(
       userIds.map(async (userId) => {
-        const days = await this.workoutRepository.getQualifyingStreakDays(userId, timezoneOffsetMinutes);
+        const days = await this.workoutRepository.getQualifyingStreakDays(
+          userId,
+          timezoneOffsetMinutes
+        );
         const streak = computeStreaks(days, timezoneOffsetMinutes, now);
         const sessionsInMonth = await this.workoutRepository.countSessionsByUserInDateRange(
           userId,
           timezoneOffsetMinutes,
           range.startDateInclusive,
-          range.endDateInclusive,
+          range.endDateInclusive
         );
         return { userId, currentStreak: streak.current, bestStreak: streak.best, sessionsInMonth };
-      }),
+      })
     );
     const filtered = raw.filter(
-      (e) => e.sessionsInMonth > 0 || e.currentStreak > 0 || e.bestStreak > 0,
+      (e) => e.sessionsInMonth > 0 || e.currentStreak > 0 || e.bestStreak > 0
     );
     const entries = await Promise.all(
       filtered.map(async (e) => ({
@@ -207,7 +210,7 @@ export class WorkoutService {
         sessionsInMonth: e.sessionsInMonth,
         currentStreak: e.currentStreak,
         bestStreak: e.bestStreak,
-      })),
+      }))
     );
     return { entries };
   }

@@ -122,11 +122,7 @@ describe('rankLeaderboardEntries', () => {
   ): WorkoutLeaderboardEntry => ({ user, sessionsInMonth, currentStreak, bestStreak });
 
   it('sorts by sessionsInMonth descending as primary criterion', () => {
-    const entries = [
-      makeEntry('B', 5, 0, 0),
-      makeEntry('A', 10, 0, 0),
-      makeEntry('C', 3, 0, 0),
-    ];
+    const entries = [makeEntry('B', 5, 0, 0), makeEntry('A', 10, 0, 0), makeEntry('C', 3, 0, 0)];
     const ranked = rankLeaderboardEntries(entries);
     expect(ranked[0].user).toBe('A');
     expect(ranked[1].user).toBe('B');
@@ -134,20 +130,14 @@ describe('rankLeaderboardEntries', () => {
   });
 
   it('tiebreaks by currentStreak descending when sessions are equal', () => {
-    const entries = [
-      makeEntry('Low', 10, 2, 5),
-      makeEntry('High', 10, 7, 5),
-    ];
+    const entries = [makeEntry('Low', 10, 2, 5), makeEntry('High', 10, 7, 5)];
     const ranked = rankLeaderboardEntries(entries);
     expect(ranked[0].user).toBe('High');
     expect(ranked[1].user).toBe('Low');
   });
 
   it('tiebreaks by bestStreak descending when sessions + currentStreak are equal', () => {
-    const entries = [
-      makeEntry('Low', 10, 3, 4),
-      makeEntry('High', 10, 3, 9),
-    ];
+    const entries = [makeEntry('Low', 10, 3, 4), makeEntry('High', 10, 3, 9)];
     const ranked = rankLeaderboardEntries(entries);
     expect(ranked[0].user).toBe('High');
     expect(ranked[1].user).toBe('Low');
@@ -166,9 +156,7 @@ describe('rankLeaderboardEntries', () => {
   });
 
   it('caps result to 10 entries by default when given 12 entries', () => {
-    const entries = Array.from({ length: 12 }, (_, i) =>
-      makeEntry(`User${i}`, 10 - i, 0, 0)
-    );
+    const entries = Array.from({ length: 12 }, (_, i) => makeEntry(`User${i}`, 10 - i, 0, 0));
     const ranked = rankLeaderboardEntries(entries);
     expect(ranked).toHaveLength(10);
   });
