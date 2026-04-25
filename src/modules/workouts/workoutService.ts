@@ -17,6 +17,28 @@ export type WorkoutListResult = {
   streaks: StreakInfo;
 };
 
+export type WorkoutLeaderboardEntry = {
+  user: string;
+  sessionsInMonth: number;
+  currentStreak: number;
+  bestStreak: number;
+};
+
+export function getCurrentMonthDateRange(
+  now: Date,
+  timezoneOffsetMinutes: number,
+): { startDateInclusive: string; endDateInclusive: string } {
+  const local = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
+  const year = local.getUTCFullYear();
+  const month = local.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+  return {
+    startDateInclusive: `${year}-${String(month).padStart(2, '0')}-01`,
+    endDateInclusive: `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+  };
+}
+
 export type WorkoutLogResult = {
   todayCount: number;
   streaks: StreakInfo | null;
@@ -155,6 +177,39 @@ export class WorkoutService {
 
   async getDisplayName(userId: string): Promise<string> {
     return this.userRepository.getDisplayName(userId);
+  }
+
+  async getLeaderboard(
+    timezoneOffsetMinutes: number,
+    now: Date,
+  ): Promise<{ entries: WorkoutLeaderboardEntry[] }> {
+    const range = getCurrentMonthDateRange(now, timezoneOffsetMinutes);
+    const userIds = await this.workoutRepository.listDistinctUsers();
+    const raw = await Promise.all(
+      userIds.map(async (userId) => {
+        const days = await this.workoutRepository.getQualifyingStreakDays(userId, timezoneOffsetMinutes);
+        const streak = computeStreaks(days, timezoneOffsetMinutes, now);
+        const sessionsInMonth = await this.workoutRepository.countSessionsByUserInDateRange(
+          userId,
+          timezoneOffsetMinutes,
+          range.startDateInclusive,
+          range.endDateInclusive,
+        );
+        return { userId, currentStreak: streak.current, bestStreak: streak.best, sessionsInMonth };
+      }),
+    );
+    const filtered = raw.filter(
+      (e) => e.sessionsInMonth > 0 || e.currentStreak > 0 || e.bestStreak > 0,
+    );
+    const entries = await Promise.all(
+      filtered.map(async (e) => ({
+        user: await this.userRepository.getDisplayName(e.userId),
+        sessionsInMonth: e.sessionsInMonth,
+        currentStreak: e.currentStreak,
+        bestStreak: e.bestStreak,
+      })),
+    );
+    return { entries };
   }
 
   async undoLastLog(sender: string, now: Date): Promise<UndoResult> {
