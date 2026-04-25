@@ -4,9 +4,12 @@ import {
   formatUndoNoLogs,
   formatUndoTooLate,
   formatDigestMessage,
+  rankLeaderboardEntries,
+  formatLeaderboardMessage,
 } from './workoutPresenter.js';
 import { UNDO_WINDOW_MS } from './workoutService.js';
 import type { WorkoutEntry } from './infra/workoutRepository.js';
+import type { WorkoutLeaderboardEntry } from './workoutService.js';
 
 describe('formatUndoSuccess', () => {
   it('formats a lift entry with weight', () => {
@@ -107,5 +110,113 @@ describe('formatUndoTooLate', () => {
     expect(result).toContain(`${UNDO_WINDOW_MS / 60_000} minutes`);
     expect(result).toContain('[cardio] run');
     expect(result).toContain('30min');
+  });
+});
+
+describe('rankLeaderboardEntries', () => {
+  const makeEntry = (
+    user: string,
+    sessionsInMonth: number,
+    currentStreak: number,
+    bestStreak: number
+  ): WorkoutLeaderboardEntry => ({ user, sessionsInMonth, currentStreak, bestStreak });
+
+  it('sorts by sessionsInMonth descending as primary criterion', () => {
+    const entries = [
+      makeEntry('B', 5, 0, 0),
+      makeEntry('A', 10, 0, 0),
+      makeEntry('C', 3, 0, 0),
+    ];
+    const ranked = rankLeaderboardEntries(entries);
+    expect(ranked[0].user).toBe('A');
+    expect(ranked[1].user).toBe('B');
+    expect(ranked[2].user).toBe('C');
+  });
+
+  it('tiebreaks by currentStreak descending when sessions are equal', () => {
+    const entries = [
+      makeEntry('Low', 10, 2, 5),
+      makeEntry('High', 10, 7, 5),
+    ];
+    const ranked = rankLeaderboardEntries(entries);
+    expect(ranked[0].user).toBe('High');
+    expect(ranked[1].user).toBe('Low');
+  });
+
+  it('tiebreaks by bestStreak descending when sessions + currentStreak are equal', () => {
+    const entries = [
+      makeEntry('Low', 10, 3, 4),
+      makeEntry('High', 10, 3, 9),
+    ];
+    const ranked = rankLeaderboardEntries(entries);
+    expect(ranked[0].user).toBe('High');
+    expect(ranked[1].user).toBe('Low');
+  });
+
+  it('tiebreaks by name ascending (localeCompare) when all numeric metrics are equal', () => {
+    const entries = [
+      makeEntry('Zara', 5, 2, 8),
+      makeEntry('Alice', 5, 2, 8),
+      makeEntry('Mike', 5, 2, 8),
+    ];
+    const ranked = rankLeaderboardEntries(entries);
+    expect(ranked[0].user).toBe('Alice');
+    expect(ranked[1].user).toBe('Mike');
+    expect(ranked[2].user).toBe('Zara');
+  });
+
+  it('caps result to 10 entries by default when given 12 entries', () => {
+    const entries = Array.from({ length: 12 }, (_, i) =>
+      makeEntry(`User${i}`, 10 - i, 0, 0)
+    );
+    const ranked = rankLeaderboardEntries(entries);
+    expect(ranked).toHaveLength(10);
+  });
+});
+
+describe('formatLeaderboardMessage', () => {
+  const makeEntry = (
+    user: string,
+    sessionsInMonth: number,
+    currentStreak: number,
+    bestStreak: number
+  ): WorkoutLeaderboardEntry => ({ user, sessionsInMonth, currentStreak, bestStreak });
+
+  it('returns empty-state message with CTA when entries array is empty', () => {
+    const result = formatLeaderboardMessage([]);
+    expect(result).toContain('#workout lift push up 20reps 4sets');
+    expect(result).toContain('Belum ada workout bulan ini');
+  });
+
+  it('assigns medal prefixes to top 3 and 🌱 to 4th+', () => {
+    const entries = [
+      makeEntry('First', 10, 0, 0),
+      makeEntry('Second', 8, 0, 0),
+      makeEntry('Third', 6, 0, 0),
+      makeEntry('Fourth', 4, 0, 0),
+    ];
+    const result = formatLeaderboardMessage(entries);
+    expect(result).toContain('🥇 First');
+    expect(result).toContain('🥈 Second');
+    expect(result).toContain('🥉 Third');
+    expect(result).toContain('🌱 Fourth');
+  });
+
+  it('omits streak section when both currentStreak and bestStreak are 0', () => {
+    const entries = [makeEntry('Budi', 4, 0, 0)];
+    const result = formatLeaderboardMessage(entries);
+    expect(result).toContain('4 sesi');
+    expect(result).not.toContain('Streak');
+    expect(result).not.toContain('🔥');
+  });
+
+  it('appends (Best Y hari) only when bestStreak > currentStreak', () => {
+    const withBest = [makeEntry('Farul', 24, 5, 8)];
+    const resultWithBest = formatLeaderboardMessage(withBest);
+    expect(resultWithBest).toContain('(Best 8 hari)');
+
+    const equalStreak = [makeEntry('Ari', 18, 5, 5)];
+    const resultEqual = formatLeaderboardMessage(equalStreak);
+    expect(resultEqual).not.toContain('Best');
   });
 });

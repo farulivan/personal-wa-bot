@@ -7,6 +7,7 @@ import type {
   DeletedWorkoutEntry,
 } from './infra/workoutRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
+import { rankLeaderboardEntries } from './workoutPresenter.js';
 
 class InMemoryWorkoutRepository implements WorkoutRepository {
   private logs: (NewWorkoutLog & { id: number; deletedAt: string | null })[] = [];
@@ -335,6 +336,128 @@ describe('WorkoutService', () => {
       const list = await service.listWorkouts(user, 1, TZ, now);
       expect(list.total).toBe(1);
       expect(list.rows[0].type).toBe('bench');
+    });
+  });
+
+  describe('getLeaderboard', () => {
+    const TZ = 420;
+    const now = new Date('2026-04-08T10:00:00Z');
+    const userA = '628111111111@c.us';
+    const userB = '628222222222@c.us';
+
+    it('returns empty entries when repo is empty', async () => {
+      const result = await service.getLeaderboard(TZ, now);
+      expect(result.entries).toHaveLength(0);
+    });
+
+    it('counts one lift + one cardio as sessionsInMonth === 2 for a single user', async () => {
+      await service.logLift(
+        userA,
+        { mode: 'lift', activity: 'bench', reps: 10, sets: 3, weight: 60 },
+        now
+      );
+      await service.logCardio(
+        userA,
+        { mode: 'cardio', activity: 'run', durationMinutes: 30, distanceKm: 5 },
+        now
+      );
+      const result = await service.getLeaderboard(TZ, now);
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].sessionsInMonth).toBe(2);
+    });
+
+    it('two users: each has correct sessionsInMonth regardless of streak (service returns unsorted)', async () => {
+      // userA: 3 sessions, no streak qualifying days (repo minForStreak=3, all on same day)
+      for (let i = 0; i < 3; i++) {
+        await service.logLift(
+          userA,
+          { mode: 'lift', activity: 'bench', reps: 10, sets: 3, weight: 60 },
+          now
+        );
+      }
+      // userB: 1 session — fewer sessions but logged on a qualifying day with streak
+      await service.logLift(
+        userB,
+        { mode: 'lift', activity: 'squat', reps: 8, sets: 4, weight: 80 },
+        now
+      );
+
+      const result = await service.getLeaderboard(TZ, now);
+      const entryA = result.entries.find((e) => e.user === userA);
+      const entryB = result.entries.find((e) => e.user === userB);
+
+      expect(entryA?.sessionsInMonth).toBe(3);
+      expect(entryB?.sessionsInMonth).toBe(1);
+
+      // Primary metric wins when ranked
+      const ranked = rankLeaderboardEntries(result.entries);
+      expect(ranked[0].user).toBe(userA);
+    });
+
+    it('soft-deleted entries are excluded from sessionsInMonth', async () => {
+      await service.logLift(
+        userA,
+        { mode: 'lift', activity: 'bench', reps: 10, sets: 3, weight: 60 },
+        now
+      );
+      await service.logLift(
+        userA,
+        { mode: 'lift', activity: 'squat', reps: 8, sets: 4, weight: 80 },
+        new Date(now.getTime() + 1000)
+      );
+      // Undo the last log (soft-delete)
+      await service.undoLastLog(userA, new Date(now.getTime() + 2000));
+
+      const result = await service.getLeaderboard(TZ, now);
+      const entry = result.entries.find((e) => e.user === userA);
+      expect(entry?.sessionsInMonth).toBe(1);
+    });
+
+    it('out-of-month entries are excluded from sessionsInMonth', async () => {
+      // Insert a workout in March (previous month)
+      const marchDate = new Date('2026-03-15T10:00:00Z');
+      await service.logLift(
+        userA,
+        { mode: 'lift', activity: 'bench', reps: 10, sets: 3, weight: 60 },
+        marchDate
+      );
+      // Insert a workout in April (current month, for `now`)
+      await service.logLift(
+        userA,
+        { mode: 'lift', activity: 'squat', reps: 8, sets: 4, weight: 80 },
+        now
+      );
+
+      // getLeaderboard uses `now` (April 2026), so March entry should not count
+      const result = await service.getLeaderboard(TZ, now);
+      const entry = result.entries.find((e) => e.user === userA);
+      expect(entry?.sessionsInMonth).toBe(1);
+    });
+
+    it('display name resolution uses userRepository.getDisplayName', async () => {
+      // Extend InMemoryUserRepository with a known mapping for this test
+      const nameMap = new Map<string, string>([[userA, 'Farul']]);
+      const customUserRepo: UserRepository = {
+        async upsert() {},
+        async findById() { return null; },
+        async findByIds() { return []; },
+        async getDisplayName(userId: string) {
+          return nameMap.get(userId) ?? userId;
+        },
+      };
+      const customService = new WorkoutService(repo, customUserRepo, 3, 10);
+
+      await service.logLift(
+        userA,
+        { mode: 'lift', activity: 'bench', reps: 10, sets: 3, weight: 60 },
+        now
+      );
+
+      // Use customService which shares the same repo but has a custom userRepo
+      const result = await customService.getLeaderboard(TZ, now);
+      const entry = result.entries.find((e) => e.user === 'Farul');
+      expect(entry).toBeDefined();
+      expect(entry?.user).toBe('Farul');
     });
   });
 });
