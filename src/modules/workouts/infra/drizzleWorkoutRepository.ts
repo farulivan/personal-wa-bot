@@ -29,6 +29,40 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
     return (liftRows[0]?.total ?? 0) + (cardioRows[0]?.total ?? 0);
   }
 
+  async countSessionsByUserInDateRange(
+    user: string,
+    timezoneOffsetMinutes: number,
+    startDateInclusive: string,
+    endDateInclusive: string
+  ): Promise<number> {
+    const offsetSeconds = timezoneOffsetMinutes * 60;
+
+    const [lift, cardio] = await Promise.all([
+      this.db
+        .select({ total: count() })
+        .from(workoutLifts)
+        .where(
+          and(
+            eq(workoutLifts.userId, user),
+            isNull(workoutLifts.deletedAt),
+            sql`DATE(${workoutLifts.createdAt}::timestamp + (INTERVAL '1 second' * ${offsetSeconds})) BETWEEN DATE(${startDateInclusive}::timestamp) AND DATE(${endDateInclusive}::timestamp)`
+          )
+        ),
+      this.db
+        .select({ total: count() })
+        .from(workoutCardios)
+        .where(
+          and(
+            eq(workoutCardios.userId, user),
+            isNull(workoutCardios.deletedAt),
+            sql`DATE(${workoutCardios.createdAt}::timestamp + (INTERVAL '1 second' * ${offsetSeconds})) BETWEEN DATE(${startDateInclusive}::timestamp) AND DATE(${endDateInclusive}::timestamp)`
+          )
+        ),
+    ]);
+
+    return (lift[0]?.total ?? 0) + (cardio[0]?.total ?? 0);
+  }
+
   async listByUser(user: string, limit: number, offset: number): Promise<WorkoutEntry[]> {
     const rows = await this.db.execute<{
       created_at: string;

@@ -24,6 +24,20 @@ class InMemoryWorkoutRepository implements WorkoutRepository {
     return this.active().filter((l) => l.userId === user).length;
   }
 
+  async countSessionsByUserInDateRange(
+    user: string,
+    timezoneOffsetMinutes: number,
+    startDateInclusive: string,
+    endDateInclusive: string
+  ): Promise<number> {
+    return this.active().filter((l) => {
+      if (l.userId !== user) return false;
+      const localMs = new Date(l.createdAtIso).getTime() + timezoneOffsetMinutes * 60 * 1000;
+      const localDay = new Date(localMs).toISOString().slice(0, 10);
+      return localDay >= startDateInclusive && localDay <= endDateInclusive;
+    }).length;
+  }
+
   async listByUser(user: string, limit: number, offset: number): Promise<WorkoutEntry[]> {
     return this.active()
       .filter((l) => l.userId === user)
