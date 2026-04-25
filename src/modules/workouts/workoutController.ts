@@ -19,6 +19,8 @@ import {
   formatUndoSuccess,
   formatUndoNoLogs,
   formatUndoTooLate,
+  rankLeaderboardEntries,
+  formatLeaderboardMessage,
 } from './workoutPresenter.js';
 import type { WorkoutService } from './workoutService.js';
 
@@ -61,6 +63,15 @@ export function createWorkoutController(workoutService: WorkoutService): Namespa
       return formatUndoNoLogs();
     }
     return formatUndoSuccess(result.entry);
+  }
+
+  async function handleLeaderboard(ctx: CommandContext): Promise<string> {
+    const { entries } = await workoutService.getLeaderboard(
+      ctx.time.timezoneOffsetMinutes,
+      ctx.time.now(),
+    );
+    const ranked = rankLeaderboardEntries(entries);
+    return formatLeaderboardMessage(ranked);
   }
 
   async function handleLog(ctx: CommandContext, invocation: CommandInvocation): Promise<string> {
@@ -127,6 +138,10 @@ export function createWorkoutController(workoutService: WorkoutService): Namespa
 
     if (actionToken === 'undo') {
       return handleUndo(ctx);
+    }
+
+    if (actionToken === 'leaderboard') {
+      return handleLeaderboard(ctx);
     }
 
     return handleLog(ctx, invocation);
