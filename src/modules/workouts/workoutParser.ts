@@ -100,7 +100,9 @@ export function workoutHelpMessage(): string {
     `• #workout list\n` +
     `• #workout list 2\n\n` +
     `• #workout undo\n` +
-    `  Removes your last logged workout (within ${UNDO_WINDOW_MS / 60_000} minutes).`
+    `  Removes your last logged workout (within ${UNDO_WINDOW_MS / 60_000} minutes).\n\n` +
+    `• #workout leaderboard\n` +
+    `  Shows monthly workout ranking — sorted by number of sessions this month, with current streak displayed alongside.`
   );
 }
 

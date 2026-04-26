@@ -42,6 +42,12 @@ export type NewWorkoutLog = NewLiftWorkoutLog | NewCardioWorkoutLog;
 
 export interface WorkoutRepository {
   countByUser(user: string): Promise<number>;
+  countSessionsByUserInDateRange(
+    user: string,
+    timezoneOffsetMinutes: number,
+    startDateInclusive: string,
+    endDateInclusive: string
+  ): Promise<number>;
   listByUser(user: string, limit: number, offset: number): Promise<WorkoutEntry[]>;
   insertWorkoutLog(log: NewWorkoutLog): Promise<void>;
   listDistinctUsers(): Promise<string[]>;
