@@ -6,12 +6,11 @@ import { WorkoutService } from './workoutService.js';
 import { createDailyStreakDigestSender } from './workoutDigest.js';
 import type { WorkoutRepository } from './infra/workoutRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
-import type { GroupMembershipPort, MessageSenderPort } from '../../adapters/whatsapp/ports.js';
+import type { MessageSenderPort } from '../../adapters/whatsapp/ports.js';
 
 export type WorkoutModuleDeps = {
   workoutRepository: WorkoutRepository;
   userRepository: UserRepository;
-  membershipPort: GroupMembershipPort;
   senderPort: MessageSenderPort;
   timezoneOffsetMinutes: number;
   digestGroupId: string | undefined;
@@ -40,14 +39,13 @@ export function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleReg
 
   if (deps.digestGroupId) {
     const sendDailyStreakDigest = createDailyStreakDigestSender({
-      membershipPort: deps.membershipPort,
       senderPort: deps.senderPort,
       workoutService,
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
     });
 
     jobs.push({
-      name: 'Daily Streak Standings',
+      name: 'Daily Workout Leaderboard',
       hour: deps.dailyDigestHour,
       minute: deps.dailyDigestMinute,
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,

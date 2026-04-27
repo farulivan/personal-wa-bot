@@ -60,7 +60,6 @@ async function main() {
   const workout = registerWorkoutModule({
     workoutRepository,
     userRepository,
-    membershipPort,
     senderPort,
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
     digestGroupId: appConfig.digestGroupId,
