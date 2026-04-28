@@ -5,12 +5,6 @@ import type { WorkoutLeaderboardEntry } from './workoutService.js';
 
 const WORKOUT_LEADERBOARD_LIMIT = 10;
 
-export type UserStreak = {
-  name: string;
-  current: number;
-  best: number;
-};
-
 export function formatWorkoutList(
   rows: WorkoutEntry[],
   timezoneOffsetMinutes: number,
@@ -211,47 +205,48 @@ export function rankLeaderboardEntries(
     .slice(0, limit);
 }
 
+function renderLeaderboardBody(entries: WorkoutLeaderboardEntry[]): string {
+  const medals = ['🥇', '🥈', '🥉'];
+  return entries
+    .map((e, i) => {
+      const prefix = medals[i] ?? '🌱';
+      const bestLabel = `${e.bestStreak} day${e.bestStreak !== 1 ? 's' : ''}`;
+      const bestPart = e.bestStreak > e.currentStreak ? ` (Best ${bestLabel})` : '';
+      const currentLabel = `${e.currentStreak} day${e.currentStreak !== 1 ? 's' : ''}`;
+      const streakPart =
+        e.currentStreak > 0 || e.bestStreak > 0 ? ` | 🔥 Streak ${currentLabel}${bestPart}` : '';
+      const sessionLabel = `${e.sessionsInMonth} session${e.sessionsInMonth !== 1 ? 's' : ''}`;
+      return `${prefix} ${e.user}\n   🏋️ ${sessionLabel}${streakPart}`;
+    })
+    .join('\n');
+}
+
 export function formatLeaderboardMessage(entries: WorkoutLeaderboardEntry[]): string {
   if (entries.length === 0) {
     return (
-      `Workout Leaderboard Bulan Ini 🏆\n\n` +
-      `Belum ada workout bulan ini 👀\n\n` +
-      `Yuk mulai: #workout lift push up 20reps 4sets`
+      `Workout Leaderboard This Month 🏆\n\n` +
+      `No workouts logged this month 👀\n\n` +
+      `Get started: #workout lift push up 20reps 4sets`
     );
   }
 
-  const medals = ['🥇', '🥈', '🥉'];
-  const list = entries
-    .map((e, i) => {
-      const prefix = medals[i] ?? '🌱';
-      const bestPart = e.bestStreak > e.currentStreak ? ` (Best ${e.bestStreak} hari)` : '';
-      const streakPart =
-        e.currentStreak > 0 || e.bestStreak > 0
-          ? ` | 🔥 Streak ${e.currentStreak} hari${bestPart}`
-          : '';
-      return `${prefix} ${e.user}\n   🏋️ ${e.sessionsInMonth} sesi${streakPart}`;
-    })
-    .join('\n');
-
-  return `Workout Leaderboard Bulan Ini 🏆\n\n${list}`;
+  return `Workout Leaderboard This Month 🏆\n\n${renderLeaderboardBody(entries)}`;
 }
 
-export function formatDigestMessage(standings: UserStreak[]): string {
-  if (standings.length === 0) {
-    return `Morning team 👋\n\nNo active streaks today. Time to start one! 💪`;
+export function formatDigestMessage(entries: WorkoutLeaderboardEntry[]): string {
+  if (entries.length === 0) {
+    return (
+      `Good morning team 👋\n\n` +
+      `Workout Leaderboard This Month 🏆\n\n` +
+      `No workouts logged this month 👀\n\n` +
+      `Get started: #workout lift push up 20reps 4sets`
+    );
   }
 
-  const top3 = standings.slice(0, 3);
-  const rest = standings.slice(3);
-
-  const top3Lines = top3.map((user, index) => {
-    const medal = ['🥇', '🥈', '🥉'][index];
-    return `${medal} ${user.name} – ${user.current} days (best: ${user.best})`;
-  });
-
-  const restLines = rest.map((user) => {
-    return `🔹 ${user.name} – ${user.current} days (best: ${user.best})`;
-  });
-
-  return `Morning team 👋\n\n${top3Lines.join('\n')}\n\n${restLines.join('\n')}\n\nKeep showing up. Consistency wins. 💪`;
+  return (
+    `Good morning team 👋\n\n` +
+    `Workout Leaderboard This Month 🏆\n\n` +
+    `${renderLeaderboardBody(entries)}\n\n` +
+    `Keep showing up. Consistency wins. 💪`
+  );
 }

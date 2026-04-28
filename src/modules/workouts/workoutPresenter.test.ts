@@ -76,9 +76,37 @@ describe('formatUndoNoLogs', () => {
 });
 
 describe('formatDigestMessage', () => {
-  it('returns fallback message for empty standings', () => {
+  const makeEntry = (
+    user: string,
+    sessionsInMonth: number,
+    currentStreak: number,
+    bestStreak: number
+  ): WorkoutLeaderboardEntry => ({ user, sessionsInMonth, currentStreak, bestStreak });
+
+  it('returns morning header + empty leaderboard message when entries are empty', () => {
     const result = formatDigestMessage([]);
-    expect(result).toContain('No active streaks');
+    expect(result).toContain('Good morning team 👋');
+    expect(result).toContain('Workout Leaderboard This Month 🏆');
+    expect(result).toContain('No workouts logged this month');
+    expect(result).toContain('#workout lift push up 20reps 4sets');
+  });
+
+  it('wraps the leaderboard body with morning header and closing line', () => {
+    const entries = [
+      makeEntry('First', 10, 5, 5),
+      makeEntry('Second', 8, 3, 7),
+      makeEntry('Third', 6, 0, 0),
+      makeEntry('Fourth', 4, 0, 0),
+    ];
+    const result = formatDigestMessage(entries);
+    expect(result.startsWith('Good morning team 👋')).toBe(true);
+    expect(result).toContain('Workout Leaderboard This Month 🏆');
+    expect(result).toContain('🥇 First');
+    expect(result).toContain('🥈 Second');
+    expect(result).toContain('🥉 Third');
+    expect(result).toContain('🌱 Fourth');
+    expect(result).toContain('🏋️ 10 sessions');
+    expect(result).toContain('Keep showing up. Consistency wins. 💪');
   });
 });
 
@@ -173,7 +201,7 @@ describe('formatLeaderboardMessage', () => {
   it('returns empty-state message with CTA when entries array is empty', () => {
     const result = formatLeaderboardMessage([]);
     expect(result).toContain('#workout lift push up 20reps 4sets');
-    expect(result).toContain('Belum ada workout bulan ini');
+    expect(result).toContain('No workouts logged this month');
   });
 
   it('assigns medal prefixes to top 3 and 🌱 to 4th+', () => {
@@ -193,15 +221,15 @@ describe('formatLeaderboardMessage', () => {
   it('omits streak section when both currentStreak and bestStreak are 0', () => {
     const entries = [makeEntry('Budi', 4, 0, 0)];
     const result = formatLeaderboardMessage(entries);
-    expect(result).toContain('4 sesi');
+    expect(result).toContain('4 sessions');
     expect(result).not.toContain('Streak');
     expect(result).not.toContain('🔥');
   });
 
-  it('appends (Best Y hari) only when bestStreak > currentStreak', () => {
+  it('appends (Best Y days) only when bestStreak > currentStreak', () => {
     const withBest = [makeEntry('Farul', 24, 5, 8)];
     const resultWithBest = formatLeaderboardMessage(withBest);
-    expect(resultWithBest).toContain('(Best 8 hari)');
+    expect(resultWithBest).toContain('(Best 8 days)');
 
     const equalStreak = [makeEntry('Ari', 18, 5, 5)];
     const resultEqual = formatLeaderboardMessage(equalStreak);
