@@ -19,7 +19,20 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
 
       reqLog.debug({ from: msg.from, rawSender, isGroup }, 'message received');
 
-      // Capture user contact information for persistent storage (only if not already stored)
+      if (!appContext.isAllowedUser(sender)) {
+        reqLog.debug('blocked by auth guard');
+        return;
+      }
+
+      if (isGroup) {
+        const looksLikeCommand = text.startsWith('#');
+        const looksLikeBotInteraction =
+          text.includes('@') && (text.includes('#') || isGreeting(text));
+        if (!looksLikeCommand && !looksLikeBotInteraction) {
+          return;
+        }
+      }
+
       try {
         const contact = await msg.getContact();
         await appContext.userService.captureIfNew(sender, {
@@ -31,16 +44,14 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
         reqLog.debug({ err }, 'failed to capture user info');
       }
 
-      // Check if bot is mentioned (for groups)
       let isBotMentioned = false;
-      if (isGroup) {
+      if (isGroup && text.includes('@')) {
         const mentions = await msg.getMentions();
         const botInfo = await appContext.client.info;
         const botNumber = botInfo?.wid?._serialized;
         isBotMentioned = mentions.some((m) => m.id._serialized === botNumber);
       }
 
-      // Handle greeting when bot is mentioned
       if (isBotMentioned && isGreeting(text)) {
         reqLog.debug('greeting detected');
         await handleGreeting(
@@ -51,14 +62,11 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
         return;
       }
 
-      // For groups: only respond if bot is mentioned or message starts with #
       if (isGroup) {
-        // In groups, require bot mention OR # prefix
         if (!isBotMentioned && !text.startsWith('#')) {
           return;
         }
 
-        // Remove bot mention from text if present (e.g., "@Bot #workout..." → "#workout...")
         if (isBotMentioned) {
           text = text.replace(/@\d+\s*/g, '').trim();
         }
@@ -68,15 +76,8 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
         return;
       }
 
-      // Legacy alias: migrate `#list` -> `#workout --list`
       if (text.toLowerCase() === '#list') {
         text = '#workout list';
-      }
-
-      // Security: Only allow whitelisted phone numbers
-      if (!appContext.isAllowedUser(sender)) {
-        reqLog.debug('blocked by auth guard');
-        return;
       }
 
       const invocation = parseCommand(text);
