@@ -56,7 +56,11 @@ export function startScheduler(jobs: ScheduledJob[]): SchedulerHandle {
 
   for (const job of jobs) {
     const time = `${String(job.hour).padStart(2, '0')}:${String(job.minute).padStart(2, '0')}`;
-    log({ job: job.name, time }, 'scheduled daily job');
+    if (job.dayOfMonth !== undefined) {
+      log({ job: job.name, time, dayOfMonth: job.dayOfMonth }, 'scheduled monthly job');
+    } else {
+      log({ job: job.name, time }, 'scheduled daily job');
+    }
   }
 
   // Align first tick to the next minute boundary, then tick every minute
