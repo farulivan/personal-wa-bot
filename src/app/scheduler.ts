@@ -15,13 +15,18 @@ function getUserLocalTime(timezoneOffsetMinutes: number): {
   hour: number;
   minute: number;
   day: number;
+  dateString: string;
 } {
   const now = new Date();
   const userNow = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
+  const y = userNow.getUTCFullYear();
+  const m = String(userNow.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(userNow.getUTCDate()).padStart(2, '0');
   return {
     hour: userNow.getUTCHours(),
     minute: userNow.getUTCMinutes(),
     day: userNow.getUTCDate(),
+    dateString: `${y}-${m}-${d}`,
   };
 }
 
@@ -36,11 +41,11 @@ export function startScheduler(jobs: ScheduledJob[]): SchedulerHandle {
 
   const tick = () => {
     for (const job of jobs) {
-      const { hour, minute, day } = getUserLocalTime(job.timezoneOffsetMinutes);
+      const { hour, minute, day, dateString } = getUserLocalTime(job.timezoneOffsetMinutes);
       if (hour !== job.hour || minute !== job.minute) continue;
       if (job.dayOfMonth !== undefined && day !== job.dayOfMonth) continue;
 
-      const key = `${hour}:${minute}:${new Date().toISOString().slice(0, 10)}`;
+      const key = `${hour}:${minute}:${dateString}`;
       if (lastFired.get(job.name) === key) continue;
 
       lastFired.set(job.name, key);
