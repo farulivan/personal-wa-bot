@@ -38,8 +38,12 @@ export function startReminderScheduler(deps: StartReminderSchedulerDeps): Remind
 
       debug(`⏰ Reminder scheduler: found ${dueReminders.length} due reminder(s)`);
 
+      const namesById = await deps.userRepository.getDisplayNamesByIds(
+        dueReminders.map((r) => r.userId)
+      );
+
       for (const reminder of dueReminders) {
-        const name = await deps.userRepository.getDisplayName(reminder.userId);
+        const name = namesById.get(reminder.userId) ?? reminder.userId;
         const localDateTimeLabel = toLocalDateTimeLabel(
           reminder.scheduledAt,
           deps.timezoneOffsetMinutes

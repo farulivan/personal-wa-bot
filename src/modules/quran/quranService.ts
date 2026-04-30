@@ -272,15 +272,13 @@ export class QuranService {
     const filtered = rawEntries.filter(
       (e) => e.currentStreak > 0 || e.bestStreak > 0 || e.pagesRead > 0
     );
-
-    const entries: QuranLeaderboardEntry[] = await Promise.all(
-      filtered.map(async (e) => ({
-        user: await this.userRepository.getDisplayName(e.userId),
-        currentStreak: e.currentStreak,
-        bestStreak: e.bestStreak,
-        pagesRead: e.pagesRead,
-      }))
-    );
+    const namesById = await this.userRepository.getDisplayNamesByIds(filtered.map((e) => e.userId));
+    const entries: QuranLeaderboardEntry[] = filtered.map((e) => ({
+      user: namesById.get(e.userId) ?? e.userId,
+      currentStreak: e.currentStreak,
+      bestStreak: e.bestStreak,
+      pagesRead: e.pagesRead,
+    }));
 
     debug(`📖 Quran leaderboard generated: mode=${dateRangeMode.mode}, entries=${entries.length}`);
 

@@ -204,14 +204,13 @@ export class WorkoutService {
     const filtered = raw.filter(
       (e) => e.sessionsInMonth > 0 || e.currentStreak > 0 || e.bestStreak > 0
     );
-    const entries = await Promise.all(
-      filtered.map(async (e) => ({
-        user: await this.userRepository.getDisplayName(e.userId),
-        sessionsInMonth: e.sessionsInMonth,
-        currentStreak: e.currentStreak,
-        bestStreak: e.bestStreak,
-      }))
-    );
+    const namesById = await this.userRepository.getDisplayNamesByIds(filtered.map((e) => e.userId));
+    const entries = filtered.map((e) => ({
+      user: namesById.get(e.userId) ?? e.userId,
+      sessionsInMonth: e.sessionsInMonth,
+      currentStreak: e.currentStreak,
+      bestStreak: e.bestStreak,
+    }));
     return { entries };
   }
 
