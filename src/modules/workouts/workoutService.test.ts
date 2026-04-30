@@ -139,6 +139,9 @@ class InMemoryUserRepository implements UserRepository {
   async getDisplayName(userId: string): Promise<string> {
     return userId;
   }
+  async getDisplayNamesByIds(ids: string[]): Promise<Map<string, string>> {
+    return new Map(ids.map((id) => [id, id]));
+  }
 }
 
 describe('WorkoutService', () => {
@@ -447,6 +450,9 @@ describe('WorkoutService', () => {
         },
         async getDisplayName(userId: string) {
           return nameMap.get(userId) ?? userId;
+        },
+        async getDisplayNamesByIds(ids: string[]) {
+          return new Map(ids.map((id) => [id, nameMap.get(id) ?? id]));
         },
       };
       const customService = new WorkoutService(repo, customUserRepo, 3, 10);

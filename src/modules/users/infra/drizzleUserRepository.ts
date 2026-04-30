@@ -34,6 +34,24 @@ function hasText(value: string | null | undefined): value is string {
   return typeof value === 'string' && value.trim() !== '';
 }
 
+function selectDisplayName(
+  normalizedId: string,
+  exactUser: UserRow | null,
+  normalizedUser: UserRow | null,
+  byPhone: UserRow | null
+): string {
+  const user = exactUser ?? normalizedUser ?? byPhone;
+  if (!user) return normalizedId;
+  if (hasText(user.pushname)) return toDisplayName(user.pushname);
+  if (hasText(user.contactName)) return toDisplayName(user.contactName);
+  if (byPhone) {
+    if (hasText(byPhone.pushname)) return toDisplayName(byPhone.pushname);
+    if (hasText(byPhone.contactName)) return toDisplayName(byPhone.contactName);
+  }
+  if (hasText(user.phoneNumber)) return user.phoneNumber;
+  return normalizedId;
+}
+
 export class DrizzleUserRepository implements UserRepository {
   constructor(private readonly db: DrizzleDb) {}
 
@@ -105,22 +123,73 @@ export class DrizzleUserRepository implements UserRepository {
   async getDisplayName(id: string): Promise<string> {
     const normalizedId = id.replace(/@.*$/, '');
     const exactUser = await this.findById(id);
+    if (exactUser && hasText(exactUser.pushname)) {
+      return toDisplayName(exactUser.pushname);
+    }
     const normalizedUser = normalizedId !== id ? await this.findById(normalizedId) : null;
     const byPhone = await this.findBestByPhoneNumber(normalizedId);
-    const user = exactUser ?? normalizedUser ?? byPhone;
+    return selectDisplayName(normalizedId, exactUser, normalizedUser, byPhone);
+  }
 
-    if (!user) return normalizedId;
-
-    if (hasText(user.pushname)) return toDisplayName(user.pushname);
-    if (hasText(user.contactName)) return toDisplayName(user.contactName);
-
-    if (byPhone) {
-      if (hasText(byPhone.pushname)) return toDisplayName(byPhone.pushname);
-      if (hasText(byPhone.contactName)) return toDisplayName(byPhone.contactName);
+  private async findBestByPhoneNumbers(phoneNumbers: string[]): Promise<Map<string, UserRow>> {
+    if (phoneNumbers.length === 0) return new Map();
+    const rows = await this.db
+      .selectDistinctOn([users.phoneNumber])
+      .from(users)
+      .where(inArray(users.phoneNumber, phoneNumbers))
+      .orderBy(
+        users.phoneNumber,
+        sql`CASE
+          WHEN ${users.pushname} IS NOT NULL AND TRIM(${users.pushname}) <> '' THEN 0
+          WHEN ${users.contactName} IS NOT NULL AND TRIM(${users.contactName}) <> '' THEN 1
+          ELSE 2
+        END`,
+        sql`${users.updatedAt} DESC`
+      );
+    const out = new Map<string, UserRow>();
+    for (const row of rows) {
+      if (row.phoneNumber !== null) {
+        out.set(row.phoneNumber, toUserRow(row));
+      }
     }
+    return out;
+  }
 
-    if (hasText(user.phoneNumber)) return user.phoneNumber;
+  async getDisplayNamesByIds(ids: string[]): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+    if (ids.length === 0) return result;
 
-    return normalizedId;
+    const uniqueIds = [...new Set(ids)];
+    const normalizedById = new Map(uniqueIds.map((id) => [id, id.replace(/@.*$/, '')]));
+
+    const idsToFetch = new Set<string>();
+    for (const id of uniqueIds) {
+      idsToFetch.add(id);
+      const normalized = normalizedById.get(id)!;
+      if (normalized !== id) idsToFetch.add(normalized);
+    }
+    const userRows = await this.findByIds([...idsToFetch]);
+    const userById = new Map(userRows.map((u) => [u.id, u]));
+
+    const phoneNumbersToLookup = new Set<string>();
+    for (const id of uniqueIds) {
+      const normalized = normalizedById.get(id)!;
+      const exactUser = userById.get(id) ?? null;
+      const normalizedUser = normalized !== id ? (userById.get(normalized) ?? null) : null;
+      const candidate = exactUser ?? normalizedUser;
+      if (!candidate || !hasText(candidate.pushname)) {
+        phoneNumbersToLookup.add(normalized);
+      }
+    }
+    const byPhoneMap = await this.findBestByPhoneNumbers([...phoneNumbersToLookup]);
+
+    for (const id of uniqueIds) {
+      const normalized = normalizedById.get(id)!;
+      const exactUser = userById.get(id) ?? null;
+      const normalizedUser = normalized !== id ? (userById.get(normalized) ?? null) : null;
+      const byPhone = byPhoneMap.get(normalized) ?? null;
+      result.set(id, selectDisplayName(normalized, exactUser, normalizedUser, byPhone));
+    }
+    return result;
   }
 }

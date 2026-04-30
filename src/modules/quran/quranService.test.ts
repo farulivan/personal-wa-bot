@@ -167,6 +167,9 @@ class InMemoryUserRepository implements UserRepository {
   async getDisplayName(userId: string): Promise<string> {
     return userId;
   }
+  async getDisplayNamesByIds(ids: string[]): Promise<Map<string, string>> {
+    return new Map(ids.map((id) => [id, id]));
+  }
 }
 
 describe('QuranService', () => {
