@@ -34,6 +34,8 @@ export const appConfig = {
   quranRamadhanEndDate: process.env.QURAN_RAMADHAN_END_DATE || '',
   dailyDigestHour: parseIntegerEnv('DAILY_DIGEST_HOUR', 8),
   dailyDigestMinute: parseIntegerEnv('DAILY_DIGEST_MINUTE', 0),
+  monthlyDigestHour: parseIntegerEnv('MONTHLY_DIGEST_HOUR', 8),
+  monthlyDigestMinute: parseIntegerEnv('MONTHLY_DIGEST_MINUTE', 0),
   quranReminderHour: parseIntegerEnv('QURAN_REMINDER_HOUR', 22),
   quranReminderMinute: parseIntegerEnv('QURAN_REMINDER_MINUTE', 0),
   digestGroupId: process.env.DIGEST_GROUP_ID || '',
@@ -65,6 +67,12 @@ export function validateConfig(config: AppConfig): void {
   }
   if (config.dailyDigestMinute < 0 || config.dailyDigestMinute > 59) {
     errors.push(`DAILY_DIGEST_MINUTE must be 0-59, got ${config.dailyDigestMinute}`);
+  }
+  if (config.monthlyDigestHour < 0 || config.monthlyDigestHour > 23) {
+    errors.push(`MONTHLY_DIGEST_HOUR must be 0-23, got ${config.monthlyDigestHour}`);
+  }
+  if (config.monthlyDigestMinute < 0 || config.monthlyDigestMinute > 59) {
+    errors.push(`MONTHLY_DIGEST_MINUTE must be 0-59, got ${config.monthlyDigestMinute}`);
   }
   if (config.quranReminderHour < 0 || config.quranReminderHour > 23) {
     errors.push(`QURAN_REMINDER_HOUR must be 0-23, got ${config.quranReminderHour}`);

@@ -90,6 +90,41 @@ export function getCurrentMonthDateRange(
   };
 }
 
+export function getLastMonthDateRange(
+  now: Date,
+  timezoneOffsetMinutes: number
+): QuranStreakDateRange & { monthLabel: string } {
+  const local = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
+  const year = local.getUTCFullYear();
+  const month = local.getUTCMonth() + 1;
+
+  const lastMonthDate = new Date(Date.UTC(year, month - 2, 1));
+  const lastYear = lastMonthDate.getUTCFullYear();
+  const lastMonth = lastMonthDate.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(lastYear, lastMonth, 0)).getUTCDate();
+
+  const monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
+  return {
+    startDateInclusive: `${lastYear}-${String(lastMonth).padStart(2, '0')}-01`,
+    endDateInclusive: `${lastYear}-${String(lastMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+    monthLabel: `${monthNames[lastMonth - 1]} ${lastYear}`,
+  };
+}
+
 export class QuranService {
   constructor(
     private readonly quranRepository: QuranRepository,
@@ -283,6 +318,47 @@ export class QuranService {
     debug(`📖 Quran leaderboard generated: mode=${dateRangeMode.mode}, entries=${entries.length}`);
 
     return { mode: dateRangeMode.mode, entries };
+  }
+
+  async getLastMonthLeaderboard(
+    timezoneOffsetMinutes: number,
+    now: Date
+  ): Promise<{ entries: QuranLeaderboardEntry[]; monthLabel: string }> {
+    const { startDateInclusive, endDateInclusive, monthLabel } = getLastMonthDateRange(
+      now,
+      timezoneOffsetMinutes
+    );
+
+    const userIds = await this.quranRepository.listDistinctUsers();
+
+    const rawEntries = await Promise.all(
+      userIds.map(async (userId) => {
+        const readDays = await this.quranRepository.getReadDays(userId, timezoneOffsetMinutes);
+        const streak = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
+        const pagesRead = await this.quranRepository.sumPagesByUserInDateRange(
+          userId,
+          timezoneOffsetMinutes,
+          startDateInclusive,
+          endDateInclusive
+        );
+        return { userId, currentStreak: streak.current, bestStreak: streak.best, pagesRead };
+      })
+    );
+
+    const filtered = rawEntries.filter((e) => e.pagesRead > 0);
+    const namesById = await this.userRepository.getDisplayNamesByIds(filtered.map((e) => e.userId));
+    const entries: QuranLeaderboardEntry[] = filtered.map((e) => ({
+      user: namesById.get(e.userId) ?? e.userId,
+      currentStreak: e.currentStreak,
+      bestStreak: e.bestStreak,
+      pagesRead: e.pagesRead,
+    }));
+
+    debug(
+      `📖 Quran last-month leaderboard generated: monthLabel=${monthLabel}, entries=${entries.length}`
+    );
+
+    return { entries, monthLabel };
   }
 
   async getReminderDataForUser(

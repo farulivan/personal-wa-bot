@@ -39,6 +39,41 @@ export function getCurrentMonthDateRange(
   };
 }
 
+export function getLastMonthDateRange(
+  now: Date,
+  timezoneOffsetMinutes: number
+): { startDateInclusive: string; endDateInclusive: string; monthLabel: string } {
+  const local = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
+  const year = local.getUTCFullYear();
+  const month = local.getUTCMonth() + 1;
+
+  const lastMonthDate = new Date(Date.UTC(year, month - 2, 1));
+  const lastYear = lastMonthDate.getUTCFullYear();
+  const lastMonth = lastMonthDate.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(lastYear, lastMonth, 0)).getUTCDate();
+
+  const monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
+  return {
+    startDateInclusive: `${lastYear}-${String(lastMonth).padStart(2, '0')}-01`,
+    endDateInclusive: `${lastYear}-${String(lastMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+    monthLabel: `${monthNames[lastMonth - 1]} ${lastYear}`,
+  };
+}
+
 export type WorkoutLogResult = {
   todayCount: number;
   streaks: StreakInfo | null;
@@ -212,6 +247,42 @@ export class WorkoutService {
       bestStreak: e.bestStreak,
     }));
     return { entries };
+  }
+
+  async getLastMonthLeaderboard(
+    timezoneOffsetMinutes: number,
+    now: Date
+  ): Promise<{ entries: WorkoutLeaderboardEntry[]; monthLabel: string }> {
+    const { startDateInclusive, endDateInclusive, monthLabel } = getLastMonthDateRange(
+      now,
+      timezoneOffsetMinutes
+    );
+    const userIds = await this.workoutRepository.listDistinctUsers();
+    const raw = await Promise.all(
+      userIds.map(async (userId) => {
+        const days = await this.workoutRepository.getQualifyingStreakDays(
+          userId,
+          timezoneOffsetMinutes
+        );
+        const streak = computeStreaks(days, timezoneOffsetMinutes, now);
+        const sessionsInMonth = await this.workoutRepository.countSessionsByUserInDateRange(
+          userId,
+          timezoneOffsetMinutes,
+          startDateInclusive,
+          endDateInclusive
+        );
+        return { userId, currentStreak: streak.current, bestStreak: streak.best, sessionsInMonth };
+      })
+    );
+    const filtered = raw.filter((e) => e.sessionsInMonth > 0);
+    const namesById = await this.userRepository.getDisplayNamesByIds(filtered.map((e) => e.userId));
+    const entries = filtered.map((e) => ({
+      user: namesById.get(e.userId) ?? e.userId,
+      sessionsInMonth: e.sessionsInMonth,
+      currentStreak: e.currentStreak,
+      bestStreak: e.bestStreak,
+    }));
+    return { entries, monthLabel };
   }
 
   async undoLastLog(sender: string, now: Date): Promise<UndoResult> {

@@ -65,6 +65,8 @@ async function main() {
     digestGroupId: appConfig.digestGroupId,
     dailyDigestHour: appConfig.dailyDigestHour,
     dailyDigestMinute: appConfig.dailyDigestMinute,
+    monthlyDigestHour: appConfig.monthlyDigestHour,
+    monthlyDigestMinute: appConfig.monthlyDigestMinute,
     minWorkoutsForStreak: appConfig.minWorkoutsForStreak,
     workoutListLimit: appConfig.workoutListLimit,
   });
@@ -78,6 +80,8 @@ async function main() {
     digestGroupId: appConfig.digestGroupId,
     quranReminderHour: appConfig.quranReminderHour,
     quranReminderMinute: appConfig.quranReminderMinute,
+    monthlyDigestHour: appConfig.monthlyDigestHour,
+    monthlyDigestMinute: appConfig.monthlyDigestMinute,
     quranListLimit: appConfig.quranListLimit,
     ramadhanCountEnabled: appConfig.quranRamadhanCountEnabled,
     ramadhanStartDate: appConfig.quranRamadhanStartDate,

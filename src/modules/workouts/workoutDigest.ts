@@ -1,5 +1,9 @@
 import { debug, error } from '../../logger.js';
-import { formatDigestMessage, rankLeaderboardEntries } from './workoutPresenter.js';
+import {
+  formatDigestMessage,
+  formatMonthlyDigestMessage,
+  rankLeaderboardEntries,
+} from './workoutPresenter.js';
 import type { WorkoutService, WorkoutLeaderboardEntry } from './workoutService.js';
 import type { MessageSenderPort } from '../../adapters/whatsapp/ports.js';
 
@@ -34,6 +38,35 @@ export function createDailyStreakDigestSender(deps: DigestDeps) {
       debug(`⏰ Digest sent to ${groupChatId}`);
     } catch (err) {
       error('⏰ Failed to send digest:', err);
+    }
+  };
+}
+
+export function createMonthlyWorkoutDigestSender(deps: DigestDeps) {
+  return async function sendMonthlyWorkoutDigest(groupChatId: string): Promise<void> {
+    const now = new Date();
+
+    let ranked: WorkoutLeaderboardEntry[];
+    let monthLabel: string;
+    try {
+      const result = await deps.workoutService.getLastMonthLeaderboard(
+        deps.timezoneOffsetMinutes,
+        now
+      );
+      ranked = rankLeaderboardEntries(result.entries);
+      monthLabel = result.monthLabel;
+    } catch (err) {
+      error(`📅 Failed to load monthly workout leaderboard for ${groupChatId}:`, err);
+      return;
+    }
+
+    const message = formatMonthlyDigestMessage(ranked, monthLabel);
+
+    try {
+      await deps.senderPort.sendMessage(groupChatId, message);
+      debug(`📅 Monthly workout digest sent to ${groupChatId}`);
+    } catch (err) {
+      error('📅 Failed to send monthly workout digest:', err);
     }
   };
 }

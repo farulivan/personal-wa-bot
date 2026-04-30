@@ -1,5 +1,5 @@
 import { debug, error } from '../../logger.js';
-import { formatReminderMessage } from './quranPresenter.js';
+import { formatReminderMessage, formatMonthlyQuranDigestMessage } from './quranPresenter.js';
 import type { UserReminder } from './quranPresenter.js';
 import type { QuranService } from './quranService.js';
 import type { GroupMembershipPort, MessageSenderPort } from '../../adapters/whatsapp/ports.js';
@@ -11,6 +11,49 @@ type QuranReminderDeps = {
   quranService: QuranService;
   timezoneOffsetMinutes: number;
 };
+
+type QuranMonthlyDigestDeps = {
+  senderPort: MessageSenderPort;
+  quranService: QuranService;
+  timezoneOffsetMinutes: number;
+};
+
+export function createMonthlyQuranDigestSender(deps: QuranMonthlyDigestDeps) {
+  return async function sendMonthlyQuranDigest(groupChatId: string): Promise<void> {
+    const now = new Date();
+
+    let entries: Awaited<ReturnType<QuranService['getLastMonthLeaderboard']>>['entries'];
+    let monthLabel: string;
+    try {
+      const result = await deps.quranService.getLastMonthLeaderboard(
+        deps.timezoneOffsetMinutes,
+        now
+      );
+      entries = result.entries;
+      monthLabel = result.monthLabel;
+    } catch (err) {
+      error(`📅 Failed to load monthly Quran leaderboard for ${groupChatId}:`, err);
+      return;
+    }
+
+    const ranked = [...entries].sort(
+      (a, b) =>
+        b.currentStreak - a.currentStreak ||
+        b.bestStreak - a.bestStreak ||
+        b.pagesRead - a.pagesRead ||
+        a.user.localeCompare(b.user)
+    );
+
+    const message = formatMonthlyQuranDigestMessage(ranked, monthLabel);
+
+    try {
+      await deps.senderPort.sendMessage(groupChatId, message);
+      debug(`📅 Monthly Quran digest sent to ${groupChatId}`);
+    } catch (err) {
+      error('📅 Failed to send monthly Quran digest:', err);
+    }
+  };
+}
 
 export function createQuranReminderSender(deps: QuranReminderDeps) {
   return async function sendQuranReminder(groupChatId: string): Promise<void> {

@@ -5,15 +5,24 @@ export type ScheduledJob = {
   hour: number;
   minute: number;
   timezoneOffsetMinutes: number;
+  dayOfMonth?: number;
   run: () => Promise<void>;
 };
 
 export type SchedulerHandle = { stop: () => void };
 
-function getUserHourMinute(timezoneOffsetMinutes: number): { hour: number; minute: number } {
+function getUserLocalTime(timezoneOffsetMinutes: number): {
+  hour: number;
+  minute: number;
+  day: number;
+} {
   const now = new Date();
   const userNow = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
-  return { hour: userNow.getUTCHours(), minute: userNow.getUTCMinutes() };
+  return {
+    hour: userNow.getUTCHours(),
+    minute: userNow.getUTCMinutes(),
+    day: userNow.getUTCDate(),
+  };
 }
 
 function msUntilNextMinute(): number {
@@ -27,8 +36,9 @@ export function startScheduler(jobs: ScheduledJob[]): SchedulerHandle {
 
   const tick = () => {
     for (const job of jobs) {
-      const { hour, minute } = getUserHourMinute(job.timezoneOffsetMinutes);
+      const { hour, minute, day } = getUserLocalTime(job.timezoneOffsetMinutes);
       if (hour !== job.hour || minute !== job.minute) continue;
+      if (job.dayOfMonth !== undefined && day !== job.dayOfMonth) continue;
 
       const key = `${hour}:${minute}:${new Date().toISOString().slice(0, 10)}`;
       if (lastFired.get(job.name) === key) continue;

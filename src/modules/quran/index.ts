@@ -3,7 +3,7 @@ import type { ScheduledJob } from '../../app/scheduler.js';
 import { withErrorBoundary } from '../../app/withErrorBoundary.js';
 import { createQuranController } from './quranController.js';
 import { QuranService } from './quranService.js';
-import { createQuranReminderSender } from './quranDigest.js';
+import { createQuranReminderSender, createMonthlyQuranDigestSender } from './quranDigest.js';
 import type { QuranRepository } from './infra/quranRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 import type { GroupMembershipPort, MessageSenderPort } from '../../adapters/whatsapp/ports.js';
@@ -17,6 +17,8 @@ export type QuranModuleDeps = {
   digestGroupId: string | undefined;
   quranReminderHour: number;
   quranReminderMinute: number;
+  monthlyDigestHour: number;
+  monthlyDigestMinute: number;
   quranListLimit: number;
   ramadhanCountEnabled: boolean;
   ramadhanStartDate: string;
@@ -50,12 +52,27 @@ export function registerQuranModule(deps: QuranModuleDeps): QuranModuleRegistrat
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
     });
 
+    const sendMonthlyQuranDigest = createMonthlyQuranDigestSender({
+      senderPort: deps.senderPort,
+      quranService,
+      timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+    });
+
     jobs.push({
       name: 'Quran Night Reminder',
       hour: deps.quranReminderHour,
       minute: deps.quranReminderMinute,
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
       run: () => sendNightlyQuranReminder(deps.digestGroupId!),
+    });
+
+    jobs.push({
+      name: 'Monthly Quran Recap',
+      hour: deps.monthlyDigestHour,
+      minute: deps.monthlyDigestMinute,
+      timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+      dayOfMonth: 1,
+      run: () => sendMonthlyQuranDigest(deps.digestGroupId!),
     });
   }
 
