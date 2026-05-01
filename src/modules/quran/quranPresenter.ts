@@ -228,6 +228,37 @@ export function formatLeaderboardMessage(
   return `${title}\n\n${list}`;
 }
 
+export function formatMonthlyQuranDigestMessage(
+  entries: QuranLeaderboardEntry[],
+  monthLabel: string
+): string {
+  if (entries.length === 0) {
+    return (
+      `📅 Monthly Quran Recap — ${monthLabel} 📖\n\n` +
+      `No reading was logged last month 👀\n\n` +
+      `A new month begins. May your consistency carry forward. 🤲`
+    );
+  }
+
+  const medals = ['🥇', '🥈', '🥉'];
+  const list = entries
+    .map((entry, index) => {
+      const prefix = medals[index] || '🌱';
+      const bestStreakPart =
+        entry.bestStreak > entry.currentStreak ? ` (Best ${entry.bestStreak} days)` : '';
+      const currentStreakLabel = `${entry.currentStreak} day${entry.currentStreak !== 1 ? 's' : ''}`;
+      const pageLabel = `${entry.pagesRead} page${entry.pagesRead !== 1 ? 's' : ''}`;
+      return `${prefix} ${entry.user}\n   🔥 Streak ${currentStreakLabel}${bestStreakPart} | 📖 ${pageLabel}`;
+    })
+    .join('\n');
+
+  return (
+    `📅 Monthly Quran Recap — ${monthLabel} 📖\n\n` +
+    `${list}\n\n` +
+    `A new month begins. May your consistency carry forward. 🤲`
+  );
+}
+
 export function formatUndoSuccess(entry: QuranDailyReadRow, timezoneOffsetMinutes: number): string {
   const dateLabel = toUserDate(entry.updatedAtUtc, timezoneOffsetMinutes);
   return (

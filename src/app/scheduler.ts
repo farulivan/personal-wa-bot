@@ -5,15 +5,29 @@ export type ScheduledJob = {
   hour: number;
   minute: number;
   timezoneOffsetMinutes: number;
+  dayOfMonth?: number;
   run: () => Promise<void>;
 };
 
 export type SchedulerHandle = { stop: () => void };
 
-function getUserHourMinute(timezoneOffsetMinutes: number): { hour: number; minute: number } {
+function getUserLocalTime(timezoneOffsetMinutes: number): {
+  hour: number;
+  minute: number;
+  day: number;
+  dateString: string;
+} {
   const now = new Date();
   const userNow = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
-  return { hour: userNow.getUTCHours(), minute: userNow.getUTCMinutes() };
+  const y = userNow.getUTCFullYear();
+  const m = String(userNow.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(userNow.getUTCDate()).padStart(2, '0');
+  return {
+    hour: userNow.getUTCHours(),
+    minute: userNow.getUTCMinutes(),
+    day: userNow.getUTCDate(),
+    dateString: `${y}-${m}-${d}`,
+  };
 }
 
 function msUntilNextMinute(): number {
@@ -27,10 +41,11 @@ export function startScheduler(jobs: ScheduledJob[]): SchedulerHandle {
 
   const tick = () => {
     for (const job of jobs) {
-      const { hour, minute } = getUserHourMinute(job.timezoneOffsetMinutes);
+      const { hour, minute, day, dateString } = getUserLocalTime(job.timezoneOffsetMinutes);
       if (hour !== job.hour || minute !== job.minute) continue;
+      if (job.dayOfMonth !== undefined && day !== job.dayOfMonth) continue;
 
-      const key = `${hour}:${minute}:${new Date().toISOString().slice(0, 10)}`;
+      const key = `${hour}:${minute}:${dateString}`;
       if (lastFired.get(job.name) === key) continue;
 
       lastFired.set(job.name, key);
@@ -41,7 +56,11 @@ export function startScheduler(jobs: ScheduledJob[]): SchedulerHandle {
 
   for (const job of jobs) {
     const time = `${String(job.hour).padStart(2, '0')}:${String(job.minute).padStart(2, '0')}`;
-    log({ job: job.name, time }, 'scheduled daily job');
+    if (job.dayOfMonth !== undefined) {
+      log({ job: job.name, time, dayOfMonth: job.dayOfMonth }, 'scheduled monthly job');
+    } else {
+      log({ job: job.name, time }, 'scheduled daily job');
+    }
   }
 
   // Align first tick to the next minute boundary, then tick every minute

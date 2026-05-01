@@ -233,6 +233,25 @@ export function formatLeaderboardMessage(entries: WorkoutLeaderboardEntry[]): st
   return `Workout Leaderboard This Month 🏆\n\n${renderLeaderboardBody(entries)}`;
 }
 
+export function formatMonthlyDigestMessage(
+  entries: WorkoutLeaderboardEntry[],
+  monthLabel: string
+): string {
+  if (entries.length === 0) {
+    return (
+      `📅 Monthly Workout Recap — ${monthLabel} 🏆\n\n` +
+      `No workouts were logged last month 👀\n\n` +
+      `New month, new goals. Let's get moving! 💪`
+    );
+  }
+
+  return (
+    `📅 Monthly Workout Recap — ${monthLabel} 🏆\n\n` +
+    `${renderLeaderboardBody(entries)}\n\n` +
+    `New month, new goals. Let's go! 💪`
+  );
+}
+
 export function formatDigestMessage(entries: WorkoutLeaderboardEntry[]): string {
   if (entries.length === 0) {
     return (

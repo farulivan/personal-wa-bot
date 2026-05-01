@@ -3,7 +3,10 @@ import type { ScheduledJob } from '../../app/scheduler.js';
 import { withErrorBoundary } from '../../app/withErrorBoundary.js';
 import { createWorkoutController } from './workoutController.js';
 import { WorkoutService } from './workoutService.js';
-import { createDailyStreakDigestSender } from './workoutDigest.js';
+import {
+  createDailyStreakDigestSender,
+  createMonthlyWorkoutDigestSender,
+} from './workoutDigest.js';
 import type { WorkoutRepository } from './infra/workoutRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 import type { MessageSenderPort } from '../../adapters/whatsapp/ports.js';
@@ -16,6 +19,8 @@ export type WorkoutModuleDeps = {
   digestGroupId: string | undefined;
   dailyDigestHour: number;
   dailyDigestMinute: number;
+  monthlyDigestHour: number;
+  monthlyDigestMinute: number;
   minWorkoutsForStreak: number;
   workoutListLimit: number;
 };
@@ -38,11 +43,14 @@ export function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleReg
   const jobs: ScheduledJob[] = [];
 
   if (deps.digestGroupId) {
-    const sendDailyStreakDigest = createDailyStreakDigestSender({
+    const digestDeps = {
       senderPort: deps.senderPort,
       workoutService,
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
-    });
+    };
+
+    const sendDailyStreakDigest = createDailyStreakDigestSender(digestDeps);
+    const sendMonthlyWorkoutDigest = createMonthlyWorkoutDigestSender(digestDeps);
 
     jobs.push({
       name: 'Daily Workout Leaderboard',
@@ -50,6 +58,15 @@ export function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleReg
       minute: deps.dailyDigestMinute,
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
       run: () => sendDailyStreakDigest(deps.digestGroupId!),
+    });
+
+    jobs.push({
+      name: 'Monthly Workout Recap',
+      hour: deps.monthlyDigestHour,
+      minute: deps.monthlyDigestMinute,
+      timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+      dayOfMonth: 1,
+      run: () => sendMonthlyWorkoutDigest(deps.digestGroupId!),
     });
   }
 
