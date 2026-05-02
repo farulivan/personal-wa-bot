@@ -1,4 +1,4 @@
-import { eq, sql, sum, isNull, and } from 'drizzle-orm';
+import { eq, sql, sum, isNull, and, inArray } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
 import { quranDailyReads, quranMarks } from './schema.js';
 import type {
@@ -132,7 +132,7 @@ export class DrizzleQuranRepository implements QuranRepository {
     const rows = await this.db.execute<{ user: string; total: string }>(sql`
       SELECT "user", SUM(pages)::int AS total
       FROM quran_daily_reads
-      WHERE "user" = ANY(${userIds})
+      WHERE ${inArray(quranDailyReads.user, userIds)}
         AND deleted_at IS NULL
         AND DATE(created_at::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))
             BETWEEN DATE(${startDateInclusive}::timestamp) AND DATE(${endDateInclusive}::timestamp)
@@ -239,7 +239,7 @@ export class DrizzleQuranRepository implements QuranRepository {
 
     let query = sql`SELECT ${quranDailyReads.user} AS "userId", ${dayExpr} AS "localDate"
       FROM ${quranDailyReads}
-      WHERE ${quranDailyReads.user} = ANY(${userIds})
+      WHERE ${inArray(quranDailyReads.user, userIds)}
         AND ${quranDailyReads.pages} > 0
         AND ${quranDailyReads.deletedAt} IS NULL`;
 

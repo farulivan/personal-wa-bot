@@ -1,4 +1,4 @@
-import { eq, sql, count, isNull, and } from 'drizzle-orm';
+import { eq, sql, count, isNull, and, inArray } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
 import { workoutLifts, workoutCardios } from './schema.js';
 import type {
@@ -78,12 +78,12 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
       SELECT user_id, COUNT(*)::int AS cnt FROM (
         (
           SELECT user_id, created_at FROM workout_lifts
-          WHERE user_id = ANY(${userIds}) AND deleted_at IS NULL
+          WHERE ${inArray(workoutLifts.userId, userIds)} AND deleted_at IS NULL
         )
         UNION ALL
         (
           SELECT user_id, created_at FROM workout_cardios
-          WHERE user_id = ANY(${userIds}) AND deleted_at IS NULL
+          WHERE ${inArray(workoutCardios.userId, userIds)} AND deleted_at IS NULL
         )
       ) AS combined
       WHERE DATE(created_at::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))
@@ -221,14 +221,14 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
           SELECT user_id,
                  DATE(created_at::timestamp + (INTERVAL '1 second' * ${offsetSeconds})) AS day
           FROM workout_lifts
-          WHERE user_id = ANY(${userIds}) AND deleted_at IS NULL
+          WHERE ${inArray(workoutLifts.userId, userIds)} AND deleted_at IS NULL
         )
         UNION ALL
         (
           SELECT user_id,
                  DATE(created_at::timestamp + (INTERVAL '1 second' * ${offsetSeconds})) AS day
           FROM workout_cardios
-          WHERE user_id = ANY(${userIds}) AND deleted_at IS NULL
+          WHERE ${inArray(workoutCardios.userId, userIds)} AND deleted_at IS NULL
         )
       ) AS combined
       GROUP BY user_id, day
