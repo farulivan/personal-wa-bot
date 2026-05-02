@@ -125,12 +125,7 @@ describe('DrizzleQuranRepository batch methods', () => {
       await insertRead(userA, 3, '2026-03-15T03:00:00.000Z'); // out of range
       await insertRead(userA, 4, '2026-04-15T03:00:00.000Z'); // in range
 
-      const result = await repo.sumPagesByUsersInDateRange(
-        [userA],
-        TZ,
-        '2026-04-01',
-        '2026-04-30'
-      );
+      const result = await repo.sumPagesByUsersInDateRange([userA], TZ, '2026-04-01', '2026-04-30');
       expect(result.get(userA)).toBe(4);
     });
 
@@ -140,12 +135,7 @@ describe('DrizzleQuranRepository batch methods', () => {
       const last = await repo.findLastReadByUser(userA, TZ, '2026-04-11T03:00:00.000Z');
       await repo.softDeleteById(last!.id, '2026-04-11T04:00:00.000Z');
 
-      const result = await repo.sumPagesByUsersInDateRange(
-        [userA],
-        TZ,
-        '2026-04-01',
-        '2026-04-30'
-      );
+      const result = await repo.sumPagesByUsersInDateRange([userA], TZ, '2026-04-01', '2026-04-30');
       expect(result.get(userA)).toBe(3);
     });
 
@@ -167,20 +157,10 @@ describe('DrizzleQuranRepository batch methods', () => {
       // 2026-04-30T17:30:00Z → local 2026-05-01 00:30 → should NOT count in April
       await insertRead(userA, 3, '2026-04-30T17:30:00.000Z');
 
-      const april = await repo.sumPagesByUsersInDateRange(
-        [userA],
-        TZ,
-        '2026-04-01',
-        '2026-04-30'
-      );
+      const april = await repo.sumPagesByUsersInDateRange([userA], TZ, '2026-04-01', '2026-04-30');
       expect(april.has(userA)).toBe(false);
 
-      const may = await repo.sumPagesByUsersInDateRange(
-        [userA],
-        TZ,
-        '2026-05-01',
-        '2026-05-31'
-      );
+      const may = await repo.sumPagesByUsersInDateRange([userA], TZ, '2026-05-01', '2026-05-31');
       expect(may.get(userA)).toBe(3);
     });
   });

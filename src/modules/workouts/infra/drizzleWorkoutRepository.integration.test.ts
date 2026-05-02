@@ -407,12 +407,7 @@ describe('DrizzleWorkoutRepository', () => {
       });
 
     it('returns empty map for empty userIds', async () => {
-      const result = await repo.countSessionsByUsersInDateRange(
-        [],
-        TZ,
-        '2026-04-01',
-        '2026-04-30'
-      );
+      const result = await repo.countSessionsByUsersInDateRange([], TZ, '2026-04-01', '2026-04-30');
       expect(result.size).toBe(0);
     });
 

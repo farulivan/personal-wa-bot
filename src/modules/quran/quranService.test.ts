@@ -155,7 +155,10 @@ class InMemoryQuranRepository implements QuranRepository {
         this.dailyReads
           .filter(
             (r) =>
-              r.user === user && r.deletedAt === null && r.pages > 0 && inRange(r.createdAtUtc, range)
+              r.user === user &&
+              r.deletedAt === null &&
+              r.pages > 0 &&
+              inRange(r.createdAtUtc, range)
           )
           .map((r) => r.createdAtUtc.slice(0, 10))
       ),
