@@ -10,6 +10,12 @@ import type {
 } from './infra/quranRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 
+function inRange(createdAtUtc: string, range?: QuranStreakDateRange): boolean {
+  if (!range) return true;
+  const day = createdAtUtc.slice(0, 10);
+  return day >= range.startDateInclusive && day <= range.endDateInclusive;
+}
+
 class InMemoryQuranRepository implements QuranRepository {
   dailyReads: (QuranDailyReadRow & { deletedAt: string | null; markBefore: number | null })[] = [];
   marks: QuranMarkRow[] = [];
@@ -85,6 +91,24 @@ class InMemoryQuranRepository implements QuranRepository {
       .reduce((sum, r) => sum + r.pages, 0);
   }
 
+  async sumPagesByUsersInDateRange(
+    userIds: string[],
+    _tz: number,
+    start: string,
+    end: string
+  ): Promise<Map<string, number>> {
+    const result = new Map<string, number>();
+    if (userIds.length === 0) return result;
+    const userSet = new Set(userIds);
+    for (const r of this.dailyReads) {
+      if (!userSet.has(r.user) || r.deletedAt !== null) continue;
+      const d = r.createdAtUtc.slice(0, 10);
+      if (d < start || d > end) continue;
+      result.set(r.user, (result.get(r.user) ?? 0) + r.pages);
+    }
+    return result;
+  }
+
   async upsertMark(
     user: string,
     page: number,
@@ -125,15 +149,45 @@ class InMemoryQuranRepository implements QuranRepository {
     return [...new Set(this.dailyReads.filter((r) => r.deletedAt === null).map((r) => r.user))];
   }
 
-  async getReadDays(user: string, _tz: number, _range?: QuranStreakDateRange): Promise<string[]> {
+  async getReadDays(user: string, _tz: number, range?: QuranStreakDateRange): Promise<string[]> {
     const days = [
       ...new Set(
         this.dailyReads
-          .filter((r) => r.user === user && r.deletedAt === null)
+          .filter(
+            (r) =>
+              r.user === user && r.deletedAt === null && r.pages > 0 && inRange(r.createdAtUtc, range)
+          )
           .map((r) => r.createdAtUtc.slice(0, 10))
       ),
     ];
     return days.sort().reverse();
+  }
+
+  async getReadDaysForUsers(
+    userIds: string[],
+    _tz: number,
+    range?: QuranStreakDateRange
+  ): Promise<Map<string, string[]>> {
+    const result = new Map<string, string[]>();
+    if (userIds.length === 0) return result;
+    const userSet = new Set(userIds);
+    const daysByUser = new Map<string, Set<string>>();
+    for (const r of this.dailyReads) {
+      if (!userSet.has(r.user)) continue;
+      if (r.deletedAt !== null) continue;
+      if (r.pages <= 0) continue;
+      if (!inRange(r.createdAtUtc, range)) continue;
+      let set = daysByUser.get(r.user);
+      if (!set) {
+        set = new Set<string>();
+        daysByUser.set(r.user, set);
+      }
+      set.add(r.createdAtUtc.slice(0, 10));
+    }
+    for (const [user, set] of daysByUser) {
+      result.set(user, [...set].sort().reverse());
+    }
+    return result;
   }
 
   async findLastReadByUser(
@@ -433,6 +487,94 @@ describe('QuranService', () => {
 
       const today = await repo.findTodayByUser(user, TZ, undoNow.toISOString());
       expect(today!.pages).toBe(5);
+    });
+  });
+
+  describe('getLeaderboard', () => {
+    const userA = '628111111111';
+    const userB = '628222222222';
+
+    it('returns empty entries when repo has no reads', async () => {
+      const result = await service.getLeaderboard(TZ, now);
+      expect(result.mode).toBe('monthly');
+      expect(result.entries).toHaveLength(0);
+    });
+
+    it('aggregates pagesRead per user in current month (monthly mode)', async () => {
+      await service.logRead(userA, TZ, 5, true, now);
+      await service.logRead(userB, TZ, 3, true, now);
+
+      const result = await service.getLeaderboard(TZ, now);
+      expect(result.mode).toBe('monthly');
+
+      const entryA = result.entries.find((e) => e.user === userA);
+      const entryB = result.entries.find((e) => e.user === userB);
+      expect(entryA?.pagesRead).toBe(5);
+      expect(entryB?.pagesRead).toBe(3);
+    });
+
+    it('excludes out-of-month reads from pagesRead', async () => {
+      // March (previous month)
+      await service.logRead(userA, TZ, 7, true, new Date('2026-03-15T10:00:00Z'));
+      // April (current month for `now`)
+      await service.logRead(userA, TZ, 4, true, now);
+
+      const result = await service.getLeaderboard(TZ, now);
+      const entry = result.entries.find((e) => e.user === userA);
+      expect(entry?.pagesRead).toBe(4);
+    });
+
+    it('excludes soft-deleted reads from pagesRead', async () => {
+      await service.logRead(userA, TZ, 5, true, now);
+      const undoTime = new Date(now.getTime() + 1 * 60 * 1000);
+      await service.undoTodayRead(userA, TZ, undoTime);
+
+      const result = await service.getLeaderboard(TZ, now);
+      const entry = result.entries.find((e) => e.user === userA);
+      expect(entry).toBeUndefined();
+    });
+
+    it('uses ramadhan range when ramadhan mode is enabled and dates valid', async () => {
+      const ramadhanService = new QuranService(
+        repo,
+        userRepo,
+        10,
+        true,
+        '2026-04-01',
+        '2026-04-30'
+      );
+      // April 5: in range
+      await service.logRead(userA, TZ, 6, true, new Date('2026-04-05T10:00:00Z'));
+      // March 25: out of ramadhan range
+      await service.logRead(userA, TZ, 9, true, new Date('2026-03-25T10:00:00Z'));
+
+      const result = await ramadhanService.getLeaderboard(TZ, now);
+      expect(result.mode).toBe('ramadhan');
+
+      const entry = result.entries.find((e) => e.user === userA);
+      expect(entry?.pagesRead).toBe(6);
+    });
+  });
+
+  describe('getLastMonthLeaderboard', () => {
+    const userA = '628111111111';
+
+    it('aggregates only previous-month pagesRead', async () => {
+      // March (previous month)
+      await service.logRead(userA, TZ, 7, true, new Date('2026-03-15T10:00:00Z'));
+      // April (current month — must be excluded)
+      await service.logRead(userA, TZ, 4, true, now);
+
+      const result = await service.getLastMonthLeaderboard(TZ, now);
+      expect(result.monthLabel).toBe('March 2026');
+      const entry = result.entries.find((e) => e.user === userA);
+      expect(entry?.pagesRead).toBe(7);
+    });
+
+    it('returns empty entries when no last-month reads', async () => {
+      await service.logRead(userA, TZ, 4, true, now);
+      const result = await service.getLastMonthLeaderboard(TZ, now);
+      expect(result.entries).toHaveLength(0);
     });
   });
 });

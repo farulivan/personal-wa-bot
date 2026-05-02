@@ -286,23 +286,26 @@ export class QuranService {
 
     const userIds = await this.quranRepository.listDistinctUsers();
 
-    const rawEntries = await Promise.all(
-      userIds.map(async (userId) => {
-        const readDays = await this.quranRepository.getReadDays(
-          userId,
-          timezoneOffsetMinutes,
-          dateRangeMode.mode === 'ramadhan' ? dateRangeMode.range : undefined
-        );
-        const streak = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
-        const pagesRead = await this.quranRepository.sumPagesByUserInDateRange(
-          userId,
-          timezoneOffsetMinutes,
-          pageRange.startDateInclusive,
-          pageRange.endDateInclusive
-        );
-        return { userId, currentStreak: streak.current, bestStreak: streak.best, pagesRead };
-      })
-    );
+    const [readDaysByUser, pagesByUser] = await Promise.all([
+      this.quranRepository.getReadDaysForUsers(
+        userIds,
+        timezoneOffsetMinutes,
+        dateRangeMode.mode === 'ramadhan' ? dateRangeMode.range : undefined
+      ),
+      this.quranRepository.sumPagesByUsersInDateRange(
+        userIds,
+        timezoneOffsetMinutes,
+        pageRange.startDateInclusive,
+        pageRange.endDateInclusive
+      ),
+    ]);
+
+    const rawEntries = userIds.map((userId) => {
+      const readDays = readDaysByUser.get(userId) ?? [];
+      const streak = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
+      const pagesRead = pagesByUser.get(userId) ?? 0;
+      return { userId, currentStreak: streak.current, bestStreak: streak.best, pagesRead };
+    });
 
     const filtered = rawEntries.filter(
       (e) => e.currentStreak > 0 || e.bestStreak > 0 || e.pagesRead > 0
@@ -331,19 +334,22 @@ export class QuranService {
 
     const userIds = await this.quranRepository.listDistinctUsers();
 
-    const rawEntries = await Promise.all(
-      userIds.map(async (userId) => {
-        const readDays = await this.quranRepository.getReadDays(userId, timezoneOffsetMinutes);
-        const streak = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
-        const pagesRead = await this.quranRepository.sumPagesByUserInDateRange(
-          userId,
-          timezoneOffsetMinutes,
-          startDateInclusive,
-          endDateInclusive
-        );
-        return { userId, currentStreak: streak.current, bestStreak: streak.best, pagesRead };
-      })
-    );
+    const [readDaysByUser, pagesByUser] = await Promise.all([
+      this.quranRepository.getReadDaysForUsers(userIds, timezoneOffsetMinutes),
+      this.quranRepository.sumPagesByUsersInDateRange(
+        userIds,
+        timezoneOffsetMinutes,
+        startDateInclusive,
+        endDateInclusive
+      ),
+    ]);
+
+    const rawEntries = userIds.map((userId) => {
+      const readDays = readDaysByUser.get(userId) ?? [];
+      const streak = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
+      const pagesRead = pagesByUser.get(userId) ?? 0;
+      return { userId, currentStreak: streak.current, bestStreak: streak.best, pagesRead };
+    });
 
     const filtered = rawEntries.filter((e) => e.pagesRead > 0);
     const namesById = await this.userRepository.getDisplayNamesByIds(filtered.map((e) => e.userId));

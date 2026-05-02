@@ -317,4 +317,169 @@ describe('DrizzleWorkoutRepository', () => {
       expect(countMay).toBe(1);
     });
   });
+
+  describe('getQualifyingStreakDaysForUsers', () => {
+    const userA = 'batch-user-a';
+    const userB = 'batch-user-b';
+
+    const makeLift = (userId: string, createdAtIso: string) =>
+      repo.insertWorkoutLog({
+        userId,
+        workoutMode: 'lift',
+        type: 'bench',
+        reps: 10,
+        sets: 3,
+        weight: 60,
+        createdAtIso,
+      });
+
+    it('returns empty map for empty userIds (no SQL)', async () => {
+      const result = await repo.getQualifyingStreakDaysForUsers([], TZ);
+      expect(result.size).toBe(0);
+    });
+
+    it('only includes users meeting the threshold', async () => {
+      // userA: 3 lifts on the same day → qualifies
+      for (let i = 0; i < 3; i++) {
+        await makeLift(userA, `2026-04-12T${String(i + 1).padStart(2, '0')}:00:00.000Z`);
+      }
+      // userB: only 1 lift → does NOT qualify
+      await makeLift(userB, '2026-04-12T01:00:00.000Z');
+
+      const result = await repo.getQualifyingStreakDaysForUsers([userA, userB], TZ);
+      expect(result.get(userA)).toEqual(['2026-04-12']);
+      expect(result.has(userB)).toBe(false);
+    });
+
+    it('returns days for multiple users keyed by user_id', async () => {
+      for (let i = 0; i < 3; i++) {
+        await makeLift(userA, `2026-04-10T${String(i + 1).padStart(2, '0')}:00:00.000Z`);
+        await makeLift(userB, `2026-04-11T${String(i + 1).padStart(2, '0')}:00:00.000Z`);
+      }
+
+      const result = await repo.getQualifyingStreakDaysForUsers([userA, userB], TZ);
+      expect(result.get(userA)).toEqual(['2026-04-10']);
+      expect(result.get(userB)).toEqual(['2026-04-11']);
+    });
+
+    it('excludes soft-deleted rows', async () => {
+      // 3 lifts on 2026-04-12; soft-delete one so only 2 remain → no longer qualifies
+      for (let i = 0; i < 3; i++) {
+        await makeLift(userA, `2026-04-12T${String(i + 1).padStart(2, '0')}:00:00.000Z`);
+      }
+      // Soft-delete the most recent lift
+      const last = await repo.findLastByUser(userA);
+      await repo.softDeleteById(last!.id, last!.workoutMode, '2026-04-12T05:00:00.000Z');
+
+      const result = await repo.getQualifyingStreakDaysForUsers([userA], TZ);
+      expect(result.has(userA)).toBe(false);
+    });
+
+    it('users with no rows are absent from the result map', async () => {
+      const result = await repo.getQualifyingStreakDaysForUsers([userA, 'never-existed'], TZ);
+      expect(result.has('never-existed')).toBe(false);
+    });
+  });
+
+  describe('countSessionsByUsersInDateRange', () => {
+    const userA = 'batch-user-a';
+    const userB = 'batch-user-b';
+
+    const makeLift = (userId: string, createdAtIso: string) =>
+      repo.insertWorkoutLog({
+        userId,
+        workoutMode: 'lift',
+        type: 'bench',
+        reps: 10,
+        sets: 3,
+        weight: 60,
+        createdAtIso,
+      });
+
+    const makeCardio = (userId: string, createdAtIso: string) =>
+      repo.insertWorkoutLog({
+        userId,
+        workoutMode: 'cardio',
+        type: 'run',
+        durationMinutes: 30,
+        distanceKm: 5,
+        createdAtIso,
+      });
+
+    it('returns empty map for empty userIds', async () => {
+      const result = await repo.countSessionsByUsersInDateRange(
+        [],
+        TZ,
+        '2026-04-01',
+        '2026-04-30'
+      );
+      expect(result.size).toBe(0);
+    });
+
+    it('counts lift + cardio per user within range', async () => {
+      await makeLift(userA, '2026-04-12T03:00:00.000Z');
+      await makeCardio(userA, '2026-04-15T03:00:00.000Z');
+      await makeLift(userB, '2026-04-20T03:00:00.000Z');
+
+      const result = await repo.countSessionsByUsersInDateRange(
+        [userA, userB],
+        TZ,
+        '2026-04-01',
+        '2026-04-30'
+      );
+      expect(result.get(userA)).toBe(2);
+      expect(result.get(userB)).toBe(1);
+    });
+
+    it('users with zero in-range sessions are absent from the map', async () => {
+      // userA has March-only rows; userB has April rows
+      await makeLift(userA, '2026-03-15T03:00:00.000Z');
+      await makeLift(userB, '2026-04-15T03:00:00.000Z');
+
+      const result = await repo.countSessionsByUsersInDateRange(
+        [userA, userB],
+        TZ,
+        '2026-04-01',
+        '2026-04-30'
+      );
+      expect(result.has(userA)).toBe(false);
+      expect(result.get(userB)).toBe(1);
+    });
+
+    it('excludes soft-deleted rows', async () => {
+      await makeLift(userA, '2026-04-12T03:00:00.000Z');
+      await makeCardio(userA, '2026-04-13T03:00:00.000Z');
+      const last = await repo.findLastByUser(userA);
+      await repo.softDeleteById(last!.id, last!.workoutMode, '2026-04-13T04:00:00.000Z');
+
+      const result = await repo.countSessionsByUsersInDateRange(
+        [userA],
+        TZ,
+        '2026-04-01',
+        '2026-04-30'
+      );
+      expect(result.get(userA)).toBe(1);
+    });
+
+    it('respects timezone boundary', async () => {
+      // 2026-04-30T17:30:00Z → local 2026-05-01 00:30 → should NOT count in April
+      await makeCardio(userA, '2026-04-30T17:30:00.000Z');
+
+      const april = await repo.countSessionsByUsersInDateRange(
+        [userA],
+        TZ,
+        '2026-04-01',
+        '2026-04-30'
+      );
+      expect(april.has(userA)).toBe(false);
+
+      const may = await repo.countSessionsByUsersInDateRange(
+        [userA],
+        TZ,
+        '2026-05-01',
+        '2026-05-31'
+      );
+      expect(may.get(userA)).toBe(1);
+    });
+  });
 });

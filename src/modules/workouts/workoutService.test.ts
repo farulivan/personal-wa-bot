@@ -39,6 +39,25 @@ class InMemoryWorkoutRepository implements WorkoutRepository {
     }).length;
   }
 
+  async countSessionsByUsersInDateRange(
+    userIds: string[],
+    timezoneOffsetMinutes: number,
+    startDateInclusive: string,
+    endDateInclusive: string
+  ): Promise<Map<string, number>> {
+    const result = new Map<string, number>();
+    if (userIds.length === 0) return result;
+    const userSet = new Set(userIds);
+    for (const log of this.active()) {
+      if (!userSet.has(log.userId)) continue;
+      const localMs = new Date(log.createdAtIso).getTime() + timezoneOffsetMinutes * 60 * 1000;
+      const localDay = new Date(localMs).toISOString().slice(0, 10);
+      if (localDay < startDateInclusive || localDay > endDateInclusive) continue;
+      result.set(log.userId, (result.get(log.userId) ?? 0) + 1);
+    }
+    return result;
+  }
+
   async listByUser(user: string, limit: number, offset: number): Promise<WorkoutEntry[]> {
     return this.active()
       .filter((l) => l.userId === user)
@@ -79,6 +98,35 @@ class InMemoryWorkoutRepository implements WorkoutRepository {
       .map(([day]) => day)
       .sort()
       .reverse();
+  }
+
+  async getQualifyingStreakDaysForUsers(
+    userIds: string[],
+    _tz: number
+  ): Promise<Map<string, string[]>> {
+    const result = new Map<string, string[]>();
+    if (userIds.length === 0) return result;
+    const userSet = new Set(userIds);
+    const countsByUserDay = new Map<string, Map<string, number>>();
+    for (const log of this.active()) {
+      if (!userSet.has(log.userId)) continue;
+      const day = log.createdAtIso.slice(0, 10);
+      let perDay = countsByUserDay.get(log.userId);
+      if (!perDay) {
+        perDay = new Map<string, number>();
+        countsByUserDay.set(log.userId, perDay);
+      }
+      perDay.set(day, (perDay.get(day) ?? 0) + 1);
+    }
+    for (const [userId, perDay] of countsByUserDay) {
+      const days = [...perDay.entries()]
+        .filter(([, count]) => count >= this.minForStreak)
+        .map(([day]) => day)
+        .sort()
+        .reverse();
+      if (days.length > 0) result.set(userId, days);
+    }
+    return result;
   }
 
   async getTodayCount(user: string, _tz: number, nowIso: string): Promise<number> {
