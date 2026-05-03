@@ -30,13 +30,13 @@ export function startReminderScheduler(deps: StartReminderSchedulerDeps): Remind
 
     try {
       const nowIso = new Date().toISOString();
-      const dueReminders = await deps.remindRepository.listDuePending(nowIso, 50);
+      const dueReminders = await deps.remindRepository.claimDueReminders(nowIso, 50);
 
       if (dueReminders.length === 0) {
         return;
       }
 
-      debug(`⏰ Reminder scheduler: found ${dueReminders.length} due reminder(s)`);
+      debug(`⏰ Reminder scheduler: claimed ${dueReminders.length} due reminder(s)`);
 
       const namesById = await deps.userRepository.getDisplayNamesByIds(
         dueReminders.map((r) => r.userId)
@@ -56,10 +56,12 @@ export function startReminderScheduler(deps: StartReminderSchedulerDeps): Remind
 
         try {
           await deps.client.sendMessage(reminder.targetChatId, message);
-          await deps.remindRepository.markAsSent(reminder.id, new Date().toISOString());
           debug(`⏰ Reminder sent: id=${reminder.id}, chat=${reminder.targetChatId}`);
         } catch (err) {
-          error(`⏰ Failed to send reminder id=${reminder.id}:`, err);
+          error(
+            `⏰ Failed to send reminder id=${reminder.id} (already claimed; will not retry):`,
+            err
+          );
         }
       }
     } catch (err) {

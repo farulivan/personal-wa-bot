@@ -55,6 +55,17 @@ class InMemoryRemindRepository implements RemindRepository {
       .map(toReminderListRow);
   }
 
+  async claimDueReminders(nowIso: string, limit: number): Promise<DueReminderRow[]> {
+    const candidates = this.active()
+      .filter((r) => r.sentAt === null && r.scheduledAt <= nowIso)
+      .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
+      .slice(0, limit);
+    for (const r of candidates) {
+      r.sentAt = nowIso;
+    }
+    return candidates.map(toReminderListRow);
+  }
+
   async markAsSent(id: number, sentAt: string): Promise<void> {
     const row = this.rows.find((r) => r.id === id);
     if (row && row.sentAt === null && row.deletedAt === null) row.sentAt = sentAt;

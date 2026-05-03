@@ -112,6 +112,44 @@ export class DrizzleRemindRepository implements RemindRepository {
     return rows.map(toReminderListRow);
   }
 
+  async claimDueReminders(nowIso: string, limit: number): Promise<DueReminderRow[]> {
+    const result = await this.db.execute(sql`
+      UPDATE ${reminders}
+      SET sent_at = ${nowIso}
+      WHERE id IN (
+        SELECT id FROM ${reminders}
+        WHERE sent_at IS NULL
+          AND deleted_at IS NULL
+          AND scheduled_at <= ${nowIso}
+        ORDER BY scheduled_at ASC
+        LIMIT ${limit}
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING
+        id,
+        user_id AS "userId",
+        target_chat_id AS "targetChatId",
+        source_type AS "sourceType",
+        reminder_text AS "reminderText",
+        scheduled_at AS "scheduledAt",
+        created_at AS "createdAt",
+        sent_at AS "sentAt"
+    `);
+
+    return (
+      result as unknown as Array<{
+        id: number;
+        userId: string;
+        targetChatId: string;
+        sourceType: string;
+        reminderText: string;
+        scheduledAt: string;
+        createdAt: string;
+        sentAt: string | null;
+      }>
+    ).map(toReminderListRow);
+  }
+
   async markAsSent(id: number, sentAt: string): Promise<void> {
     await this.db
       .update(reminders)
