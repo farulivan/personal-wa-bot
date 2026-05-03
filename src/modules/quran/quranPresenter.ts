@@ -1,3 +1,4 @@
+import { toUserDate } from '../../shared/dateRange.js';
 import type { QuranDailyReadRow, QuranHistoryRow } from './infra/quranRepository.js';
 import type { QuranLeaderboardEntry, QuranLeaderboardMode } from './quranService.js';
 import { QURAN_UNDO_WINDOW_MS } from './quranService.js';
@@ -10,15 +11,6 @@ export type UserReminder = {
   hasRead: boolean;
   currentStreak: number;
 };
-
-function toUserDate(utcIso: string, timezoneOffsetMinutes: number): string {
-  const utcDate = new Date(utcIso);
-  const local = new Date(utcDate.getTime() + timezoneOffsetMinutes * 60000);
-  const y = local.getUTCFullYear();
-  const m = String(local.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(local.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 function joinHumanNames(names: string[]): string {
   if (names.length === 0) return '';
@@ -116,15 +108,12 @@ export function formatHistoryList(
   timezoneOffsetMinutes: number,
   now: Date
 ): string {
-  const today = toUserDate(now.toISOString(), timezoneOffsetMinutes);
-  const yesterday = toUserDate(
-    new Date(now.getTime() - 86400000).toISOString(),
-    timezoneOffsetMinutes
-  );
+  const today = toUserDate(now, timezoneOffsetMinutes);
+  const yesterday = toUserDate(new Date(now.getTime() - 86400000), timezoneOffsetMinutes);
 
   return rows
     .map((row) => {
-      const readDate = toUserDate(row.createdAtUtc, timezoneOffsetMinutes);
+      const readDate = toUserDate(new Date(row.createdAtUtc), timezoneOffsetMinutes);
 
       let dateLabel: string;
       if (readDate === today) {
@@ -260,7 +249,7 @@ export function formatMonthlyQuranDigestMessage(
 }
 
 export function formatUndoSuccess(entry: QuranDailyReadRow, timezoneOffsetMinutes: number): string {
-  const dateLabel = toUserDate(entry.updatedAtUtc, timezoneOffsetMinutes);
+  const dateLabel = toUserDate(new Date(entry.updatedAtUtc), timezoneOffsetMinutes);
   return (
     `Catatan tilawah berhasil dibatalkan 🗑️\n` +
     `Tanggal: ${dateLabel}\n` +
@@ -278,7 +267,7 @@ export function formatUndoNoReads(): string {
 
 export function formatUndoTooLate(entry: QuranDailyReadRow, timezoneOffsetMinutes: number): string {
   const undoWindowMinutes = QURAN_UNDO_WINDOW_MS / 60_000;
-  const dateLabel = toUserDate(entry.updatedAtUtc, timezoneOffsetMinutes);
+  const dateLabel = toUserDate(new Date(entry.updatedAtUtc), timezoneOffsetMinutes);
   return (
     `Tidak bisa lagi dibatalkan ⏳\n` +
     `Undo hanya tersedia dalam ${undoWindowMinutes} menit setelah mencatat.\n\n` +

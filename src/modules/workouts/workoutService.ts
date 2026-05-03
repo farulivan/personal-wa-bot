@@ -1,4 +1,5 @@
 import { debug } from '../../logger.js';
+import { getCurrentMonthDateRange } from '../../shared/dateRange.js';
 import { computeStreaks } from './workoutStreaks.js';
 import type { StreakInfo } from './workoutStreaks.js';
 import type {
@@ -23,21 +24,6 @@ export type WorkoutLeaderboardEntry = {
   currentStreak: number;
   bestStreak: number;
 };
-
-export function getCurrentMonthDateRange(
-  now: Date,
-  timezoneOffsetMinutes: number
-): { startDateInclusive: string; endDateInclusive: string } {
-  const local = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
-  const year = local.getUTCFullYear();
-  const month = local.getUTCMonth() + 1;
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-
-  return {
-    startDateInclusive: `${year}-${String(month).padStart(2, '0')}-01`,
-    endDateInclusive: `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
-  };
-}
 
 export function getLastMonthDateRange(
   now: Date,
