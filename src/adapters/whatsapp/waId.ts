@@ -92,6 +92,12 @@ export async function listGroupMemberIdentities(
     try {
       const lidAndPhoneRows = await client.getContactLidAndPhone(serializedSeeds);
 
+      if (lidAndPhoneRows.length !== serializedSeeds.length) {
+        throw new Error(
+          `getContactLidAndPhone returned ${lidAndPhoneRows.length} rows for ${serializedSeeds.length} seeds; refusing to correlate by index`
+        );
+      }
+
       for (let index = 0; index < serializedSeeds.length; index++) {
         const seed = serializedSeeds[index];
         const linked = linkedAliasesBySerializedId.get(seed);
