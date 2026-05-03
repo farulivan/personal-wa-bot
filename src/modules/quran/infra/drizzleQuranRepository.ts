@@ -1,4 +1,4 @@
-import { eq, sql, sum, isNull, and } from 'drizzle-orm';
+import { eq, sql, sum, isNull, and, inArray } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
 import { quranDailyReads, quranMarks } from './schema.js';
 import type {
@@ -118,6 +118,33 @@ export class DrizzleQuranRepository implements QuranRepository {
     return Number(rows[0]?.total ?? 0);
   }
 
+  async sumPagesByUsersInDateRange(
+    userIds: string[],
+    timezoneOffsetMinutes: number,
+    startDateInclusive: string,
+    endDateInclusive: string
+  ): Promise<Map<string, number>> {
+    const result = new Map<string, number>();
+    if (userIds.length === 0) return result;
+
+    const offsetSeconds = timezoneOffsetMinutes * 60;
+
+    const rows = await this.db.execute<{ user: string; total: string }>(sql`
+      SELECT "user", SUM(pages)::int AS total
+      FROM quran_daily_reads
+      WHERE ${inArray(quranDailyReads.user, userIds)}
+        AND deleted_at IS NULL
+        AND DATE(created_at::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))
+            BETWEEN DATE(${startDateInclusive}::timestamp) AND DATE(${endDateInclusive}::timestamp)
+      GROUP BY "user"
+    `);
+
+    for (const row of rows) {
+      result.set(row.user, Number(row.total));
+    }
+    return result;
+  }
+
   async upsertMark(
     user: string,
     page: number,
@@ -197,6 +224,45 @@ export class DrizzleQuranRepository implements QuranRepository {
 
     const rows = await this.db.execute(query);
     return (rows as unknown as Array<{ localDate: string }>).map((r) => r.localDate);
+  }
+
+  async getReadDaysForUsers(
+    userIds: string[],
+    timezoneOffsetMinutes: number,
+    range?: QuranStreakDateRange
+  ): Promise<Map<string, string[]>> {
+    const result = new Map<string, string[]>();
+    if (userIds.length === 0) return result;
+
+    const offsetSeconds = timezoneOffsetMinutes * 60;
+    const dayExpr = sql`DATE(${quranDailyReads.createdAt}::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))`;
+
+    let query = sql`SELECT ${quranDailyReads.user} AS "userId", ${dayExpr} AS "localDate"
+      FROM ${quranDailyReads}
+      WHERE ${inArray(quranDailyReads.user, userIds)}
+        AND ${quranDailyReads.pages} > 0
+        AND ${quranDailyReads.deletedAt} IS NULL`;
+
+    if (range) {
+      query = sql`${query}
+        AND ${dayExpr} >= DATE(${range.startDateInclusive}::timestamp)
+        AND ${dayExpr} <= DATE(${range.endDateInclusive}::timestamp)`;
+    }
+
+    query = sql`${query}
+      GROUP BY ${quranDailyReads.user}, "localDate"
+      ORDER BY ${quranDailyReads.user}, "localDate" DESC`;
+
+    const rows = await this.db.execute(query);
+    for (const row of rows as unknown as Array<{ userId: string; localDate: string }>) {
+      const days = result.get(row.userId);
+      if (days) {
+        days.push(row.localDate);
+      } else {
+        result.set(row.userId, [row.localDate]);
+      }
+    }
+    return result;
   }
 
   async findLastReadByUser(

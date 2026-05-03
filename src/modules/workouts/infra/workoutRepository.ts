@@ -48,10 +48,20 @@ export interface WorkoutRepository {
     startDateInclusive: string,
     endDateInclusive: string
   ): Promise<number>;
+  countSessionsByUsersInDateRange(
+    userIds: string[],
+    timezoneOffsetMinutes: number,
+    startDateInclusive: string,
+    endDateInclusive: string
+  ): Promise<Map<string, number>>;
   listByUser(user: string, limit: number, offset: number): Promise<WorkoutEntry[]>;
   insertWorkoutLog(log: NewWorkoutLog): Promise<void>;
   listDistinctUsers(): Promise<string[]>;
   getQualifyingStreakDays(user: string, timezoneOffsetMinutes: number): Promise<string[]>;
+  getQualifyingStreakDaysForUsers(
+    userIds: string[],
+    timezoneOffsetMinutes: number
+  ): Promise<Map<string, string[]>>;
   getTodayCount(user: string, timezoneOffsetMinutes: number, nowIso: string): Promise<number>;
   findLastByUser(user: string): Promise<DeletedWorkoutEntry | null>;
   softDeleteById(id: number, workoutMode: 'lift' | 'cardio', deletedAtIso: string): Promise<void>;

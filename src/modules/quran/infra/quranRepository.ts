@@ -54,6 +54,12 @@ export interface QuranRepository {
     startDateInclusive: string,
     endDateInclusive: string
   ): Promise<number>;
+  sumPagesByUsersInDateRange(
+    userIds: string[],
+    timezoneOffsetMinutes: number,
+    startDateInclusive: string,
+    endDateInclusive: string
+  ): Promise<Map<string, number>>;
   upsertMark(user: string, page: number, createdAtUtc: string, updatedAtUtc: string): Promise<void>;
   findMarkByUser(user: string): Promise<QuranMarkRow | null>;
   listByUser(user: string, limit: number, offset: number): Promise<QuranHistoryRow[]>;
@@ -63,6 +69,11 @@ export interface QuranRepository {
     timezoneOffsetMinutes: number,
     range?: QuranStreakDateRange
   ): Promise<string[]>;
+  getReadDaysForUsers(
+    userIds: string[],
+    timezoneOffsetMinutes: number,
+    range?: QuranStreakDateRange
+  ): Promise<Map<string, string[]>>;
   findLastReadByUser(
     user: string,
     timezoneOffsetMinutes: number,

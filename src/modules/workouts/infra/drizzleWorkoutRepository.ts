@@ -1,4 +1,4 @@
-import { eq, sql, count, isNull, and } from 'drizzle-orm';
+import { eq, sql, count, isNull, and, inArray } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
 import { workoutLifts, workoutCardios } from './schema.js';
 import type {
@@ -61,6 +61,40 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
     ]);
 
     return (lift[0]?.total ?? 0) + (cardio[0]?.total ?? 0);
+  }
+
+  async countSessionsByUsersInDateRange(
+    userIds: string[],
+    timezoneOffsetMinutes: number,
+    startDateInclusive: string,
+    endDateInclusive: string
+  ): Promise<Map<string, number>> {
+    const result = new Map<string, number>();
+    if (userIds.length === 0) return result;
+
+    const offsetSeconds = timezoneOffsetMinutes * 60;
+
+    const rows = await this.db.execute<{ user_id: string; cnt: string }>(sql`
+      SELECT user_id, COUNT(*)::int AS cnt FROM (
+        (
+          SELECT user_id, created_at FROM workout_lifts
+          WHERE ${inArray(workoutLifts.userId, userIds)} AND deleted_at IS NULL
+        )
+        UNION ALL
+        (
+          SELECT user_id, created_at FROM workout_cardios
+          WHERE ${inArray(workoutCardios.userId, userIds)} AND deleted_at IS NULL
+        )
+      ) AS combined
+      WHERE DATE(created_at::timestamp + (INTERVAL '1 second' * ${offsetSeconds}))
+            BETWEEN DATE(${startDateInclusive}::timestamp) AND DATE(${endDateInclusive}::timestamp)
+      GROUP BY user_id
+    `);
+
+    for (const row of rows) {
+      result.set(row.user_id, Number(row.cnt));
+    }
+    return result;
   }
 
   async listByUser(user: string, limit: number, offset: number): Promise<WorkoutEntry[]> {
@@ -170,6 +204,47 @@ export class DrizzleWorkoutRepository implements WorkoutRepository {
     `);
 
     return rows.map((r) => r.day as string);
+  }
+
+  async getQualifyingStreakDaysForUsers(
+    userIds: string[],
+    timezoneOffsetMinutes: number
+  ): Promise<Map<string, string[]>> {
+    const result = new Map<string, string[]>();
+    if (userIds.length === 0) return result;
+
+    const offsetSeconds = timezoneOffsetMinutes * 60;
+
+    const rows = await this.db.execute<{ user_id: string; day: string }>(sql`
+      SELECT user_id, day FROM (
+        (
+          SELECT user_id,
+                 DATE(created_at::timestamp + (INTERVAL '1 second' * ${offsetSeconds})) AS day
+          FROM workout_lifts
+          WHERE ${inArray(workoutLifts.userId, userIds)} AND deleted_at IS NULL
+        )
+        UNION ALL
+        (
+          SELECT user_id,
+                 DATE(created_at::timestamp + (INTERVAL '1 second' * ${offsetSeconds})) AS day
+          FROM workout_cardios
+          WHERE ${inArray(workoutCardios.userId, userIds)} AND deleted_at IS NULL
+        )
+      ) AS combined
+      GROUP BY user_id, day
+      HAVING COUNT(*) >= ${this.minWorkoutsForStreak}
+      ORDER BY user_id, day DESC
+    `);
+
+    for (const row of rows) {
+      const days = result.get(row.user_id);
+      if (days) {
+        days.push(row.day);
+      } else {
+        result.set(row.user_id, [row.day]);
+      }
+    }
+    return result;
   }
 
   async getTodayCount(
