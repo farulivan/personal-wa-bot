@@ -7,10 +7,12 @@ import type {
   NewSholatDailySchedule,
   SholatDailyScheduleRow,
 } from './infra/sholatRepository.js';
-import type {
-  MyQuranSholatClient,
-  MyQuranLocation,
-  MyQuranTodaySchedule,
+import {
+  LocationNotFoundError,
+  UpstreamUnavailableError,
+  type MyQuranSholatClient,
+  type MyQuranLocation,
+  type MyQuranTodaySchedule,
 } from './infra/myQuranSholatClient.js';
 
 const LOCATIONS: MyQuranLocation[] = [
@@ -114,7 +116,7 @@ class MockSholatClient implements Pick<
 > {
   fetchAllLocationsCalls = 0;
   fetchTodayScheduleCalls = 0;
-  private shouldThrow404 = false;
+  private nextFetchError: Error | null = null;
 
   async fetchAllLocations(): Promise<MyQuranLocation[]> {
     this.fetchAllLocationsCalls++;
@@ -123,15 +125,20 @@ class MockSholatClient implements Pick<
 
   async fetchTodaySchedule(locationId: string): Promise<MyQuranTodaySchedule> {
     this.fetchTodayScheduleCalls++;
-    if (this.shouldThrow404) {
-      this.shouldThrow404 = false; // only throw once
-      throw new Error('myQuran API error 404: Not Found');
+    if (this.nextFetchError) {
+      const err = this.nextFetchError;
+      this.nextFetchError = null; // only throw once
+      throw err;
     }
     return makeSchedule(locationId);
   }
 
-  simulateNextFetch404(): void {
-    this.shouldThrow404 = true;
+  simulateNextFetchLocationNotFound(): void {
+    this.nextFetchError = new LocationNotFoundError('Schedule unavailable for location');
+  }
+
+  simulateNextFetchUpstreamUnavailable(): void {
+    this.nextFetchError = new UpstreamUnavailableError('myQuran API error 503');
   }
 }
 
@@ -252,18 +259,31 @@ describe('SholatService', () => {
       }
     });
 
-    it('refreshes location catalog on 404 and retries', async () => {
+    it('refreshes location catalog on LocationNotFoundError and retries', async () => {
       // Pre-populate catalog
       await service.ensureLocationCatalog();
       const initialFetchCalls = client.fetchAllLocationsCalls;
 
-      // Simulate stale location ID causing 404
-      client.simulateNextFetch404();
+      // Simulate stale location ID surfacing as a typed not-found error
+      client.simulateNextFetchLocationNotFound();
       const result = await service.getTodaySchedule('bandung', now);
 
       expect(result.ok).toBe(true);
-      // Should have re-fetched locations after 404
+      // Should have re-fetched locations after the typed error
       expect(client.fetchAllLocationsCalls).toBe(initialFetchCalls + 1);
+    });
+
+    it('rethrows UpstreamUnavailableError without refreshing the catalog', async () => {
+      await service.ensureLocationCatalog();
+      const initialFetchCalls = client.fetchAllLocationsCalls;
+
+      client.simulateNextFetchUpstreamUnavailable();
+
+      await expect(service.getTodaySchedule('bandung', now)).rejects.toBeInstanceOf(
+        UpstreamUnavailableError
+      );
+      // No catalog refresh — only LocationNotFoundError triggers that path
+      expect(client.fetchAllLocationsCalls).toBe(initialFetchCalls);
     });
 
     it('returns not found when location does not exist', async () => {
