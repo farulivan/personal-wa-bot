@@ -1,6 +1,4 @@
-export function tokenize(firstLine: string): string[] {
-  return firstLine.trim().split(/\s+/).filter(Boolean);
-}
+import { tokenize } from '../../shared/parsing.js';
 
 export function hasFlag(firstLine: string, flag: string): boolean {
   return tokenize(firstLine).some((token) => token.toLowerCase() === `--${flag.toLowerCase()}`);

@@ -1,4 +1,6 @@
 import { debug } from '../../logger.js';
+import { getCurrentMonthDateRange } from '../../shared/dateRange.js';
+import { MAX_QURAN_PAGE } from './constants.js';
 import { computeQuranStreaks } from './quranStreaks.js';
 import type { StreakInfo } from './quranStreaks.js';
 import type {
@@ -45,8 +47,6 @@ export type UndoReadResult =
   | { undone: false; reason: 'no_reads' }
   | { undone: false; reason: 'too_late'; entry: QuranDailyReadRow };
 
-const MAX_QURAN_PAGE = 604;
-
 function isIsoDateOnly(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00Z`);
@@ -73,21 +73,6 @@ export function getDateRangeMode(
   }
 
   return { mode: 'monthly' };
-}
-
-export function getCurrentMonthDateRange(
-  now: Date,
-  timezoneOffsetMinutes: number
-): QuranStreakDateRange {
-  const local = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
-  const year = local.getUTCFullYear();
-  const month = local.getUTCMonth() + 1;
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-
-  return {
-    startDateInclusive: `${year}-${String(month).padStart(2, '0')}-01`,
-    endDateInclusive: `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
-  };
 }
 
 export function getLastMonthDateRange(

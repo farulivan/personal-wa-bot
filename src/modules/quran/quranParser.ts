@@ -2,10 +2,10 @@ import type { CommandInvocation } from '../../app/parseCommand.js';
 import { ok, err } from '../../shared/result.js';
 import type { Result } from '../../shared/result.js';
 import { tokenize } from '../../shared/parsing.js';
+import { MAX_QURAN_PAGE } from './constants.js';
 export { tokenize, parsePageNumber } from '../../shared/parsing.js';
 
 const MAX_DAILY_PAGES_WITHOUT_APPROVAL = 50;
-const MAX_QURAN_PAGE = 604;
 
 export type ReadInput = {
   pages: number;

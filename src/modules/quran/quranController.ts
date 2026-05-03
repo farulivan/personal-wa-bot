@@ -24,9 +24,9 @@ import {
   formatUndoTooLate,
 } from './quranPresenter.js';
 import type { QuranService } from './quranService.js';
+import { MAX_QURAN_PAGE } from './constants.js';
 
 const QURAN_NAMESPACE = 'quran';
-const MAX_QURAN_PAGE = 604;
 
 export function createQuranController(quranService: QuranService): NamespaceHandler {
   async function handleRead(ctx: CommandContext, invocation: CommandInvocation): Promise<string> {

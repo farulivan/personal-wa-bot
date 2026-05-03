@@ -1,26 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { computeStreaks, toUserDate } from './workoutStreaks.js';
+import { computeStreaks } from './workoutStreaks.js';
 
 const TZ_UTC7 = 420; // UTC+7 in minutes
-
-describe('toUserDate', () => {
-  it('converts UTC date to user local date string', () => {
-    const utc = new Date('2026-01-15T00:00:00Z');
-    expect(toUserDate(utc, TZ_UTC7)).toBe('2026-01-15');
-  });
-
-  it('accounts for timezone offset pushing into next day', () => {
-    // 23:00 UTC = 06:00 next day UTC+7
-    const utc = new Date('2026-01-14T23:00:00Z');
-    expect(toUserDate(utc, TZ_UTC7)).toBe('2026-01-15');
-  });
-
-  it('accounts for negative offset', () => {
-    // 01:00 UTC = 20:00 previous day UTC-5
-    const utc = new Date('2026-01-15T01:00:00Z');
-    expect(toUserDate(utc, -300)).toBe('2026-01-14');
-  });
-});
 
 describe('computeStreaks', () => {
   const now = new Date('2026-04-08T10:00:00Z'); // local date = 2026-04-08 in UTC+7

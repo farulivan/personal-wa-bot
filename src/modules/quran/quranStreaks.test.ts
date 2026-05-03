@@ -1,17 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { computeQuranStreaks, toUserDate } from './quranStreaks.js';
+import { computeQuranStreaks } from './quranStreaks.js';
 
 const TZ_UTC7 = 420;
-
-describe('toUserDate', () => {
-  it('converts UTC to local date string', () => {
-    expect(toUserDate(new Date('2026-01-15T00:00:00Z'), TZ_UTC7)).toBe('2026-01-15');
-  });
-
-  it('advances day when UTC+7 crosses midnight', () => {
-    expect(toUserDate(new Date('2026-01-14T23:00:00Z'), TZ_UTC7)).toBe('2026-01-15');
-  });
-});
 
 describe('computeQuranStreaks', () => {
   const now = new Date('2026-04-08T10:00:00Z'); // local = 2026-04-08 in UTC+7

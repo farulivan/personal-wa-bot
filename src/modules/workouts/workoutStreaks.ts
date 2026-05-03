@@ -1,16 +1,9 @@
+import { toUserDate } from '../../shared/dateRange.js';
+
 export type StreakInfo = {
   current: number;
   best: number;
 };
-
-// Returns the user's local date string (YYYY-MM-DD) for a given UTC timestamp
-export function toUserDate(utcDate: Date, timezoneOffsetMinutes: number): string {
-  const local = new Date(utcDate.getTime() + timezoneOffsetMinutes * 60000);
-  const y = local.getUTCFullYear();
-  const m = String(local.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(local.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 // Compute current and best streak from pre-fetched qualifying days (DESC order)
 export function computeStreaks(
