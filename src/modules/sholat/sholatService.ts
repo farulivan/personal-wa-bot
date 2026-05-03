@@ -4,7 +4,11 @@ import type {
   SholatRepository,
   SholatDailyScheduleRow,
 } from './infra/sholatRepository.js';
-import type { MyQuranLocation, MyQuranSholatClient } from './infra/myQuranSholatClient.js';
+import {
+  LocationNotFoundError,
+  type MyQuranLocation,
+  type MyQuranSholatClient,
+} from './infra/myQuranSholatClient.js';
 import { normalizeForMatch, normalizeUserLocationInput } from './sholatParser.js';
 import { ok, err } from '../../shared/result.js';
 import type { Result } from '../../shared/result.js';
@@ -25,23 +29,6 @@ function toSholatLocationRows(locations: MyQuranLocation[]): SholatLocationRow[]
     locationName: row.locationName,
     normalizedLocationName: normalizeForMatch(row.locationName),
   }));
-}
-
-function isLikelyInvalidLocationIdError(err: unknown): boolean {
-  const rawMessage = err instanceof Error ? err.message : String(err);
-  const message = rawMessage.toLowerCase();
-
-  if (message.includes('404')) return true;
-
-  const hasNotFoundSignal = message.includes('not found') || message.includes('tidak ditemukan');
-  const hasLocationSignal =
-    message.includes('id') ||
-    message.includes('lokasi') ||
-    message.includes('kota') ||
-    message.includes('location') ||
-    message.includes('jadwal');
-
-  return hasNotFoundSignal && hasLocationSignal;
 }
 
 export class SholatService {
@@ -137,7 +124,7 @@ export class SholatService {
     try {
       apiSchedule = await this.sholatClient.fetchTodaySchedule(selectedLocation.id, timezone);
     } catch (fetchErr) {
-      if (!isLikelyInvalidLocationIdError(fetchErr)) throw fetchErr;
+      if (!(fetchErr instanceof LocationNotFoundError)) throw fetchErr;
 
       debug(
         `🕌 Suspected stale location id for ${selectedLocation.locationName}; force-refreshing locations`

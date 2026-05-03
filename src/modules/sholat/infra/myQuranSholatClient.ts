@@ -1,3 +1,17 @@
+export class LocationNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'LocationNotFoundError';
+  }
+}
+
+export class UpstreamUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UpstreamUnavailableError';
+  }
+}
+
 type ApiBaseResponse<T> = {
   status: boolean;
   message: string;
@@ -71,7 +85,9 @@ export class MyQuranSholatClient {
     );
 
     if (!payload.status || !payload.data || !payload.data.jadwal) {
-      throw new Error(`Failed to load sholat schedule: ${payload.message}`);
+      throw new LocationNotFoundError(
+        `Sholat schedule unavailable for location ${locationId}: ${payload.message}`
+      );
     }
 
     const scheduleDate = Object.keys(payload.data.jadwal)[0];
@@ -99,7 +115,21 @@ export class MyQuranSholatClient {
   }
 
   private async fetchJson<T>(url: string): Promise<T> {
-    const res = await fetch(url);
+    let res: Response;
+    try {
+      res = await fetch(url);
+    } catch (cause) {
+      throw new UpstreamUnavailableError(
+        `myQuran API network error: ${cause instanceof Error ? cause.message : String(cause)}`
+      );
+    }
+
+    if (res.status === 404) {
+      throw new LocationNotFoundError(`myQuran API 404: ${url}`);
+    }
+    if (res.status >= 500) {
+      throw new UpstreamUnavailableError(`myQuran API error ${res.status}: ${res.statusText}`);
+    }
     if (!res.ok) {
       throw new Error(`myQuran API error ${res.status}: ${res.statusText}`);
     }

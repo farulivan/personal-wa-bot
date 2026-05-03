@@ -21,24 +21,17 @@ export class DrizzleSholatRepository implements SholatRepository {
   async upsertLocations(rows: NewSholatLocation[]): Promise<void> {
     if (rows.length === 0) return;
 
-    for (const row of rows) {
-      await this.db
-        .insert(sholatLocations)
-        .values({
-          id: row.id,
-          locationName: row.locationName,
-          normalizedLocationName: row.normalizedLocationName,
-          fetchedAtUtc: row.fetchedAtUtc,
-        })
-        .onConflictDoUpdate({
-          target: sholatLocations.id,
-          set: {
-            locationName: row.locationName,
-            normalizedLocationName: row.normalizedLocationName,
-            fetchedAtUtc: row.fetchedAtUtc,
-          },
-        });
-    }
+    await this.db
+      .insert(sholatLocations)
+      .values(rows)
+      .onConflictDoUpdate({
+        target: sholatLocations.id,
+        set: {
+          locationName: sql`excluded.location_name`,
+          normalizedLocationName: sql`excluded.normalized_location_name`,
+          fetchedAtUtc: sql`excluded.fetched_at_utc`,
+        },
+      });
   }
 
   async listLocations(): Promise<SholatLocationRow[]> {
