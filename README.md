@@ -42,6 +42,7 @@ Log lift and cardio sessions with compact syntax, track streaks, and get daily g
 - Configurable streak threshold (`MIN_WORKOUTS_FOR_STREAK`)
 - Paginated history with mode badges (`[lift]`, `[cardio]`)
 - Daily digest leaderboard in group chat
+- Monthly recap: on day 1 of each month, sends the previous month's Workout and Quran leaderboards to `DIGEST_GROUP_ID`
 
 ### Quran Reading — `#quran`
 
@@ -204,6 +205,8 @@ See [`.env.example`](.env.example) for the full template.
 | `DAILY_DIGEST_MINUTE` | `0` | Workout digest minute |
 | `QURAN_REMINDER_HOUR` | `22` | Quran reminder hour (24h, user timezone) |
 | `QURAN_REMINDER_MINUTE` | `0` | Quran reminder minute |
+| `MONTHLY_DIGEST_HOUR` | `8` | Monthly recap hour (day 1, 24h, user timezone) |
+| `MONTHLY_DIGEST_MINUTE` | `0` | Monthly recap minute |
 
 </details>
 
