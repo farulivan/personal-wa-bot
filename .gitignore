@@ -37,13 +37,10 @@ pnpm-debug.log*
 /data
 /.wwebjs_auth
 /.wwebjs_cache
-skills-lock.json
 
 # ──────────────────────────────────────────
 # IDE & editor
 # ──────────────────────────────────────────
-/.windsurf
-/.agents
 .idea/
 .vscode/
 
