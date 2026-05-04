@@ -6,10 +6,6 @@ export type CommandContext = {
   replyChatId: string;
   isGroupChat: boolean;
   time: TimeContext;
-  /** @deprecated Use ctx.time.timezoneOffsetMinutes */
-  timezoneOffsetMinutes: number;
-  /** @deprecated Use ctx.time.now() */
-  now: () => Date;
 };
 
 export type NamespaceHandler = (

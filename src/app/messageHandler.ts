@@ -95,8 +95,6 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
         replyChatId: msg.from,
         isGroupChat: isGroup,
         time,
-        timezoneOffsetMinutes: time.timezoneOffsetMinutes,
-        now: time.now,
       };
 
       const startMs = Date.now();
