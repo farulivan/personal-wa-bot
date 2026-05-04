@@ -2,19 +2,15 @@
 
 ## Improvements to Existing Modules
 
-### 1. Delete/Cancel Reminders
+### 1. Delete Specific Reminders by ID
 
-Add `#remind delete <id>` to cancel pending reminders. Currently there's no way to remove a reminder once created.
+Add `#remind delete <id>` to cancel arbitrary pending reminders. The current `#remind undo` only removes the most recent reminder within a short window — there's no way to cancel a specific older reminder.
 
-### 2. Delete/Undo Workout or Quran Entries
-
-Allow users to fix mislogs (e.g., `#workout delete <id>`, `#quran undo`). Currently entries are permanent.
-
-### 3. Per-User Timezone
+### 2. Per-User Timezone
 
 Everyone shares a single `USER_TIMEZONE_OFFSET_MINUTES`. Supporting per-user timezones would help if group members span different cities.
 
-### 4. Recurring Reminders
+### 3. Recurring Reminders
 
 `#remind` is one-shot only. Add daily/weekly recurrence support, e.g.:
 
@@ -23,7 +19,7 @@ Everyone shares a single `USER_TIMEZONE_OFFSET_MINUTES`. Supporting per-user tim
 #remind daily 7:00 Morning check-in
 ```
 
-### 5. Sholat API Fallback
+### 4. Sholat API Fallback
 
 If the MyQuran API is down, the sholat module just fails. A last-known-good cache fallback would make it more resilient.
 
@@ -31,7 +27,7 @@ If the MyQuran API is down, the sholat module just fails. A last-known-good cach
 
 ## New Feature Ideas
 
-### 6. Habit Tracker (`#habit`)
+### 5. Habit Tracker (`#habit`)
 
 Generic daily habit check-ins beyond workouts/quran. Track any habit with streaks and completion rates.
 
@@ -42,7 +38,7 @@ Generic daily habit check-ins beyond workouts/quran. Track any habit with streak
 #habit stats
 ```
 
-### 7. Fasting Tracker (`#puasa`)
+### 6. Fasting Tracker (`#puasa`)
 
 Log fasting days (Ramadhan or sunnah), track consistency. Pairs nicely with the existing Quran Ramadhan mode.
 
@@ -52,7 +48,7 @@ Log fasting days (Ramadhan or sunnah), track consistency. Pairs nicely with the 
 #puasa list
 ```
 
-### 8. Expense Tracker (`#expense`)
+### 7. Expense Tracker (`#expense`)
 
 Quick daily expense logging with monthly summaries and category breakdowns. Fits the "personal daily tracking" theme.
 
@@ -63,7 +59,7 @@ Quick daily expense logging with monthly summaries and category breakdowns. Fits
 #expense summary
 ```
 
-### 9. Cross-Module Stats (`#stats`)
+### 8. Cross-Module Stats (`#stats`)
 
 Personal dashboard combining all modules in one reply: workout streak, quran streak, pages this month, active reminders, etc.
 
@@ -71,7 +67,7 @@ Personal dashboard combining all modules in one reply: workout streak, quran str
 #stats
 ```
 
-### 10. Goal Setting (`#goal`)
+### 9. Goal Setting (`#goal`)
 
 Set personal targets and get progress updates in the daily digest.
 

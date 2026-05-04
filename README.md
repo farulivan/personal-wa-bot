@@ -35,7 +35,7 @@ Log lift and cardio sessions with compact syntax, track streaks, and get daily g
 ```
 #workout lift push up 20reps 4sets 10kg
 #workout cardio run 30min 5km
-#workout --list
+#workout list
 ```
 
 - Explicit modes: **lift** and **cardio**
@@ -43,6 +43,8 @@ Log lift and cardio sessions with compact syntax, track streaks, and get daily g
 - Paginated history with mode badges (`[lift]`, `[cardio]`)
 - Daily digest leaderboard in group chat
 - Monthly recap: on day 1 of each month, sends the previous month's Workout and Quran leaderboards to `DIGEST_GROUP_ID`
+- Undo last workout log within 5 minutes (`#workout undo`)
+- Leaderboard preview on demand (`#workout leaderboard`)
 
 ### Quran Reading — `#quran`
 
@@ -51,13 +53,15 @@ Track daily pages, manage bookmarks, and get nightly group reminders.
 ```
 #quran read 3
 #quran mark 145
-#quran --list
+#quran list
 ```
 
 - Auto-accumulate multiple logs per day
 - Auto-advance bookmark after each read (skip with `--no-mark`)
 - Khatam detection — resets bookmark when passing page 604
 - Streak tracking and nightly reminder in group
+- Undo today's read within 5 minutes (`#quran undo`)
+- Leaderboard preview on demand (`#quran leaderboard`)
 
 ### Sholat Schedule — `#sholat`
 
@@ -78,12 +82,13 @@ Set reminders with natural date/time input, delivered back to the source chat.
 ```
 #remind tomorrow 9am Review proposal
 #remind 2026-03-10 10:30 Submit report
-#remind --list
+#remind list
 ```
 
 - Flexible parsing: `today`, `tomorrow`, `YYYY-MM-DD` + `9am`, `HH:MM`, `14`
 - Delivered to the same chat (group or direct) where it was created
 - Safety limits: 200 char max text, 50 active reminders per user
+- Undo last reminder within a short window (`#remind undo`)
 
 ---
 
@@ -146,8 +151,11 @@ docker compose up --build
 | `#workout lift pull up 8rep 5set` | Log bodyweight lift |
 | `#workout cardio run 30min 5km` | Log cardio (distance optional) |
 | `#workout cardio brisk walk 1hour` | Log cardio with hour unit |
-| `#workout --list` | View paginated history |
-| `#workout --list 2` | View page 2 |
+| `#workout list` | View paginated history |
+| `#workout list 2` | View page 2 |
+| `#workout undo` | Undo your most recent log (within 5 minutes) |
+| `#workout leaderboard` | Show today's group leaderboard |
+| `#workout help` | Show command help |
 
 **Format rules:** Reps accept `rep`/`reps`, sets accept `set`/`sets`, weight uses `kg` only, duration uses `min`/`hour`, distance uses `km`.
 
@@ -158,8 +166,11 @@ docker compose up --build
 | `#quran read 3` | Log 3 pages read today |
 | `#quran read 3 --no-mark` | Log without advancing bookmark |
 | `#quran mark 145` | Set bookmark to page 145 |
-| `#quran mark` / `#quran --mark` | Check current bookmark |
-| `#quran --list` | View paginated reading history |
+| `#quran mark` | Check current bookmark |
+| `#quran list` | View paginated reading history |
+| `#quran undo` | Undo today's most recent read (within 5 minutes) |
+| `#quran leaderboard` | Show today's group leaderboard |
+| `#quran help` | Show command help |
 
 ### Sholat
 
@@ -167,6 +178,7 @@ docker compose up --build
 |---|---|
 | `#sholat` / `#sholat --today` | Today's schedule (default location) |
 | `#sholat --today --location bandung` | Specify location |
+| `#sholat help` | Show command help |
 
 ### Remind
 
@@ -175,7 +187,9 @@ docker compose up --build
 | `#remind 2026-03-10 10:30 Review proposal` | Set reminder with specific date |
 | `#remind today 9am Join standup` | Set reminder for today |
 | `#remind tomorrow 8:15 Prepare update` | Set reminder for tomorrow |
-| `#remind --list` | View active reminders |
+| `#remind list` | View active reminders |
+| `#remind undo` | Undo last reminder (within a short window) |
+| `#remind help` | Show command help |
 
 ---
 
@@ -216,10 +230,10 @@ See [`.env.example`](.env.example) for the full template.
 | Variable | Default | Description |
 |---|---|---|
 | `MIN_WORKOUTS_FOR_STREAK` | `3` | Workouts/day to count as a streak day |
-| `WORKOUT_LIST_LIMIT` | `10` | Rows per page for `#workout --list` |
-| `QURAN_LIST_LIMIT` | `10` | Rows per page for `#quran --list` |
-| `REMIND_LIST_LIMIT` | `10` | Rows per page for `#remind --list` |
-| `QURAN_RAMADHAN_COUNT_ENABLED` | `false` | Show Ramadhan total in `#quran --list` |
+| `WORKOUT_LIST_LIMIT` | `10` | Rows per page for `#workout list` |
+| `QURAN_LIST_LIMIT` | `10` | Rows per page for `#quran list` |
+| `REMIND_LIST_LIMIT` | `10` | Rows per page for `#remind list` |
+| `QURAN_RAMADHAN_COUNT_ENABLED` | `false` | Show Ramadhan total in `#quran list` |
 | `QURAN_RAMADHAN_START_DATE` | — | Ramadhan start (`YYYY-MM-DD`, inclusive) |
 | `QURAN_RAMADHAN_END_DATE` | — | Ramadhan end (`YYYY-MM-DD`, inclusive) |
 | `SHOLAT_DEFAULT_LOCATION` | `KAB. BOGOR` | Default prayer schedule location |
@@ -246,7 +260,7 @@ Timestamps are stored in UTC. User-local day boundaries are calculated using `US
 
 Scheduled jobs use the same offset, so digest/reminder timing is always consistent with user-local time. Reminder input (`#remind`) is interpreted in this timezone, then stored as UTC.
 
-**Ramadhan counter:** When `QURAN_RAMADHAN_COUNT_ENABLED=true`, `#quran --list` shows a Ramadhan total line. Date range is inclusive on both ends, using user-local day comparison.
+**Ramadhan counter:** When `QURAN_RAMADHAN_COUNT_ENABLED=true`, `#quran list` shows a Ramadhan total line. Date range is inclusive on both ends, using user-local day comparison.
 
 </details>
 
