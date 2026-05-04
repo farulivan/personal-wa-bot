@@ -1,5 +1,5 @@
 import type { WorkoutEntry } from './infra/workoutRepository.js';
-import type { StreakInfo } from './workoutStreaks.js';
+import type { StreakInfo } from '../../shared/streaks.js';
 import { UNDO_WINDOW_MS } from './workoutService.js';
 import type { WorkoutLeaderboardEntry } from './workoutService.js';
 

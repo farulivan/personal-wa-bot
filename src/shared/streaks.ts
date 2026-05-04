@@ -1,12 +1,14 @@
-import { toUserDate } from '../../shared/dateRange.js';
+import { toUserDate } from './dateRange.js';
 
 export type StreakInfo = {
   current: number;
   best: number;
 };
 
-// Compute current and best streak from pre-fetched read days (DESC order)
-export function computeQuranStreaks(
+// Compute current and best streak from pre-filtered qualifying days (sorted DESC).
+// Caller filters to days that qualify (e.g. days hitting workout threshold, or
+// any day with a quran read). Current streak anchors on today-or-yesterday.
+export function computeStreaks(
   days: string[],
   timezoneOffsetMinutes: number,
   now: Date
