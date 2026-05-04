@@ -1,8 +1,8 @@
 import { debug } from '../../logger.js';
 import { getCurrentMonthDateRange } from '../../shared/dateRange.js';
 import { MAX_QURAN_PAGE } from './constants.js';
-import { computeQuranStreaks } from './quranStreaks.js';
-import type { StreakInfo } from './quranStreaks.js';
+import { computeStreaks } from '../../shared/streaks.js';
+import type { StreakInfo } from '../../shared/streaks.js';
 import type {
   QuranRepository,
   QuranDailyReadRow,
@@ -174,7 +174,7 @@ export class QuranService {
     const totalToday = todayRecord?.pages ?? pagesAdded;
 
     const readDays = await this.quranRepository.getReadDays(sender, timezoneOffsetMinutes);
-    const streaks = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
+    const streaks = computeStreaks(readDays, timezoneOffsetMinutes, now);
 
     debug(`📖 Quran read logged: +${pagesAdded} page(s) by ${sender} at ${nowIsoUtc}`);
 
@@ -226,7 +226,7 @@ export class QuranService {
         : await this.quranRepository.listByUser(sender, this.quranListLimit, offset);
 
     const readDays = await this.quranRepository.getReadDays(sender, timezoneOffsetMinutes);
-    const streaks = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
+    const streaks = computeStreaks(readDays, timezoneOffsetMinutes, now);
 
     let ramadhanPagesRead: number | null = null;
     const dateRangeMode = getDateRangeMode(
@@ -287,7 +287,7 @@ export class QuranService {
 
     const rawEntries = userIds.map((userId) => {
       const readDays = readDaysByUser.get(userId) ?? [];
-      const streak = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
+      const streak = computeStreaks(readDays, timezoneOffsetMinutes, now);
       const pagesRead = pagesByUser.get(userId) ?? 0;
       return { userId, currentStreak: streak.current, bestStreak: streak.best, pagesRead };
     });
@@ -331,7 +331,7 @@ export class QuranService {
 
     const rawEntries = userIds.map((userId) => {
       const readDays = readDaysByUser.get(userId) ?? [];
-      const streak = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
+      const streak = computeStreaks(readDays, timezoneOffsetMinutes, now);
       const pagesRead = pagesByUser.get(userId) ?? 0;
       return { userId, currentStreak: streak.current, bestStreak: streak.best, pagesRead };
     });
@@ -362,7 +362,7 @@ export class QuranService {
       this.quranRepository.getReadDays(userId, timezoneOffsetMinutes),
       this.userRepository.getDisplayName(userId),
     ]);
-    const streaks = computeQuranStreaks(readDays, timezoneOffsetMinutes, now);
+    const streaks = computeStreaks(readDays, timezoneOffsetMinutes, now);
     return { hasRead, currentStreak: streaks.current, name };
   }
 

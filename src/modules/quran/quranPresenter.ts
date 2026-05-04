@@ -2,7 +2,7 @@ import { toUserDate } from '../../shared/dateRange.js';
 import type { QuranDailyReadRow, QuranHistoryRow } from './infra/quranRepository.js';
 import type { QuranLeaderboardEntry, QuranLeaderboardMode } from './quranService.js';
 import { QURAN_UNDO_WINDOW_MS } from './quranService.js';
-import type { StreakInfo } from './quranStreaks.js';
+import type { StreakInfo } from '../../shared/streaks.js';
 
 const QURAN_LEADERBOARD_LIMIT = 10;
 

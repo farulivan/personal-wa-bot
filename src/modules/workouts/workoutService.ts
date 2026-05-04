@@ -1,7 +1,7 @@
 import { debug } from '../../logger.js';
 import { getCurrentMonthDateRange } from '../../shared/dateRange.js';
-import { computeStreaks } from './workoutStreaks.js';
-import type { StreakInfo } from './workoutStreaks.js';
+import { computeStreaks } from '../../shared/streaks.js';
+import type { StreakInfo } from '../../shared/streaks.js';
 import type {
   WorkoutRepository,
   WorkoutEntry,

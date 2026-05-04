@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeStreaks } from './workoutStreaks.js';
+import { computeStreaks } from './streaks.js';
 
 const TZ_UTC7 = 420; // UTC+7 in minutes
 
