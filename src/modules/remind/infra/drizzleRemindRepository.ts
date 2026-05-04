@@ -1,4 +1,4 @@
-import { eq, sql, count, isNull, and, lte } from 'drizzle-orm';
+import { eq, sql, count, isNull, and } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
 import { reminders } from './schema.js';
 import type {
@@ -82,32 +82,6 @@ export class DrizzleRemindRepository implements RemindRepository {
       .orderBy(sql`${reminders.createdAt} DESC`)
       .limit(limit)
       .offset(offset);
-
-    return rows.map(toReminderListRow);
-  }
-
-  async listDuePending(nowIso: string, limit: number): Promise<DueReminderRow[]> {
-    const rows = await this.db
-      .select({
-        id: reminders.id,
-        userId: reminders.userId,
-        targetChatId: reminders.targetChatId,
-        sourceType: reminders.sourceType,
-        reminderText: reminders.reminderText,
-        scheduledAt: reminders.scheduledAt,
-        createdAt: reminders.createdAt,
-        sentAt: reminders.sentAt,
-      })
-      .from(reminders)
-      .where(
-        and(
-          isNull(reminders.sentAt),
-          isNull(reminders.deletedAt),
-          lte(reminders.scheduledAt, nowIso)
-        )
-      )
-      .orderBy(sql`${reminders.scheduledAt} ASC`)
-      .limit(limit);
 
     return rows.map(toReminderListRow);
   }

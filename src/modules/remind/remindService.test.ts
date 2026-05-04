@@ -47,14 +47,6 @@ class InMemoryRemindRepository implements RemindRepository {
       .map(toReminderListRow);
   }
 
-  async listDuePending(nowIso: string, limit: number): Promise<DueReminderRow[]> {
-    return this.active()
-      .filter((r) => r.sentAt === null && r.scheduledAt <= nowIso)
-      .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
-      .slice(0, limit)
-      .map(toReminderListRow);
-  }
-
   async claimDueReminders(nowIso: string, limit: number): Promise<DueReminderRow[]> {
     const candidates = this.active()
       .filter((r) => r.sentAt === null && r.scheduledAt <= nowIso)
@@ -258,19 +250,6 @@ describe('RemindService', () => {
       if (!result.undone) {
         expect(result.reason).toBe('no_reminders');
       }
-    });
-
-    it('scheduler listDuePending skips undone reminders', async () => {
-      const pastSchedule = parseReminderCommand('#remind 2026-04-08 17:30 Past task');
-      if (!pastSchedule.ok) throw new Error('fixture parse failed');
-      await service.createReminder(user, chatId, false, pastSchedule.value, TZ, now);
-      await service.undoLastReminder(user, new Date(now.getTime() + 1000));
-
-      const due = await repo.listDuePending(
-        new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-        10
-      );
-      expect(due).toHaveLength(0);
     });
 
     it('frees an active-limit slot after undo', async () => {

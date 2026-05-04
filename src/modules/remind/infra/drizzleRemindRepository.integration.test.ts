@@ -86,29 +86,6 @@ describe('DrizzleRemindRepository', () => {
     });
   });
 
-  describe('listDuePending', () => {
-    it('returns unsent reminders scheduled at or before now', async () => {
-      await repo.insertReminder(makeReminder({ scheduledAt: '2026-04-12T08:00:00.000Z' }));
-      await repo.insertReminder(
-        makeReminder({ scheduledAt: '2026-12-01T00:00:00.000Z', reminderText: 'Future' })
-      );
-
-      const due = await repo.listDuePending('2026-04-12T10:00:00.000Z', 10);
-      expect(due).toHaveLength(1);
-      expect(due[0].reminderText).toBe('Buy milk');
-    });
-
-    it('excludes already-sent reminders', async () => {
-      await repo.insertReminder(makeReminder({ scheduledAt: '2026-04-12T08:00:00.000Z' }));
-
-      const rows = await repo.listByUser(user, 10, 0);
-      await repo.markAsSent(rows[0].id, '2026-04-12T09:00:00.000Z');
-
-      const due = await repo.listDuePending('2026-04-12T10:00:00.000Z', 10);
-      expect(due).toHaveLength(0);
-    });
-  });
-
   describe('claimDueReminders', () => {
     it('claims due reminders, marks them sent, and removes them from the due set', async () => {
       await repo.insertReminder(
@@ -126,7 +103,7 @@ describe('DrizzleRemindRepository', () => {
       expect(claimed.map((r) => r.reminderText).sort()).toEqual(['A', 'B']);
       expect(claimed.every((r) => r.sentAt === '2026-04-12T10:00:00.000Z')).toBe(true);
 
-      const stillDue = await repo.listDuePending('2026-04-12T10:00:00.000Z', 10);
+      const stillDue = await repo.claimDueReminders('2026-04-12T10:00:00.000Z', 10);
       expect(stillDue).toHaveLength(0);
     });
 
@@ -140,7 +117,7 @@ describe('DrizzleRemindRepository', () => {
       const claimed = await repo.claimDueReminders('2026-04-12T10:00:00.000Z', 2);
       expect(claimed).toHaveLength(2);
 
-      const remaining = await repo.listDuePending('2026-04-12T10:00:00.000Z', 10);
+      const remaining = await repo.claimDueReminders('2026-04-12T10:00:00.000Z', 10);
       expect(remaining).toHaveLength(3);
     });
 
@@ -183,7 +160,7 @@ describe('DrizzleRemindRepository', () => {
       expect(overlap).toEqual([]);
       expect(batchA.length + batchB.length).toBe(10);
 
-      const stillDue = await repo.listDuePending('2026-04-12T10:00:00.000Z', 10);
+      const stillDue = await repo.claimDueReminders('2026-04-12T10:00:00.000Z', 10);
       expect(stillDue).toHaveLength(0);
     });
   });
@@ -246,7 +223,7 @@ describe('DrizzleRemindRepository', () => {
   });
 
   describe('softDeleteById (undo)', () => {
-    it('hides the reminder from countByUser, listByUser, and listDuePending', async () => {
+    it('hides the reminder from countByUser and listByUser', async () => {
       await repo.insertReminder(
         makeReminder({ scheduledAt: '2026-04-12T08:00:00.000Z', reminderText: 'Due task' })
       );
@@ -258,7 +235,6 @@ describe('DrizzleRemindRepository', () => {
       expect(await repo.countByUser(user)).toBe(0);
       expect(await repo.countActiveByUser(user)).toBe(0);
       expect(await repo.listByUser(user, 10, 0)).toHaveLength(0);
-      expect(await repo.listDuePending('2026-04-12T10:00:00.000Z', 10)).toHaveLength(0);
     });
 
     it('excludes soft-deleted reminders from findLastActiveByUser', async () => {
