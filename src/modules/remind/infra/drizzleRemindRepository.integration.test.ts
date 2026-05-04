@@ -109,6 +109,85 @@ describe('DrizzleRemindRepository', () => {
     });
   });
 
+  describe('claimDueReminders', () => {
+    it('claims due reminders, marks them sent, and removes them from the due set', async () => {
+      await repo.insertReminder(
+        makeReminder({ scheduledAt: '2026-04-12T08:00:00.000Z', reminderText: 'A' })
+      );
+      await repo.insertReminder(
+        makeReminder({ scheduledAt: '2026-04-12T09:00:00.000Z', reminderText: 'B' })
+      );
+      await repo.insertReminder(
+        makeReminder({ scheduledAt: '2026-12-01T00:00:00.000Z', reminderText: 'Future' })
+      );
+
+      const claimed = await repo.claimDueReminders('2026-04-12T10:00:00.000Z', 10);
+
+      expect(claimed.map((r) => r.reminderText).sort()).toEqual(['A', 'B']);
+      expect(claimed.every((r) => r.sentAt === '2026-04-12T10:00:00.000Z')).toBe(true);
+
+      const stillDue = await repo.listDuePending('2026-04-12T10:00:00.000Z', 10);
+      expect(stillDue).toHaveLength(0);
+    });
+
+    it('respects the limit and leaves the remainder in the due set', async () => {
+      for (let i = 0; i < 5; i++) {
+        await repo.insertReminder(
+          makeReminder({ scheduledAt: '2026-04-12T08:00:00.000Z', reminderText: `T${i}` })
+        );
+      }
+
+      const claimed = await repo.claimDueReminders('2026-04-12T10:00:00.000Z', 2);
+      expect(claimed).toHaveLength(2);
+
+      const remaining = await repo.listDuePending('2026-04-12T10:00:00.000Z', 10);
+      expect(remaining).toHaveLength(3);
+    });
+
+    it('ignores soft-deleted reminders', async () => {
+      await repo.insertReminder(makeReminder({ scheduledAt: '2026-04-12T08:00:00.000Z' }));
+      const rows = await repo.listByUser(user, 10, 0);
+      await repo.softDeleteById(rows[0].id, '2026-04-12T09:00:00.000Z');
+
+      const claimed = await repo.claimDueReminders('2026-04-12T10:00:00.000Z', 10);
+      expect(claimed).toHaveLength(0);
+    });
+
+    it('ignores already-sent reminders', async () => {
+      await repo.insertReminder(makeReminder({ scheduledAt: '2026-04-12T08:00:00.000Z' }));
+      const rows = await repo.listByUser(user, 10, 0);
+      await repo.markAsSent(rows[0].id, '2026-04-12T09:30:00.000Z');
+
+      const claimed = await repo.claimDueReminders('2026-04-12T10:00:00.000Z', 10);
+      expect(claimed).toHaveLength(0);
+    });
+
+    it('parallel claims return disjoint rows so each reminder is claimed exactly once', async () => {
+      // Insert 10 due reminders. Two concurrent claim calls must between them
+      // return all 10 with no overlap, regardless of the split.
+      for (let i = 0; i < 10; i++) {
+        await repo.insertReminder(
+          makeReminder({ scheduledAt: '2026-04-12T08:00:00.000Z', reminderText: `T${i}` })
+        );
+      }
+
+      const [batchA, batchB] = await Promise.all([
+        repo.claimDueReminders('2026-04-12T10:00:00.000Z', 10),
+        repo.claimDueReminders('2026-04-12T10:00:00.000Z', 10),
+      ]);
+
+      const idsA = new Set(batchA.map((r) => r.id));
+      const idsB = new Set(batchB.map((r) => r.id));
+      const overlap = [...idsA].filter((id) => idsB.has(id));
+
+      expect(overlap).toEqual([]);
+      expect(batchA.length + batchB.length).toBe(10);
+
+      const stillDue = await repo.listDuePending('2026-04-12T10:00:00.000Z', 10);
+      expect(stillDue).toHaveLength(0);
+    });
+  });
+
   describe('markAsSent', () => {
     it('sets sentAt on the reminder', async () => {
       await repo.insertReminder(makeReminder());
