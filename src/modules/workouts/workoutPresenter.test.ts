@@ -81,7 +81,13 @@ describe('formatDigestMessage', () => {
     sessionsInMonth: number,
     currentStreak: number,
     bestStreak: number
-  ): WorkoutLeaderboardEntry => ({ user, sessionsInMonth, currentStreak, bestStreak });
+  ): WorkoutLeaderboardEntry => ({
+    user,
+    sessionsInMonth,
+    currentStreak,
+    bestStreak,
+    atRisk: false,
+  });
 
   it('returns morning header + empty leaderboard message when entries are empty', () => {
     const result = formatDigestMessage([]);
@@ -147,7 +153,13 @@ describe('rankLeaderboardEntries', () => {
     sessionsInMonth: number,
     currentStreak: number,
     bestStreak: number
-  ): WorkoutLeaderboardEntry => ({ user, sessionsInMonth, currentStreak, bestStreak });
+  ): WorkoutLeaderboardEntry => ({
+    user,
+    sessionsInMonth,
+    currentStreak,
+    bestStreak,
+    atRisk: false,
+  });
 
   it('sorts by sessionsInMonth descending as primary criterion', () => {
     const entries = [makeEntry('B', 5, 0, 0), makeEntry('A', 10, 0, 0), makeEntry('C', 3, 0, 0)];
@@ -196,7 +208,13 @@ describe('formatLeaderboardMessage', () => {
     sessionsInMonth: number,
     currentStreak: number,
     bestStreak: number
-  ): WorkoutLeaderboardEntry => ({ user, sessionsInMonth, currentStreak, bestStreak });
+  ): WorkoutLeaderboardEntry => ({
+    user,
+    sessionsInMonth,
+    currentStreak,
+    bestStreak,
+    atRisk: false,
+  });
 
   it('returns empty-state message with CTA when entries array is empty', () => {
     const result = formatLeaderboardMessage([]);

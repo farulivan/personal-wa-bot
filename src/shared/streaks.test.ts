@@ -7,7 +7,7 @@ describe('computeStreaks', () => {
   const now = new Date('2026-04-08T10:00:00Z'); // local date = 2026-04-08 in UTC+7
 
   it('returns {current:0, best:0} for empty days', () => {
-    expect(computeStreaks([], TZ_UTC7, now)).toEqual({ current: 0, best: 0 });
+    expect(computeStreaks([], TZ_UTC7, now)).toEqual({ current: 0, best: 0, atRisk: false });
   });
 
   it('returns current=1 when only today qualifies', () => {
@@ -109,5 +109,43 @@ describe('computeStreaks', () => {
     const result = computeStreaks(days, TZ_UTC7, now);
     expect(result.current).toBe(5);
     expect(result.best).toBe(5);
+  });
+
+  // --- atRisk ---
+
+  it('atRisk: true when last qualifying day is exactly T-2 (single day)', () => {
+    // now = 2026-04-08, T-2 = 2026-04-06
+    const result = computeStreaks(['2026-04-06'], TZ_UTC7, now);
+    expect(result.current).toBe(1);
+    expect(result.atRisk).toBe(true);
+  });
+
+  it('atRisk: true when chain ends at T-2', () => {
+    // 2026-04-06, 2026-04-05, 2026-04-04 — chain of 3 ending at T-2
+    const days = ['2026-04-06', '2026-04-05', '2026-04-04'];
+    const result = computeStreaks(days, TZ_UTC7, now);
+    expect(result.current).toBe(3);
+    expect(result.atRisk).toBe(true);
+  });
+
+  it('atRisk: false when last qualifying day is today', () => {
+    const result = computeStreaks(['2026-04-08'], TZ_UTC7, now);
+    expect(result.atRisk).toBe(false);
+  });
+
+  it('atRisk: false when last qualifying day is yesterday', () => {
+    const result = computeStreaks(['2026-04-07'], TZ_UTC7, now);
+    expect(result.atRisk).toBe(false);
+  });
+
+  it('atRisk: false when streak is 0 (last qualifying day is T-3 or earlier)', () => {
+    const result = computeStreaks(['2026-04-05'], TZ_UTC7, now); // T-3 → current=0
+    expect(result.current).toBe(0);
+    expect(result.atRisk).toBe(false);
+  });
+
+  it('atRisk: false for empty days', () => {
+    const result = computeStreaks([], TZ_UTC7, now);
+    expect(result.atRisk).toBe(false);
   });
 });

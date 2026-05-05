@@ -23,6 +23,7 @@ export type WorkoutLeaderboardEntry = {
   sessionsInMonth: number;
   currentStreak: number;
   bestStreak: number;
+  atRisk: boolean;
 };
 
 export function getLastMonthDateRange(
@@ -221,7 +222,13 @@ export class WorkoutService {
       const days = daysByUser.get(userId) ?? [];
       const streak = computeStreaks(days, timezoneOffsetMinutes, now);
       const sessionsInMonth = sessionsByUser.get(userId) ?? 0;
-      return { userId, currentStreak: streak.current, bestStreak: streak.best, sessionsInMonth };
+      return {
+        userId,
+        currentStreak: streak.current,
+        bestStreak: streak.best,
+        atRisk: streak.atRisk,
+        sessionsInMonth,
+      };
     });
 
     const filtered = raw.filter(
@@ -233,6 +240,7 @@ export class WorkoutService {
       sessionsInMonth: e.sessionsInMonth,
       currentStreak: e.currentStreak,
       bestStreak: e.bestStreak,
+      atRisk: e.atRisk,
     }));
     return { entries };
   }
@@ -261,7 +269,13 @@ export class WorkoutService {
       const days = daysByUser.get(userId) ?? [];
       const streak = computeStreaks(days, timezoneOffsetMinutes, now);
       const sessionsInMonth = sessionsByUser.get(userId) ?? 0;
-      return { userId, currentStreak: streak.current, bestStreak: streak.best, sessionsInMonth };
+      return {
+        userId,
+        currentStreak: streak.current,
+        bestStreak: streak.best,
+        atRisk: streak.atRisk,
+        sessionsInMonth,
+      };
     });
 
     const filtered = raw.filter((e) => e.sessionsInMonth > 0);
@@ -271,6 +285,7 @@ export class WorkoutService {
       sessionsInMonth: e.sessionsInMonth,
       currentStreak: e.currentStreak,
       bestStreak: e.bestStreak,
+      atRisk: e.atRisk,
     }));
     return { entries, monthLabel };
   }

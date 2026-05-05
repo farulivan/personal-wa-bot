@@ -3,6 +3,7 @@ import { toUserDate } from './dateRange.js';
 export type StreakInfo = {
   current: number;
   best: number;
+  atRisk: boolean;
 };
 
 // Compute current and best streak from pre-filtered qualifying days (sorted DESC).
@@ -14,7 +15,7 @@ export function computeStreaks(
   timezoneOffsetMinutes: number,
   now: Date
 ): StreakInfo {
-  if (days.length === 0) return { current: 0, best: 0 };
+  if (days.length === 0) return { current: 0, best: 0, atRisk: false };
 
   const today = toUserDate(now, timezoneOffsetMinutes);
   const twoDaysAgo = toUserDate(new Date(now.getTime() - 2 * 86400000), timezoneOffsetMinutes);
@@ -50,5 +51,7 @@ export function computeStreaks(
 
   if (best < current) best = current;
 
-  return { current, best };
+  const atRisk = current > 0 && days[0] === twoDaysAgo;
+
+  return { current, best, atRisk };
 }

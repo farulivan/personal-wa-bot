@@ -485,6 +485,33 @@ describe('WorkoutService', () => {
       expect(entry?.sessionsInMonth).toBe(1);
     });
 
+    it('atRisk: true for user whose last qualifying day is T-2, false for user who logged today', async () => {
+      // userA: 3 logs on T-2 (2026-04-06) → streak=1, atRisk=true
+      const twoDA = new Date('2026-04-06T10:00:00Z');
+      for (let i = 0; i < 3; i++) {
+        await service.logLift(
+          userA,
+          { mode: 'lift', activity: 'bench', reps: 10, sets: 3, weight: 60 },
+          twoDA
+        );
+      }
+      // userB: 3 logs today (2026-04-08) → streak=1, atRisk=false
+      for (let i = 0; i < 3; i++) {
+        await service.logLift(
+          userB,
+          { mode: 'lift', activity: 'squat', reps: 8, sets: 4, weight: 80 },
+          now
+        );
+      }
+
+      const result = await service.getLeaderboard(TZ, now);
+      const entryA = result.entries.find((e) => e.user === userA);
+      const entryB = result.entries.find((e) => e.user === userB);
+
+      expect(entryA?.atRisk).toBe(true);
+      expect(entryB?.atRisk).toBe(false);
+    });
+
     it('display name resolution uses userRepository.getDisplayName', async () => {
       // Extend InMemoryUserRepository with a known mapping for this test
       const nameMap = new Map<string, string>([[userA, 'Farul']]);
