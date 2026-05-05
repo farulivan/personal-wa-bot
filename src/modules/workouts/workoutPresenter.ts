@@ -190,6 +190,16 @@ export function formatUndoTooLate(entry: WorkoutEntry): string {
   );
 }
 
+const STREAK_RULE_NOTE =
+  '💡 Streak rule: one rest day is fine. Miss two days in a row and your streak resets.';
+
+function formatStreakAtRiskWarning(entries: WorkoutLeaderboardEntry[]): string | null {
+  const atRiskUsers = entries.filter((e) => e.atRisk).map((e) => e.user);
+  if (atRiskUsers.length === 0) return null;
+  const tagged = atRiskUsers.map((u) => `@${u}`).join(', ');
+  return `Heads up ${tagged}: workout today or your streak ends tomorrow.`;
+}
+
 export function rankLeaderboardEntries(
   entries: WorkoutLeaderboardEntry[],
   limit: number = WORKOUT_LEADERBOARD_LIMIT
@@ -226,11 +236,19 @@ export function formatLeaderboardMessage(entries: WorkoutLeaderboardEntry[]): st
     return (
       `Workout Leaderboard This Month 🏆\n\n` +
       `No workouts logged this month 👀\n\n` +
-      `Get started: #workout lift push up 20reps 4sets`
+      `Get started: #workout lift push up 20reps 4sets\n\n` +
+      STREAK_RULE_NOTE
     );
   }
 
-  return `Workout Leaderboard This Month 🏆\n\n${renderLeaderboardBody(entries)}`;
+  const warning = formatStreakAtRiskWarning(entries);
+  const warningPrefix = warning != null ? `${warning}\n\n` : '';
+  return (
+    `${warningPrefix}` +
+    `Workout Leaderboard This Month 🏆\n\n` +
+    `${renderLeaderboardBody(entries)}\n\n` +
+    STREAK_RULE_NOTE
+  );
 }
 
 export function formatMonthlyDigestMessage(
@@ -258,14 +276,19 @@ export function formatDigestMessage(entries: WorkoutLeaderboardEntry[]): string 
       `Good morning team 👋\n\n` +
       `Workout Leaderboard This Month 🏆\n\n` +
       `No workouts logged this month 👀\n\n` +
-      `Get started: #workout lift push up 20reps 4sets`
+      `Get started: #workout lift push up 20reps 4sets\n\n` +
+      STREAK_RULE_NOTE
     );
   }
 
+  const warning = formatStreakAtRiskWarning(entries);
+  const warningBlock = warning != null ? `${warning}\n\n` : '';
   return (
     `Good morning team 👋\n\n` +
+    `${warningBlock}` +
     `Workout Leaderboard This Month 🏆\n\n` +
     `${renderLeaderboardBody(entries)}\n\n` +
+    `${STREAK_RULE_NOTE}\n\n` +
     `Keep showing up. Consistency wins. 💪`
   );
 }
