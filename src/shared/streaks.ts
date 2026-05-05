@@ -7,7 +7,8 @@ export type StreakInfo = {
 
 // Compute current and best streak from pre-filtered qualifying days (sorted DESC).
 // Caller filters to days that qualify (e.g. days hitting workout threshold, or
-// any day with a quran read). Current streak anchors on today-or-yesterday.
+// any day with a quran read). Current streak anchors within today-or-2-days-ago.
+// A single missed day (gap of 2) is tolerated; a gap of 3+ breaks the chain.
 export function computeStreaks(
   days: string[],
   timezoneOffsetMinutes: number,
@@ -16,16 +17,16 @@ export function computeStreaks(
   if (days.length === 0) return { current: 0, best: 0 };
 
   const today = toUserDate(now, timezoneOffsetMinutes);
-  const yesterday = toUserDate(new Date(now.getTime() - 86400000), timezoneOffsetMinutes);
+  const twoDaysAgo = toUserDate(new Date(now.getTime() - 2 * 86400000), timezoneOffsetMinutes);
 
   let current = 0;
-  if (days[0] === today || days[0] === yesterday) {
+  if (days[0] >= twoDaysAgo && days[0] <= today) {
     current = 1;
     for (let i = 1; i < days.length; i++) {
       const prev = new Date(`${days[i - 1]}T00:00:00Z`);
       const curr = new Date(`${days[i]}T00:00:00Z`);
       const diffDays = (prev.getTime() - curr.getTime()) / 86400000;
-      if (diffDays === 1) {
+      if (diffDays <= 2) {
         current++;
       } else {
         break;
@@ -39,7 +40,7 @@ export function computeStreaks(
     const prev = new Date(`${days[i - 1]}T00:00:00Z`);
     const curr = new Date(`${days[i]}T00:00:00Z`);
     const diffDays = (prev.getTime() - curr.getTime()) / 86400000;
-    if (diffDays === 1) {
+    if (diffDays <= 2) {
       run++;
       if (run > best) best = run;
     } else {

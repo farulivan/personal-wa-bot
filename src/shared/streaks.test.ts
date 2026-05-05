@@ -22,8 +22,14 @@ describe('computeStreaks', () => {
     expect(result.best).toBe(1);
   });
 
-  it('returns current=0 when latest day is 2+ days ago', () => {
-    const result = computeStreaks(['2026-04-06'], TZ_UTC7, now);
+  it('returns current=1 when latest day is exactly 2 days ago (rest-day tolerance)', () => {
+    const result = computeStreaks(['2026-04-06'], TZ_UTC7, now); // T-2
+    expect(result.current).toBe(1);
+    expect(result.best).toBe(1);
+  });
+
+  it('returns current=0 when latest day is 3+ days ago', () => {
+    const result = computeStreaks(['2026-04-05'], TZ_UTC7, now); // T-3
     expect(result.current).toBe(0);
     expect(result.best).toBe(1);
   });
@@ -35,8 +41,15 @@ describe('computeStreaks', () => {
     expect(result.best).toBe(4);
   });
 
-  it('breaks current streak on gap', () => {
-    const days = ['2026-04-08', '2026-04-07', '2026-04-05']; // gap on 06
+  it('tolerates a single missed day (gap of 2) within the streak', () => {
+    const days = ['2026-04-08', '2026-04-07', '2026-04-05']; // gap of 2 on 06
+    const result = computeStreaks(days, TZ_UTC7, now);
+    expect(result.current).toBe(3);
+    expect(result.best).toBe(3);
+  });
+
+  it('breaks current streak on gap of 3+', () => {
+    const days = ['2026-04-08', '2026-04-07', '2026-04-04']; // gap of 3
     const result = computeStreaks(days, TZ_UTC7, now);
     expect(result.current).toBe(2);
     expect(result.best).toBe(2);
@@ -62,5 +75,39 @@ describe('computeStreaks', () => {
     const days = ['2026-04-08', '2026-04-07', '2026-04-06'];
     const result = computeStreaks(days, TZ_UTC7, now);
     expect(result.best).toBeGreaterThanOrEqual(result.current);
+  });
+
+  // --- rest-day tolerance (new rule: gap of 1 or 2 continues chain) ---
+
+  it('chain with all gaps of 2: [T, T-2, T-4] → current=3, best=3', () => {
+    // 2026-04-08, 2026-04-06, 2026-04-04
+    const days = ['2026-04-08', '2026-04-06', '2026-04-04'];
+    const result = computeStreaks(days, TZ_UTC7, now);
+    expect(result.current).toBe(3);
+    expect(result.best).toBe(3);
+  });
+
+  it('gap of 3 breaks chain: [T, T-1, T-4] → current=2, best=2', () => {
+    // 2026-04-08, 2026-04-07, 2026-04-04 — gap of 3 between T-1 and T-4
+    const days = ['2026-04-08', '2026-04-07', '2026-04-04'];
+    const result = computeStreaks(days, TZ_UTC7, now);
+    expect(result.current).toBe(2);
+    expect(result.best).toBe(2);
+  });
+
+  it('best-streak in history: [T-10, T-12, T-14, T-20] → best=3', () => {
+    // 2026-03-29, 2026-03-27, 2026-03-25 connected (gap 2 each), then gap 6 to 2026-03-19
+    const days = ['2026-03-29', '2026-03-27', '2026-03-25', '2026-03-19'];
+    const result = computeStreaks(days, TZ_UTC7, now);
+    expect(result.current).toBe(0);
+    expect(result.best).toBe(3);
+  });
+
+  it('mixed gaps of 1 and 2: [T, T-1, T-3, T-4, T-6] → current=5, best=5', () => {
+    // 2026-04-08, 2026-04-07, 2026-04-05, 2026-04-04, 2026-04-02
+    const days = ['2026-04-08', '2026-04-07', '2026-04-05', '2026-04-04', '2026-04-02'];
+    const result = computeStreaks(days, TZ_UTC7, now);
+    expect(result.current).toBe(5);
+    expect(result.best).toBe(5);
   });
 });
