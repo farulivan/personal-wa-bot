@@ -10,6 +10,8 @@ import type {
 import type { UserRepository } from '../users/infra/userRepository.js';
 import type { LiftPayload, CardioPayload } from './workoutParser.js';
 
+const WORKOUT_STREAK_REST_DAY_TOLERANCE = 1;
+
 export type WorkoutListResult = {
   rows: WorkoutEntry[];
   total: number;
@@ -151,7 +153,7 @@ export class WorkoutService {
         sender,
         timezoneOffsetMinutes
       );
-      streaks = computeStreaks(days, timezoneOffsetMinutes, now);
+      streaks = computeStreaks(days, timezoneOffsetMinutes, now, WORKOUT_STREAK_REST_DAY_TOLERANCE);
     }
 
     return { todayCount, streaks };
@@ -176,7 +178,12 @@ export class WorkoutService {
       sender,
       timezoneOffsetMinutes
     );
-    const streaks = computeStreaks(days, timezoneOffsetMinutes, now);
+    const streaks = computeStreaks(
+      days,
+      timezoneOffsetMinutes,
+      now,
+      WORKOUT_STREAK_REST_DAY_TOLERANCE
+    );
 
     return { rows, total, page, totalPages, streaks };
   }
@@ -190,7 +197,7 @@ export class WorkoutService {
       userId,
       timezoneOffsetMinutes
     );
-    return computeStreaks(days, timezoneOffsetMinutes, now);
+    return computeStreaks(days, timezoneOffsetMinutes, now, WORKOUT_STREAK_REST_DAY_TOLERANCE);
   }
 
   async listDistinctUsers(): Promise<string[]> {
@@ -220,7 +227,12 @@ export class WorkoutService {
 
     const raw = userIds.map((userId) => {
       const days = daysByUser.get(userId) ?? [];
-      const streak = computeStreaks(days, timezoneOffsetMinutes, now);
+      const streak = computeStreaks(
+        days,
+        timezoneOffsetMinutes,
+        now,
+        WORKOUT_STREAK_REST_DAY_TOLERANCE
+      );
       const sessionsInMonth = sessionsByUser.get(userId) ?? 0;
       return {
         userId,
@@ -267,7 +279,12 @@ export class WorkoutService {
 
     const raw = userIds.map((userId) => {
       const days = daysByUser.get(userId) ?? [];
-      const streak = computeStreaks(days, timezoneOffsetMinutes, now);
+      const streak = computeStreaks(
+        days,
+        timezoneOffsetMinutes,
+        now,
+        WORKOUT_STREAK_REST_DAY_TOLERANCE
+      );
       const sessionsInMonth = sessionsByUser.get(userId) ?? 0;
       return {
         userId,
