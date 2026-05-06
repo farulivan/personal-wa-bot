@@ -98,13 +98,17 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
       };
 
       const startMs = Date.now();
-      const responseText = await router.route(ctx, invocation);
+      const result = await router.route(ctx, invocation);
       const durationMs = Date.now() - startMs;
 
       reqLog.info({ namespace, subcommand, durationMs }, 'command handled');
 
-      if (responseText) {
-        await appContext.messageGateway.reply(msg, responseText);
+      if (result) {
+        if (typeof result === 'string') {
+          await appContext.messageGateway.reply(msg, result);
+        } else {
+          await appContext.messageGateway.reply(msg, result.text, result.mentions);
+        }
       }
     } catch (err) {
       error('❌ Error handling message:', err);

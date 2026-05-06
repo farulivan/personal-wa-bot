@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { createMessageHandler } from './messageHandler.js';
 import type { CommandRouter } from './commandRouter.js';
 import type { CommandInvocation } from './parseCommand.js';
+import type { RichReply } from './commandRouter.js';
 
 // Minimal stub for whatsapp-web.js Message
 function makeMsg(overrides: {
@@ -202,6 +203,43 @@ describe('createMessageHandler', () => {
 
       expect(router.route).not.toHaveBeenCalled();
       expect(appContext.messageGateway.reply).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('9. route returns string → gateway called with 2 args', () => {
+    it('calls reply(msg, text) without a mentions argument', async () => {
+      const appContext = makeAppContext(true);
+      const router = makeRouter();
+      router.route.mockResolvedValue('hello there');
+      const handle = createMessageHandler(router as unknown as CommandRouter, appContext as never);
+      const msg = makeMsg({ body: '#workout list', from: DM_FROM });
+
+      await handle(msg as never);
+
+      expect(appContext.messageGateway.reply).toHaveBeenCalledOnce();
+      expect(appContext.messageGateway.reply).toHaveBeenCalledWith(msg, 'hello there');
+    });
+  });
+
+  describe('10. route returns RichReply → gateway called with 3 args', () => {
+    it('calls reply(msg, text, mentions) when result is RichReply', async () => {
+      const appContext = makeAppContext(true);
+      const router = makeRouter();
+      const rich: RichReply = { text: 'Heads up @628111', mentions: ['628111@c.us'] };
+      router.route.mockResolvedValue(rich);
+      const handle = createMessageHandler(router as unknown as CommandRouter, appContext as never);
+      const msg = makeMsg({
+        body: '#workout leaderboard',
+        from: GROUP_FROM,
+        author: ALLOWED_AUTHOR,
+      });
+
+      await handle(msg as never);
+
+      expect(appContext.messageGateway.reply).toHaveBeenCalledOnce();
+      expect(appContext.messageGateway.reply).toHaveBeenCalledWith(msg, 'Heads up @628111', [
+        '628111@c.us',
+      ]);
     });
   });
 });

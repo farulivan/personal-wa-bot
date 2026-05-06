@@ -8,10 +8,12 @@ export type CommandContext = {
   time: TimeContext;
 };
 
+export type RichReply = { text: string; mentions: string[] };
+
 export type NamespaceHandler = (
   ctx: CommandContext,
   invocation: CommandInvocation
-) => Promise<string | null>;
+) => Promise<string | RichReply | null>;
 
 export class CommandRouter {
   private namespaceHandlers: Map<string, NamespaceHandler> = new Map();
@@ -20,7 +22,10 @@ export class CommandRouter {
     this.namespaceHandlers.set(namespace.toLowerCase(), handler);
   }
 
-  async route(ctx: CommandContext, invocation: CommandInvocation): Promise<string | null> {
+  async route(
+    ctx: CommandContext,
+    invocation: CommandInvocation
+  ): Promise<string | RichReply | null> {
     const handler = this.namespaceHandlers.get(invocation.namespace.toLowerCase());
     if (!handler) return null;
 
