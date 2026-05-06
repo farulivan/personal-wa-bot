@@ -4,7 +4,7 @@ import type { UserRepository } from '../users/infra/userRepository.js';
 import { toLocalDateTimeLabel, formatSchedulerReminderMessage } from './remindPresenter.js';
 
 type ReminderClientLike = {
-  sendMessage: (chatId: string, text: string) => Promise<unknown>;
+  sendMessage: (chatId: string, text: string, mentions?: string[]) => Promise<unknown>;
 };
 
 type StartReminderSchedulerDeps = {
@@ -48,14 +48,17 @@ export function startReminderScheduler(deps: StartReminderSchedulerDeps): Remind
           reminder.scheduledAt,
           deps.timezoneOffsetMinutes
         );
-        const message = formatSchedulerReminderMessage(
+        const isGroupChat = reminder.sourceType === 'group';
+        const result = formatSchedulerReminderMessage(
+          reminder.userId,
           name,
           reminder.reminderText,
-          localDateTimeLabel
+          localDateTimeLabel,
+          isGroupChat
         );
 
         try {
-          await deps.client.sendMessage(reminder.targetChatId, message);
+          await deps.client.sendMessage(reminder.targetChatId, result.text, result.mentions);
           debug(`⏰ Reminder sent: id=${reminder.id}, chat=${reminder.targetChatId}`);
         } catch (err) {
           error(
