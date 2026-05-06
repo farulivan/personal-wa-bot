@@ -2,6 +2,7 @@ import type { WorkoutEntry } from './infra/workoutRepository.js';
 import type { StreakInfo } from '../../shared/streaks.js';
 import { UNDO_WINDOW_MS } from './workoutService.js';
 import type { WorkoutLeaderboardEntry } from './workoutService.js';
+import { formatMentionTag } from '../../shared/mentions.js';
 
 const WORKOUT_LEADERBOARD_LIMIT = 10;
 
@@ -193,11 +194,16 @@ export function formatUndoTooLate(entry: WorkoutEntry): string {
 const STREAK_RULE_NOTE =
   '💡 Streak rule: one rest day is fine. Miss two days in a row and your streak resets.';
 
-function formatStreakAtRiskWarning(entries: WorkoutLeaderboardEntry[]): string | null {
-  const atRiskUsers = entries.filter((e) => e.atRisk).map((e) => e.user);
-  if (atRiskUsers.length === 0) return null;
-  const tagged = atRiskUsers.map((u) => `@${u}`).join(', ');
-  return `Heads up ${tagged}: workout today or your streak ends tomorrow.`;
+function formatStreakAtRiskWarning(
+  entries: WorkoutLeaderboardEntry[]
+): { text: string; mentions: string[] } | null {
+  const atRisk = entries.filter((e) => e.atRisk);
+  if (atRisk.length === 0) return null;
+  const tagged = atRisk.map((e) => formatMentionTag(e.userId)).join(', ');
+  return {
+    text: `Heads up ${tagged}: workout today or your streak ends tomorrow.`,
+    mentions: atRisk.map((e) => e.userId),
+  };
 }
 
 export function rankLeaderboardEntries(
@@ -231,24 +237,31 @@ function renderLeaderboardBody(entries: WorkoutLeaderboardEntry[]): string {
     .join('\n');
 }
 
-export function formatLeaderboardMessage(entries: WorkoutLeaderboardEntry[]): string {
+export function formatLeaderboardMessage(entries: WorkoutLeaderboardEntry[]): {
+  text: string;
+  mentions: string[];
+} {
   if (entries.length === 0) {
-    return (
-      `Workout Leaderboard This Month 🏆\n\n` +
-      `No workouts logged this month 👀\n\n` +
-      `Get started: #workout lift push up 20reps 4sets\n\n` +
-      STREAK_RULE_NOTE
-    );
+    return {
+      text:
+        `Workout Leaderboard This Month 🏆\n\n` +
+        `No workouts logged this month 👀\n\n` +
+        `Get started: #workout lift push up 20reps 4sets\n\n` +
+        STREAK_RULE_NOTE,
+      mentions: [],
+    };
   }
 
   const warning = formatStreakAtRiskWarning(entries);
-  const warningPrefix = warning != null ? `${warning}\n\n` : '';
-  return (
-    `${warningPrefix}` +
-    `Workout Leaderboard This Month 🏆\n\n` +
-    `${renderLeaderboardBody(entries)}\n\n` +
-    STREAK_RULE_NOTE
-  );
+  const warningPrefix = warning != null ? `${warning.text}\n\n` : '';
+  return {
+    text:
+      `${warningPrefix}` +
+      `Workout Leaderboard This Month 🏆\n\n` +
+      `${renderLeaderboardBody(entries)}\n\n` +
+      STREAK_RULE_NOTE,
+    mentions: warning?.mentions ?? [],
+  };
 }
 
 export function formatMonthlyDigestMessage(
@@ -270,25 +283,32 @@ export function formatMonthlyDigestMessage(
   );
 }
 
-export function formatDigestMessage(entries: WorkoutLeaderboardEntry[]): string {
+export function formatDigestMessage(entries: WorkoutLeaderboardEntry[]): {
+  text: string;
+  mentions: string[];
+} {
   if (entries.length === 0) {
-    return (
-      `Good morning team 👋\n\n` +
-      `Workout Leaderboard This Month 🏆\n\n` +
-      `No workouts logged this month 👀\n\n` +
-      `Get started: #workout lift push up 20reps 4sets\n\n` +
-      STREAK_RULE_NOTE
-    );
+    return {
+      text:
+        `Good morning team 👋\n\n` +
+        `Workout Leaderboard This Month 🏆\n\n` +
+        `No workouts logged this month 👀\n\n` +
+        `Get started: #workout lift push up 20reps 4sets\n\n` +
+        STREAK_RULE_NOTE,
+      mentions: [],
+    };
   }
 
   const warning = formatStreakAtRiskWarning(entries);
-  const warningBlock = warning != null ? `${warning}\n\n` : '';
-  return (
-    `Good morning team 👋\n\n` +
-    `${warningBlock}` +
-    `Workout Leaderboard This Month 🏆\n\n` +
-    `${renderLeaderboardBody(entries)}\n\n` +
-    `${STREAK_RULE_NOTE}\n\n` +
-    `Keep showing up. Consistency wins. 💪`
-  );
+  const warningBlock = warning != null ? `${warning.text}\n\n` : '';
+  return {
+    text:
+      `Good morning team 👋\n\n` +
+      `${warningBlock}` +
+      `Workout Leaderboard This Month 🏆\n\n` +
+      `${renderLeaderboardBody(entries)}\n\n` +
+      `${STREAK_RULE_NOTE}\n\n` +
+      `Keep showing up. Consistency wins. 💪`,
+    mentions: warning?.mentions ?? [],
+  };
 }

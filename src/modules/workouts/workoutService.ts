@@ -21,6 +21,7 @@ export type WorkoutListResult = {
 };
 
 export type WorkoutLeaderboardEntry = {
+  userId: string;
   user: string;
   sessionsInMonth: number;
   currentStreak: number;
@@ -248,6 +249,7 @@ export class WorkoutService {
     );
     const namesById = await this.userRepository.getDisplayNamesByIds(filtered.map((e) => e.userId));
     const entries = filtered.map((e) => ({
+      userId: e.userId,
       user: namesById.get(e.userId) ?? e.userId,
       sessionsInMonth: e.sessionsInMonth,
       currentStreak: e.currentStreak,
@@ -298,6 +300,7 @@ export class WorkoutService {
     const filtered = raw.filter((e) => e.sessionsInMonth > 0);
     const namesById = await this.userRepository.getDisplayNamesByIds(filtered.map((e) => e.userId));
     const entries = filtered.map((e) => ({
+      userId: e.userId,
       user: namesById.get(e.userId) ?? e.userId,
       sessionsInMonth: e.sessionsInMonth,
       currentStreak: e.currentStreak,

@@ -77,12 +77,14 @@ describe('formatUndoNoLogs', () => {
 
 describe('formatDigestMessage', () => {
   const makeEntry = (
+    userId: string,
     user: string,
     sessionsInMonth: number,
     currentStreak: number,
     bestStreak: number,
     atRisk = false
   ): WorkoutLeaderboardEntry => ({
+    userId,
     user,
     sessionsInMonth,
     currentStreak,
@@ -95,57 +97,87 @@ describe('formatDigestMessage', () => {
 
   it('returns morning header + empty leaderboard message when entries are empty', () => {
     const result = formatDigestMessage([]);
-    expect(result).toContain('Good morning team 👋');
-    expect(result).toContain('Workout Leaderboard This Month 🏆');
-    expect(result).toContain('No workouts logged this month');
-    expect(result).toContain('#workout lift push up 20reps 4sets');
+    expect(result.text).toContain('Good morning team 👋');
+    expect(result.text).toContain('Workout Leaderboard This Month 🏆');
+    expect(result.text).toContain('No workouts logged this month');
+    expect(result.text).toContain('#workout lift push up 20reps 4sets');
+    expect(result.mentions).toEqual([]);
   });
 
   it('wraps the leaderboard body with morning header and closing line', () => {
     const entries = [
-      makeEntry('First', 10, 5, 5),
-      makeEntry('Second', 8, 3, 7),
-      makeEntry('Third', 6, 0, 0),
-      makeEntry('Fourth', 4, 0, 0),
+      makeEntry('628111111111@c.us', 'First', 10, 5, 5),
+      makeEntry('628222222222@c.us', 'Second', 8, 3, 7),
+      makeEntry('628333333333@c.us', 'Third', 6, 0, 0),
+      makeEntry('628444444444@c.us', 'Fourth', 4, 0, 0),
     ];
     const result = formatDigestMessage(entries);
-    expect(result.startsWith('Good morning team 👋')).toBe(true);
-    expect(result).toContain('Workout Leaderboard This Month 🏆');
-    expect(result).toContain('🥇 First');
-    expect(result).toContain('🥈 Second');
-    expect(result).toContain('🥉 Third');
-    expect(result).toContain('🌱 Fourth');
-    expect(result).toContain('🏋️ 10 sessions');
-    expect(result).toContain('Keep showing up. Consistency wins. 💪');
+    expect(result.text.startsWith('Good morning team 👋')).toBe(true);
+    expect(result.text).toContain('Workout Leaderboard This Month 🏆');
+    expect(result.text).toContain('🥇 First');
+    expect(result.text).toContain('🥈 Second');
+    expect(result.text).toContain('🥉 Third');
+    expect(result.text).toContain('🌱 Fourth');
+    expect(result.text).toContain('🏋️ 10 sessions');
+    expect(result.text).toContain('Keep showing up. Consistency wins. 💪');
+    expect(result.mentions).toEqual([]);
   });
 
   it('places warning between Good morning header and leaderboard header when at least one user is at risk', () => {
-    const entries = [makeEntry('Alice', 10, 5, 5, true), makeEntry('Bob', 8, 3, 3, false)];
+    const entries = [
+      makeEntry('628111111111@c.us', 'Alice', 10, 5, 5, true),
+      makeEntry('628222222222@c.us', 'Bob', 8, 3, 3, false),
+    ];
     const result = formatDigestMessage(entries);
-    expect(result).toContain('@Alice');
-    const morningIdx = result.indexOf('Good morning team 👋');
-    const warningIdx = result.indexOf('@Alice');
-    const headerIdx = result.indexOf('Workout Leaderboard This Month 🏆');
+    expect(result.text).toContain('@628111111111');
+    const morningIdx = result.text.indexOf('Good morning team 👋');
+    const warningIdx = result.text.indexOf('@628111111111');
+    const headerIdx = result.text.indexOf('Workout Leaderboard This Month 🏆');
     expect(morningIdx).toBeLessThan(warningIdx);
     expect(warningIdx).toBeLessThan(headerIdx);
   });
 
-  it('rule explainer sits immediately above Keep showing up line', () => {
-    const entries = [makeEntry('Alice', 10, 5, 5, false)];
+  it('at-risk warning uses @phone token derived from userId, not the display name', () => {
+    const entries = [makeEntry('628111111111@c.us', 'Alice', 10, 5, 5, true)];
     const result = formatDigestMessage(entries);
-    const noteIdx = result.indexOf(RULE_NOTE);
-    const closingIdx = result.indexOf('Keep showing up. Consistency wins. 💪');
+    expect(result.text).toContain('@628111111111');
+    expect(result.text).not.toContain('@Alice');
+  });
+
+  it('mentions array contains exactly the at-risk users JIDs in input order', () => {
+    const entries = [
+      makeEntry('628111111111@c.us', 'Alice', 10, 5, 5, true),
+      makeEntry('628222222222@c.us', 'Bob', 8, 3, 3, true),
+      makeEntry('628333333333@c.us', 'Carol', 6, 0, 0, false),
+    ];
+    const result = formatDigestMessage(entries);
+    expect(result.mentions).toEqual(['628111111111@c.us', '628222222222@c.us']);
+  });
+
+  it('mentions is empty when no at-risk users', () => {
+    const entries = [
+      makeEntry('628111111111@c.us', 'Alice', 10, 5, 5, false),
+      makeEntry('628222222222@c.us', 'Bob', 8, 3, 3, false),
+    ];
+    const result = formatDigestMessage(entries);
+    expect(result.mentions).toEqual([]);
+  });
+
+  it('rule explainer sits immediately above Keep showing up line', () => {
+    const entries = [makeEntry('628111111111@c.us', 'Alice', 10, 5, 5, false)];
+    const result = formatDigestMessage(entries);
+    const noteIdx = result.text.indexOf(RULE_NOTE);
+    const closingIdx = result.text.indexOf('Keep showing up. Consistency wins. 💪');
     expect(noteIdx).toBeGreaterThan(-1);
     expect(closingIdx).toBeGreaterThan(-1);
-    // The note should be directly followed by \n\n and then the closing line
-    expect(result.slice(noteIdx + RULE_NOTE.length)).toBe(
+    expect(result.text.slice(noteIdx + RULE_NOTE.length)).toBe(
       '\n\nKeep showing up. Consistency wins. 💪'
     );
   });
 
   it('rule explainer is present in the empty-leaderboard branch', () => {
     const result = formatDigestMessage([]);
-    expect(result).toContain(RULE_NOTE);
+    expect(result.text).toContain(RULE_NOTE);
   });
 });
 
@@ -187,6 +219,7 @@ describe('rankLeaderboardEntries', () => {
     currentStreak: number,
     bestStreak: number
   ): WorkoutLeaderboardEntry => ({
+    userId: '628000000000@c.us',
     user,
     sessionsInMonth,
     currentStreak,
@@ -237,12 +270,14 @@ describe('rankLeaderboardEntries', () => {
 
 describe('formatLeaderboardMessage', () => {
   const makeEntry = (
+    userId: string,
     user: string,
     sessionsInMonth: number,
     currentStreak: number,
     bestStreak: number,
     atRisk = false
   ): WorkoutLeaderboardEntry => ({
+    userId,
     user,
     sessionsInMonth,
     currentStreak,
@@ -255,82 +290,107 @@ describe('formatLeaderboardMessage', () => {
 
   it('returns empty-state message with CTA when entries array is empty', () => {
     const result = formatLeaderboardMessage([]);
-    expect(result).toContain('#workout lift push up 20reps 4sets');
-    expect(result).toContain('No workouts logged this month');
+    expect(result.text).toContain('#workout lift push up 20reps 4sets');
+    expect(result.text).toContain('No workouts logged this month');
+    expect(result.mentions).toEqual([]);
   });
 
   it('assigns medal prefixes to top 3 and 🌱 to 4th+', () => {
     const entries = [
-      makeEntry('First', 10, 0, 0),
-      makeEntry('Second', 8, 0, 0),
-      makeEntry('Third', 6, 0, 0),
-      makeEntry('Fourth', 4, 0, 0),
+      makeEntry('628111111111@c.us', 'First', 10, 0, 0),
+      makeEntry('628222222222@c.us', 'Second', 8, 0, 0),
+      makeEntry('628333333333@c.us', 'Third', 6, 0, 0),
+      makeEntry('628444444444@c.us', 'Fourth', 4, 0, 0),
     ];
     const result = formatLeaderboardMessage(entries);
-    expect(result).toContain('🥇 First');
-    expect(result).toContain('🥈 Second');
-    expect(result).toContain('🥉 Third');
-    expect(result).toContain('🌱 Fourth');
+    expect(result.text).toContain('🥇 First');
+    expect(result.text).toContain('🥈 Second');
+    expect(result.text).toContain('🥉 Third');
+    expect(result.text).toContain('🌱 Fourth');
   });
 
   it('omits streak section when both currentStreak and bestStreak are 0', () => {
-    const entries = [makeEntry('Budi', 4, 0, 0)];
+    const entries = [makeEntry('628111111111@c.us', 'Budi', 4, 0, 0)];
     const result = formatLeaderboardMessage(entries);
-    expect(result).toContain('4 sessions');
-    expect(result).not.toContain('🔥 Streak');
-    expect(result).not.toContain('🔥');
+    expect(result.text).toContain('4 sessions');
+    expect(result.text).not.toContain('🔥 Streak');
+    expect(result.text).not.toContain('🔥');
   });
 
   it('appends (Best Y days) only when bestStreak > currentStreak', () => {
-    const withBest = [makeEntry('Farul', 24, 5, 8)];
+    const withBest = [makeEntry('628111111111@c.us', 'Farul', 24, 5, 8)];
     const resultWithBest = formatLeaderboardMessage(withBest);
-    expect(resultWithBest).toContain('(Best 8 days)');
+    expect(resultWithBest.text).toContain('(Best 8 days)');
 
-    const equalStreak = [makeEntry('Ari', 18, 5, 5)];
+    const equalStreak = [makeEntry('628222222222@c.us', 'Ari', 18, 5, 5)];
     const resultEqual = formatLeaderboardMessage(equalStreak);
-    expect(resultEqual).not.toContain('Best');
+    expect(resultEqual.text).not.toContain('Best');
   });
 
   it('shows at-risk warning before the header when one user is at risk', () => {
-    const entries = [makeEntry('Alice', 10, 5, 5, true), makeEntry('Bob', 8, 3, 3, false)];
+    const entries = [
+      makeEntry('628111111111@c.us', 'Alice', 10, 5, 5, true),
+      makeEntry('628222222222@c.us', 'Bob', 8, 3, 3, false),
+    ];
     const result = formatLeaderboardMessage(entries);
-    expect(result).toContain('@Alice');
-    expect(result).toContain('workout today or your streak ends tomorrow');
-    const warningIdx = result.indexOf('@Alice');
-    const headerIdx = result.indexOf('Workout Leaderboard This Month 🏆');
+    expect(result.text).toContain('@628111111111');
+    expect(result.text).toContain('workout today or your streak ends tomorrow');
+    const warningIdx = result.text.indexOf('@628111111111');
+    const headerIdx = result.text.indexOf('Workout Leaderboard This Month 🏆');
     expect(warningIdx).toBeLessThan(headerIdx);
+  });
+
+  it('at-risk warning uses @phone token derived from userId, not the display name', () => {
+    const entries = [makeEntry('628111111111@c.us', 'Alice', 10, 5, 5, true)];
+    const result = formatLeaderboardMessage(entries);
+    expect(result.text).toContain('@628111111111');
+    expect(result.text).not.toContain('@Alice');
   });
 
   it('tags multiple at-risk users comma-joined in a single warning line', () => {
     const entries = [
-      makeEntry('Alice', 10, 5, 5, true),
-      makeEntry('Bob', 8, 3, 3, true),
-      makeEntry('Carol', 6, 0, 0, false),
+      makeEntry('628111111111@c.us', 'Alice', 10, 5, 5, true),
+      makeEntry('628222222222@c.us', 'Bob', 8, 3, 3, true),
+      makeEntry('628333333333@c.us', 'Carol', 6, 0, 0, false),
     ];
     const result = formatLeaderboardMessage(entries);
-    expect(result).toContain('@Alice, @Bob');
+    expect(result.text).toContain('@628111111111, @628222222222');
+  });
+
+  it('mentions array contains exactly the at-risk users JIDs in input order', () => {
+    const entries = [
+      makeEntry('628111111111@c.us', 'Alice', 10, 5, 5, true),
+      makeEntry('628222222222@c.us', 'Bob', 8, 3, 3, true),
+      makeEntry('628333333333@c.us', 'Carol', 6, 0, 0, false),
+    ];
+    const result = formatLeaderboardMessage(entries);
+    expect(result.mentions).toEqual(['628111111111@c.us', '628222222222@c.us']);
   });
 
   it('omits warning when no entries are at risk', () => {
-    const entries = [makeEntry('Alice', 10, 5, 5, false), makeEntry('Bob', 8, 3, 3, false)];
+    const entries = [
+      makeEntry('628111111111@c.us', 'Alice', 10, 5, 5, false),
+      makeEntry('628222222222@c.us', 'Bob', 8, 3, 3, false),
+    ];
     const result = formatLeaderboardMessage(entries);
-    expect(result).not.toContain('workout today or your streak ends tomorrow');
+    expect(result.text).not.toContain('workout today or your streak ends tomorrow');
+    expect(result.mentions).toEqual([]);
   });
 
   it('rule explainer is the last line in the at-risk case', () => {
-    const entries = [makeEntry('Alice', 10, 5, 5, true)];
+    const entries = [makeEntry('628111111111@c.us', 'Alice', 10, 5, 5, true)];
     const result = formatLeaderboardMessage(entries);
-    expect(result.endsWith(RULE_NOTE)).toBe(true);
+    expect(result.text.endsWith(RULE_NOTE)).toBe(true);
   });
 
   it('rule explainer is the last line in the not-at-risk case', () => {
-    const entries = [makeEntry('Alice', 10, 5, 5, false)];
+    const entries = [makeEntry('628111111111@c.us', 'Alice', 10, 5, 5, false)];
     const result = formatLeaderboardMessage(entries);
-    expect(result.endsWith(RULE_NOTE)).toBe(true);
+    expect(result.text.endsWith(RULE_NOTE)).toBe(true);
   });
 
   it('rule explainer is present in the empty-leaderboard branch', () => {
     const result = formatLeaderboardMessage([]);
-    expect(result).toContain(RULE_NOTE);
+    expect(result.text).toContain(RULE_NOTE);
   });
 });
