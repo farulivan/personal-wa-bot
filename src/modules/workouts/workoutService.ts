@@ -10,6 +10,8 @@ import type {
 import type { UserRepository } from '../users/infra/userRepository.js';
 import type { LiftPayload, CardioPayload } from './workoutParser.js';
 
+const WORKOUT_STREAK_REST_DAY_TOLERANCE = 1;
+
 export type WorkoutListResult = {
   rows: WorkoutEntry[];
   total: number;
@@ -23,6 +25,7 @@ export type WorkoutLeaderboardEntry = {
   sessionsInMonth: number;
   currentStreak: number;
   bestStreak: number;
+  atRisk: boolean;
 };
 
 export function getLastMonthDateRange(
@@ -150,7 +153,7 @@ export class WorkoutService {
         sender,
         timezoneOffsetMinutes
       );
-      streaks = computeStreaks(days, timezoneOffsetMinutes, now);
+      streaks = computeStreaks(days, timezoneOffsetMinutes, now, WORKOUT_STREAK_REST_DAY_TOLERANCE);
     }
 
     return { todayCount, streaks };
@@ -175,7 +178,12 @@ export class WorkoutService {
       sender,
       timezoneOffsetMinutes
     );
-    const streaks = computeStreaks(days, timezoneOffsetMinutes, now);
+    const streaks = computeStreaks(
+      days,
+      timezoneOffsetMinutes,
+      now,
+      WORKOUT_STREAK_REST_DAY_TOLERANCE
+    );
 
     return { rows, total, page, totalPages, streaks };
   }
@@ -189,7 +197,7 @@ export class WorkoutService {
       userId,
       timezoneOffsetMinutes
     );
-    return computeStreaks(days, timezoneOffsetMinutes, now);
+    return computeStreaks(days, timezoneOffsetMinutes, now, WORKOUT_STREAK_REST_DAY_TOLERANCE);
   }
 
   async listDistinctUsers(): Promise<string[]> {
@@ -219,9 +227,20 @@ export class WorkoutService {
 
     const raw = userIds.map((userId) => {
       const days = daysByUser.get(userId) ?? [];
-      const streak = computeStreaks(days, timezoneOffsetMinutes, now);
+      const streak = computeStreaks(
+        days,
+        timezoneOffsetMinutes,
+        now,
+        WORKOUT_STREAK_REST_DAY_TOLERANCE
+      );
       const sessionsInMonth = sessionsByUser.get(userId) ?? 0;
-      return { userId, currentStreak: streak.current, bestStreak: streak.best, sessionsInMonth };
+      return {
+        userId,
+        currentStreak: streak.current,
+        bestStreak: streak.best,
+        atRisk: streak.atRisk,
+        sessionsInMonth,
+      };
     });
 
     const filtered = raw.filter(
@@ -233,6 +252,7 @@ export class WorkoutService {
       sessionsInMonth: e.sessionsInMonth,
       currentStreak: e.currentStreak,
       bestStreak: e.bestStreak,
+      atRisk: e.atRisk,
     }));
     return { entries };
   }
@@ -259,9 +279,20 @@ export class WorkoutService {
 
     const raw = userIds.map((userId) => {
       const days = daysByUser.get(userId) ?? [];
-      const streak = computeStreaks(days, timezoneOffsetMinutes, now);
+      const streak = computeStreaks(
+        days,
+        timezoneOffsetMinutes,
+        now,
+        WORKOUT_STREAK_REST_DAY_TOLERANCE
+      );
       const sessionsInMonth = sessionsByUser.get(userId) ?? 0;
-      return { userId, currentStreak: streak.current, bestStreak: streak.best, sessionsInMonth };
+      return {
+        userId,
+        currentStreak: streak.current,
+        bestStreak: streak.best,
+        atRisk: streak.atRisk,
+        sessionsInMonth,
+      };
     });
 
     const filtered = raw.filter((e) => e.sessionsInMonth > 0);
@@ -271,6 +302,7 @@ export class WorkoutService {
       sessionsInMonth: e.sessionsInMonth,
       currentStreak: e.currentStreak,
       bestStreak: e.bestStreak,
+      atRisk: e.atRisk,
     }));
     return { entries, monthLabel };
   }

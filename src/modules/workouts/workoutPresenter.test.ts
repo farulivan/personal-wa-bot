@@ -80,8 +80,18 @@ describe('formatDigestMessage', () => {
     user: string,
     sessionsInMonth: number,
     currentStreak: number,
-    bestStreak: number
-  ): WorkoutLeaderboardEntry => ({ user, sessionsInMonth, currentStreak, bestStreak });
+    bestStreak: number,
+    atRisk = false
+  ): WorkoutLeaderboardEntry => ({
+    user,
+    sessionsInMonth,
+    currentStreak,
+    bestStreak,
+    atRisk,
+  });
+
+  const RULE_NOTE =
+    '💡 Streak rule: one rest day is fine. Miss two days in a row and your streak resets.';
 
   it('returns morning header + empty leaderboard message when entries are empty', () => {
     const result = formatDigestMessage([]);
@@ -107,6 +117,35 @@ describe('formatDigestMessage', () => {
     expect(result).toContain('🌱 Fourth');
     expect(result).toContain('🏋️ 10 sessions');
     expect(result).toContain('Keep showing up. Consistency wins. 💪');
+  });
+
+  it('places warning between Good morning header and leaderboard header when at least one user is at risk', () => {
+    const entries = [makeEntry('Alice', 10, 5, 5, true), makeEntry('Bob', 8, 3, 3, false)];
+    const result = formatDigestMessage(entries);
+    expect(result).toContain('@Alice');
+    const morningIdx = result.indexOf('Good morning team 👋');
+    const warningIdx = result.indexOf('@Alice');
+    const headerIdx = result.indexOf('Workout Leaderboard This Month 🏆');
+    expect(morningIdx).toBeLessThan(warningIdx);
+    expect(warningIdx).toBeLessThan(headerIdx);
+  });
+
+  it('rule explainer sits immediately above Keep showing up line', () => {
+    const entries = [makeEntry('Alice', 10, 5, 5, false)];
+    const result = formatDigestMessage(entries);
+    const noteIdx = result.indexOf(RULE_NOTE);
+    const closingIdx = result.indexOf('Keep showing up. Consistency wins. 💪');
+    expect(noteIdx).toBeGreaterThan(-1);
+    expect(closingIdx).toBeGreaterThan(-1);
+    // The note should be directly followed by \n\n and then the closing line
+    expect(result.slice(noteIdx + RULE_NOTE.length)).toBe(
+      '\n\nKeep showing up. Consistency wins. 💪'
+    );
+  });
+
+  it('rule explainer is present in the empty-leaderboard branch', () => {
+    const result = formatDigestMessage([]);
+    expect(result).toContain(RULE_NOTE);
   });
 });
 
@@ -147,7 +186,13 @@ describe('rankLeaderboardEntries', () => {
     sessionsInMonth: number,
     currentStreak: number,
     bestStreak: number
-  ): WorkoutLeaderboardEntry => ({ user, sessionsInMonth, currentStreak, bestStreak });
+  ): WorkoutLeaderboardEntry => ({
+    user,
+    sessionsInMonth,
+    currentStreak,
+    bestStreak,
+    atRisk: false,
+  });
 
   it('sorts by sessionsInMonth descending as primary criterion', () => {
     const entries = [makeEntry('B', 5, 0, 0), makeEntry('A', 10, 0, 0), makeEntry('C', 3, 0, 0)];
@@ -195,8 +240,18 @@ describe('formatLeaderboardMessage', () => {
     user: string,
     sessionsInMonth: number,
     currentStreak: number,
-    bestStreak: number
-  ): WorkoutLeaderboardEntry => ({ user, sessionsInMonth, currentStreak, bestStreak });
+    bestStreak: number,
+    atRisk = false
+  ): WorkoutLeaderboardEntry => ({
+    user,
+    sessionsInMonth,
+    currentStreak,
+    bestStreak,
+    atRisk,
+  });
+
+  const RULE_NOTE =
+    '💡 Streak rule: one rest day is fine. Miss two days in a row and your streak resets.';
 
   it('returns empty-state message with CTA when entries array is empty', () => {
     const result = formatLeaderboardMessage([]);
@@ -222,7 +277,7 @@ describe('formatLeaderboardMessage', () => {
     const entries = [makeEntry('Budi', 4, 0, 0)];
     const result = formatLeaderboardMessage(entries);
     expect(result).toContain('4 sessions');
-    expect(result).not.toContain('Streak');
+    expect(result).not.toContain('🔥 Streak');
     expect(result).not.toContain('🔥');
   });
 
@@ -234,5 +289,48 @@ describe('formatLeaderboardMessage', () => {
     const equalStreak = [makeEntry('Ari', 18, 5, 5)];
     const resultEqual = formatLeaderboardMessage(equalStreak);
     expect(resultEqual).not.toContain('Best');
+  });
+
+  it('shows at-risk warning before the header when one user is at risk', () => {
+    const entries = [makeEntry('Alice', 10, 5, 5, true), makeEntry('Bob', 8, 3, 3, false)];
+    const result = formatLeaderboardMessage(entries);
+    expect(result).toContain('@Alice');
+    expect(result).toContain('workout today or your streak ends tomorrow');
+    const warningIdx = result.indexOf('@Alice');
+    const headerIdx = result.indexOf('Workout Leaderboard This Month 🏆');
+    expect(warningIdx).toBeLessThan(headerIdx);
+  });
+
+  it('tags multiple at-risk users comma-joined in a single warning line', () => {
+    const entries = [
+      makeEntry('Alice', 10, 5, 5, true),
+      makeEntry('Bob', 8, 3, 3, true),
+      makeEntry('Carol', 6, 0, 0, false),
+    ];
+    const result = formatLeaderboardMessage(entries);
+    expect(result).toContain('@Alice, @Bob');
+  });
+
+  it('omits warning when no entries are at risk', () => {
+    const entries = [makeEntry('Alice', 10, 5, 5, false), makeEntry('Bob', 8, 3, 3, false)];
+    const result = formatLeaderboardMessage(entries);
+    expect(result).not.toContain('workout today or your streak ends tomorrow');
+  });
+
+  it('rule explainer is the last line in the at-risk case', () => {
+    const entries = [makeEntry('Alice', 10, 5, 5, true)];
+    const result = formatLeaderboardMessage(entries);
+    expect(result.endsWith(RULE_NOTE)).toBe(true);
+  });
+
+  it('rule explainer is the last line in the not-at-risk case', () => {
+    const entries = [makeEntry('Alice', 10, 5, 5, false)];
+    const result = formatLeaderboardMessage(entries);
+    expect(result.endsWith(RULE_NOTE)).toBe(true);
+  });
+
+  it('rule explainer is present in the empty-leaderboard branch', () => {
+    const result = formatLeaderboardMessage([]);
+    expect(result).toContain(RULE_NOTE);
   });
 });
