@@ -1,26 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { jidToPhone, formatMentionTag } from './mentions.js';
+import { formatMentionTag, phoneToMentionJid } from './mentions.js';
 
-describe('jidToPhone', () => {
-  it('strips @c.us suffix', () => {
-    expect(jidToPhone('62812345@c.us')).toBe('62812345');
+describe('formatMentionTag', () => {
+  it('returns @<phoneNumber> from a phone number string', () => {
+    expect(formatMentionTag('628111111111')).toBe('@628111111111');
   });
 
-  it('strips @lid suffix', () => {
-    expect(jidToPhone('62812345@lid')).toBe('62812345');
-  });
-
-  it('strips @s.whatsapp.net suffix', () => {
-    expect(jidToPhone('62812345@s.whatsapp.net')).toBe('62812345');
-  });
-
-  it('returns bare string unchanged when no @ present', () => {
-    expect(jidToPhone('62812345')).toBe('62812345');
+  it('works with any phone number string', () => {
+    expect(formatMentionTag('6281234567890')).toBe('@6281234567890');
   });
 });
 
-describe('formatMentionTag', () => {
-  it('returns @<phone> from a JID', () => {
-    expect(formatMentionTag('62812345@c.us')).toBe('@62812345');
+describe('phoneToMentionJid', () => {
+  it('appends @c.us to the phone number', () => {
+    expect(phoneToMentionJid('628111111111')).toBe('628111111111@c.us');
+  });
+
+  it('works with any phone number string', () => {
+    expect(phoneToMentionJid('6281234567890')).toBe('6281234567890@c.us');
   });
 });

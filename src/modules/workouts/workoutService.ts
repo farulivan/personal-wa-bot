@@ -21,7 +21,7 @@ export type WorkoutListResult = {
 };
 
 export type WorkoutLeaderboardEntry = {
-  userId: string;
+  phoneNumber: string | null;
   user: string;
   sessionsInMonth: number;
   currentStreak: number;
@@ -247,10 +247,13 @@ export class WorkoutService {
     const filtered = raw.filter(
       (e) => e.sessionsInMonth > 0 || e.currentStreak > 0 || e.bestStreak > 0
     );
-    const namesById = await this.userRepository.getDisplayNamesByIds(filtered.map((e) => e.userId));
+    const [namesById, phonesById] = await Promise.all([
+      this.userRepository.getDisplayNamesByIds(filtered.map((e) => e.userId)),
+      this.userRepository.getPhoneNumbersByIds(filtered.map((e) => e.userId)),
+    ]);
     const entries = filtered.map((e) => ({
-      userId: e.userId,
       user: namesById.get(e.userId) ?? e.userId,
+      phoneNumber: phonesById.get(e.userId) ?? null,
       sessionsInMonth: e.sessionsInMonth,
       currentStreak: e.currentStreak,
       bestStreak: e.bestStreak,
@@ -298,10 +301,13 @@ export class WorkoutService {
     });
 
     const filtered = raw.filter((e) => e.sessionsInMonth > 0);
-    const namesById = await this.userRepository.getDisplayNamesByIds(filtered.map((e) => e.userId));
+    const [namesById, phonesById] = await Promise.all([
+      this.userRepository.getDisplayNamesByIds(filtered.map((e) => e.userId)),
+      this.userRepository.getPhoneNumbersByIds(filtered.map((e) => e.userId)),
+    ]);
     const entries = filtered.map((e) => ({
-      userId: e.userId,
       user: namesById.get(e.userId) ?? e.userId,
+      phoneNumber: phonesById.get(e.userId) ?? null,
       sessionsInMonth: e.sessionsInMonth,
       currentStreak: e.currentStreak,
       bestStreak: e.bestStreak,

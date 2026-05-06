@@ -38,19 +38,22 @@ export function startReminderScheduler(deps: StartReminderSchedulerDeps): Remind
 
       debug(`⏰ Reminder scheduler: claimed ${dueReminders.length} due reminder(s)`);
 
-      const namesById = await deps.userRepository.getDisplayNamesByIds(
-        dueReminders.map((r) => r.userId)
-      );
+      const userIds = dueReminders.map((r) => r.userId);
+      const [namesById, phonesById] = await Promise.all([
+        deps.userRepository.getDisplayNamesByIds(userIds),
+        deps.userRepository.getPhoneNumbersByIds(userIds),
+      ]);
 
       for (const reminder of dueReminders) {
         const name = namesById.get(reminder.userId) ?? reminder.userId;
+        const phoneNumber = phonesById.get(reminder.userId) ?? null;
         const localDateTimeLabel = toLocalDateTimeLabel(
           reminder.scheduledAt,
           deps.timezoneOffsetMinutes
         );
         const isGroupChat = reminder.sourceType === 'group';
         const result = formatSchedulerReminderMessage(
-          reminder.userId,
+          phoneNumber,
           name,
           reminder.reminderText,
           localDateTimeLabel,

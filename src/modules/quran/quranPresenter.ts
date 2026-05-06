@@ -3,12 +3,12 @@ import type { QuranDailyReadRow, QuranHistoryRow } from './infra/quranRepository
 import type { QuranLeaderboardEntry, QuranLeaderboardMode } from './quranService.js';
 import { QURAN_UNDO_WINDOW_MS } from './quranService.js';
 import type { StreakInfo } from '../../shared/streaks.js';
-import { formatMentionTag } from '../../shared/mentions.js';
+import { formatMentionTag, phoneToMentionJid } from '../../shared/mentions.js';
 
 const QURAN_LEADERBOARD_LIMIT = 10;
 
 export type UserReminder = {
-  userId: string;
+  phoneNumber: string | null;
   name: string;
   hasRead: boolean;
   currentStreak: number;
@@ -307,21 +307,25 @@ export function formatReminderMessage(reminders: UserReminder[]): {
 
   if (notReadWithStreak.length > 0) {
     sections.push(
-      `🔥 ${joinHumanNames(notReadWithStreak.map((u) => formatMentionTag(u.userId)))} kemarin sudah baca, tapi hari ini belum.` +
+      `🔥 ${joinHumanNames(notReadWithStreak.map((u) => (u.phoneNumber ? formatMentionTag(u.phoneNumber) : u.name)))} kemarin sudah baca, tapi hari ini belum.` +
         `\nJangan sampai streak putus malam ini ya 🤲`
     );
   }
 
   if (notReadNoStreak.length > 0) {
     sections.push(
-      `🌱 ${joinHumanNames(notReadNoStreak.map((u) => formatMentionTag(u.userId)))} masih belum mulai dari kemarin.` +
+      `🌱 ${joinHumanNames(notReadNoStreak.map((u) => (u.phoneNumber ? formatMentionTag(u.phoneNumber) : u.name)))} masih belum mulai dari kemarin.` +
         `\nYuk buka 1-2 halaman dulu malam ini, pelan-pelan yang penting jalan ✨`
     );
   }
 
   const mentions = [
-    ...notReadWithStreak.map((u) => u.userId),
-    ...notReadNoStreak.map((u) => u.userId),
+    ...notReadWithStreak
+      .filter((u) => u.phoneNumber !== null)
+      .map((u) => phoneToMentionJid(u.phoneNumber!)),
+    ...notReadNoStreak
+      .filter((u) => u.phoneNumber !== null)
+      .map((u) => phoneToMentionJid(u.phoneNumber!)),
   ];
 
   if (notReadYet.length === 0) {

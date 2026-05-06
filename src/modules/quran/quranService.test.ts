@@ -227,6 +227,9 @@ class InMemoryUserRepository implements UserRepository {
   async getDisplayNamesByIds(ids: string[]): Promise<Map<string, string>> {
     return new Map(ids.map((id) => [id, id]));
   }
+  async getPhoneNumbersByIds(ids: string[]): Promise<Map<string, string | null>> {
+    return new Map(ids.map((id) => [id, null]));
+  }
 }
 
 describe('QuranService', () => {

@@ -77,7 +77,7 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
             now
           );
           return {
-            userId,
+            phoneNumber: data.phoneNumber,
             name: data.name,
             hasRead: data.hasRead,
             currentStreak: data.currentStreak,
