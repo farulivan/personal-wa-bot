@@ -4,7 +4,7 @@ import type { UserRepository } from '../users/infra/userRepository.js';
 import { toLocalDateTimeLabel, formatSchedulerReminderMessage } from './remindPresenter.js';
 
 type ReminderClientLike = {
-  sendMessage: (chatId: string, text: string) => Promise<unknown>;
+  sendMessage: (chatId: string, text: string, mentions?: string[]) => Promise<unknown>;
 };
 
 type StartReminderSchedulerDeps = {
@@ -38,24 +38,30 @@ export function startReminderScheduler(deps: StartReminderSchedulerDeps): Remind
 
       debug(`⏰ Reminder scheduler: claimed ${dueReminders.length} due reminder(s)`);
 
-      const namesById = await deps.userRepository.getDisplayNamesByIds(
-        dueReminders.map((r) => r.userId)
-      );
+      const userIds = dueReminders.map((r) => r.userId);
+      const [namesById, phonesById] = await Promise.all([
+        deps.userRepository.getDisplayNamesByIds(userIds),
+        deps.userRepository.getPhoneNumbersByIds(userIds),
+      ]);
 
       for (const reminder of dueReminders) {
         const name = namesById.get(reminder.userId) ?? reminder.userId;
+        const phoneNumber = phonesById.get(reminder.userId) ?? null;
         const localDateTimeLabel = toLocalDateTimeLabel(
           reminder.scheduledAt,
           deps.timezoneOffsetMinutes
         );
-        const message = formatSchedulerReminderMessage(
+        const isGroupChat = reminder.sourceType === 'group';
+        const result = formatSchedulerReminderMessage(
+          phoneNumber,
           name,
           reminder.reminderText,
-          localDateTimeLabel
+          localDateTimeLabel,
+          isGroupChat
         );
 
         try {
-          await deps.client.sendMessage(reminder.targetChatId, message);
+          await deps.client.sendMessage(reminder.targetChatId, result.text, result.mentions);
           debug(`⏰ Reminder sent: id=${reminder.id}, chat=${reminder.targetChatId}`);
         } catch (err) {
           error(

@@ -7,12 +7,12 @@ import { RemindService } from './remindService.js';
 import { startReminderScheduler } from './remindScheduler.js';
 import type { RemindRepository } from './infra/remindRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
-import type { WhatsAppSenderLike } from '../../adapters/whatsapp/types.js';
+import type { MessageSenderPort } from '../../adapters/whatsapp/ports.js';
 
 export type RemindModuleDeps = {
   remindRepository: RemindRepository;
   userRepository: UserRepository;
-  client: WhatsAppSenderLike;
+  client: MessageSenderPort;
   timezoneOffsetMinutes: number;
   remindListLimit: number;
   remindActiveLimit: number;

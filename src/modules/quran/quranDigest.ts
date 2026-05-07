@@ -76,7 +76,12 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
             deps.timezoneOffsetMinutes,
             now
           );
-          return { name: data.name, hasRead: data.hasRead, currentStreak: data.currentStreak };
+          return {
+            phoneNumber: data.phoneNumber,
+            name: data.name,
+            hasRead: data.hasRead,
+            currentStreak: data.currentStreak,
+          };
         })
       );
     } catch (err) {
@@ -89,11 +94,11 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
       return;
     }
 
-    const message = formatReminderMessage(reminders);
+    const result = formatReminderMessage(reminders);
     debug(`📖 Reminder message built, sending to ${groupChatId}`);
 
     try {
-      await deps.senderPort.sendMessage(groupChatId, message);
+      await deps.senderPort.sendMessage(groupChatId, result.text, result.mentions);
       debug(`📖 Quran reminder sent to ${groupChatId}`);
     } catch (err) {
       error('📖 Failed to send Quran reminder:', err);

@@ -20,4 +20,5 @@ export interface UserRepository {
   findByIds(ids: string[]): Promise<UserRow[]>;
   getDisplayName(id: string): Promise<string>;
   getDisplayNamesByIds(ids: string[]): Promise<Map<string, string>>;
+  getPhoneNumbersByIds(ids: string[]): Promise<Map<string, string | null>>;
 }

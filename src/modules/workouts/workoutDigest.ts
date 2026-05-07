@@ -31,10 +31,9 @@ export function createDailyStreakDigestSender(deps: DigestDeps) {
       return;
     }
 
-    const message = formatDigestMessage(ranked);
-
+    const result = formatDigestMessage(ranked);
     try {
-      await deps.senderPort.sendMessage(groupChatId, message);
+      await deps.senderPort.sendMessage(groupChatId, result.text, result.mentions);
       debug(`⏰ Digest sent to ${groupChatId}`);
     } catch (err) {
       error('⏰ Failed to send digest:', err);

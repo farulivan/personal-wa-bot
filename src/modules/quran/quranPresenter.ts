@@ -3,10 +3,12 @@ import type { QuranDailyReadRow, QuranHistoryRow } from './infra/quranRepository
 import type { QuranLeaderboardEntry, QuranLeaderboardMode } from './quranService.js';
 import { QURAN_UNDO_WINDOW_MS } from './quranService.js';
 import type { StreakInfo } from '../../shared/streaks.js';
+import { formatMentionTag, phoneToMentionJid } from '../../shared/mentions.js';
 
 const QURAN_LEADERBOARD_LIMIT = 10;
 
 export type UserReminder = {
+  phoneNumber: string | null;
   name: string;
   hasRead: boolean;
   currentStreak: number;
@@ -276,15 +278,23 @@ export function formatUndoTooLate(entry: QuranDailyReadRow, timezoneOffsetMinute
   );
 }
 
-export function formatReminderMessage(reminders: UserReminder[]): string {
+export function formatReminderMessage(reminders: UserReminder[]): {
+  text: string;
+  mentions: string[];
+} {
   if (reminders.length === 0) {
-    return `Pengingat tilawah 22:00 🌙\n\nBelum ada data #quran di grup ini. Yuk mulai dengan:\n#quran read 1`;
+    return {
+      text:
+        `Pengingat tilawah 22:00 🌙\n\n` +
+        `Belum ada data #quran di grup ini. Yuk mulai dengan:\n#quran read 1`,
+      mentions: [],
+    };
   }
 
-  const readToday = reminders.filter((user) => user.hasRead);
-  const notReadYet = reminders.filter((user) => !user.hasRead);
-  const notReadWithStreak = reminders.filter((user) => !user.hasRead && user.currentStreak > 0);
-  const notReadNoStreak = reminders.filter((user) => !user.hasRead && user.currentStreak <= 0);
+  const readToday = reminders.filter((u) => u.hasRead);
+  const notReadYet = reminders.filter((u) => !u.hasRead);
+  const notReadWithStreak = reminders.filter((u) => !u.hasRead && u.currentStreak > 0);
+  const notReadNoStreak = reminders.filter((u) => !u.hasRead && u.currentStreak <= 0);
 
   const sections: string[] = [];
 
@@ -297,30 +307,43 @@ export function formatReminderMessage(reminders: UserReminder[]): string {
 
   if (notReadWithStreak.length > 0) {
     sections.push(
-      `🔥 ${joinHumanNames(notReadWithStreak.map((u) => u.name))} kemarin sudah baca, tapi hari ini belum.` +
+      `🔥 ${joinHumanNames(notReadWithStreak.map((u) => (u.phoneNumber ? formatMentionTag(u.phoneNumber) : u.name)))} kemarin sudah baca, tapi hari ini belum.` +
         `\nJangan sampai streak putus malam ini ya 🤲`
     );
   }
 
   if (notReadNoStreak.length > 0) {
     sections.push(
-      `🌱 ${joinHumanNames(notReadNoStreak.map((u) => u.name))} masih belum mulai dari kemarin.` +
+      `🌱 ${joinHumanNames(notReadNoStreak.map((u) => (u.phoneNumber ? formatMentionTag(u.phoneNumber) : u.name)))} masih belum mulai dari kemarin.` +
         `\nYuk buka 1-2 halaman dulu malam ini, pelan-pelan yang penting jalan ✨`
     );
   }
 
+  const mentions = [
+    ...notReadWithStreak
+      .filter((u) => u.phoneNumber !== null)
+      .map((u) => phoneToMentionJid(u.phoneNumber!)),
+    ...notReadNoStreak
+      .filter((u) => u.phoneNumber !== null)
+      .map((u) => phoneToMentionJid(u.phoneNumber!)),
+  ];
+
   if (notReadYet.length === 0) {
-    return (
-      `MasyaAllah tabarakallah 🤲\n\n` +
-      `${sections.join('\n\n')}\n\n` +
-      `Semoga Allah jaga istiqamah kita semua 📖✨`
-    );
+    return {
+      text:
+        `MasyaAllah tabarakallah 🤲\n\n` +
+        `${sections.join('\n\n')}\n\n` +
+        `Semoga Allah jaga istiqamah kita semua 📖✨`,
+      mentions,
+    };
   }
 
-  return (
-    `Pengingat tilawah 22:00 🌙\n` +
-    `Masih ada 2 jam sebelum lose streak (00:00 GMT+7).\n\n` +
-    `${sections.join('\n\n')}\n\n` +
-    `Gas baca dulu, lalu catat dengan #quran read 📖`
-  );
+  return {
+    text:
+      `Pengingat tilawah 22:00 🌙\n` +
+      `Masih ada 2 jam sebelum lose streak (00:00 GMT+7).\n\n` +
+      `${sections.join('\n\n')}\n\n` +
+      `Gas baca dulu, lalu catat dengan #quran read 📖`,
+    mentions,
+  };
 }

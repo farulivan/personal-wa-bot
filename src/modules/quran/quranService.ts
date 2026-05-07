@@ -356,14 +356,25 @@ export class QuranService {
     userId: string,
     timezoneOffsetMinutes: number,
     now: Date
-  ): Promise<{ hasRead: boolean; currentStreak: number; name: string }> {
-    const [hasRead, readDays, name] = await Promise.all([
+  ): Promise<{
+    phoneNumber: string | null;
+    hasRead: boolean;
+    currentStreak: number;
+    name: string;
+  }> {
+    const [hasRead, readDays, name, user] = await Promise.all([
       this.quranRepository.hasReadTodayByUser(userId, timezoneOffsetMinutes, now.toISOString()),
       this.quranRepository.getReadDays(userId, timezoneOffsetMinutes),
       this.userRepository.getDisplayName(userId),
+      this.userRepository.findById(userId),
     ]);
     const streaks = computeStreaks(readDays, timezoneOffsetMinutes, now);
-    return { hasRead, currentStreak: streaks.current, name };
+    return {
+      phoneNumber: user?.phoneNumber ?? null,
+      hasRead,
+      currentStreak: streaks.current,
+      name,
+    };
   }
 
   async undoTodayRead(

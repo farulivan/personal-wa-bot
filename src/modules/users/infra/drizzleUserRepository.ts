@@ -155,6 +155,33 @@ export class DrizzleUserRepository implements UserRepository {
     return out;
   }
 
+  async getPhoneNumbersByIds(ids: string[]): Promise<Map<string, string | null>> {
+    const result = new Map<string, string | null>();
+    if (ids.length === 0) return result;
+
+    const uniqueIds = [...new Set(ids)];
+    const normalizedById = new Map(uniqueIds.map((id) => [id, id.replace(/@.*$/, '')]));
+
+    const idsToFetch = new Set<string>();
+    for (const id of uniqueIds) {
+      idsToFetch.add(id);
+      const normalized = normalizedById.get(id)!;
+      if (normalized !== id) idsToFetch.add(normalized);
+    }
+
+    const userRows = await this.findByIds([...idsToFetch]);
+    const userById = new Map(userRows.map((u) => [u.id, u]));
+
+    for (const id of uniqueIds) {
+      const normalized = normalizedById.get(id)!;
+      const exact = userById.get(id);
+      const fallback = normalized !== id ? userById.get(normalized) : undefined;
+      const user = exact ?? fallback;
+      result.set(id, user?.phoneNumber ?? null);
+    }
+    return result;
+  }
+
   async getDisplayNamesByIds(ids: string[]): Promise<Map<string, string>> {
     const result = new Map<string, string>();
     if (ids.length === 0) return result;

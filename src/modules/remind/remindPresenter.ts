@@ -1,5 +1,6 @@
 import type { ReminderListRow } from './infra/remindRepository.js';
 import { REMIND_UNDO_WINDOW_MS } from './remindService.js';
+import { formatMentionTag, phoneToMentionJid } from '../../shared/mentions.js';
 
 const REMINDER_TEXT_MAX_CHARS = 200;
 const REMINDER_ACTIVE_LIMIT = 50;
@@ -122,16 +123,22 @@ export function formatActiveLimitMessage(activeCount: number): string {
 }
 
 export function formatSchedulerReminderMessage(
+  phoneNumber: string | null,
   name: string,
   reminderText: string,
-  localDateTimeLabel: string
-): string {
-  return (
-    `Reminder for ${name} ⏰\n` +
-    `Schedule: ${localDateTimeLabel} (GMT+7)\n\n` +
-    `${reminderText}\n\n` +
-    `Hope this helps you stay on track.`
-  );
+  localDateTimeLabel: string,
+  isGroupChat: boolean
+): { text: string; mentions: string[] } {
+  const useMention = isGroupChat && phoneNumber !== null;
+  const target = useMention ? formatMentionTag(phoneNumber) : name;
+  return {
+    text:
+      `Reminder for ${target} ⏰\n` +
+      `Schedule: ${localDateTimeLabel} (GMT+7)\n\n` +
+      `${reminderText}\n\n` +
+      `Hope this helps you stay on track.`,
+    mentions: useMention ? [phoneToMentionJid(phoneNumber)] : [],
+  };
 }
 
 export function formatUndoSuccess(entry: ReminderListRow, timezoneOffsetMinutes: number): string {

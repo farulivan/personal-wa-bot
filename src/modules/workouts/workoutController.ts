@@ -1,4 +1,4 @@
-import type { NamespaceHandler, CommandContext } from '../../app/commandRouter.js';
+import type { NamespaceHandler, CommandContext, RichReply } from '../../app/commandRouter.js';
 import type { CommandInvocation } from '../../app/parseCommand.js';
 import { debug } from '../../logger.js';
 import {
@@ -65,7 +65,7 @@ export function createWorkoutController(workoutService: WorkoutService): Namespa
     return formatUndoSuccess(result.entry);
   }
 
-  async function handleLeaderboard(ctx: CommandContext): Promise<string> {
+  async function handleLeaderboard(ctx: CommandContext): Promise<RichReply> {
     const { entries } = await workoutService.getLeaderboard(
       ctx.time.timezoneOffsetMinutes,
       ctx.time.now()

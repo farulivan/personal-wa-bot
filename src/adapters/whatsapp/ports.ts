@@ -8,5 +8,5 @@ export interface GroupMembershipPort {
 }
 
 export interface MessageSenderPort {
-  sendMessage(chatId: string, text: string): Promise<unknown>;
+  sendMessage(chatId: string, text: string, mentions?: string[]): Promise<unknown>;
 }
