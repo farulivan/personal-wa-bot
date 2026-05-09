@@ -195,17 +195,22 @@ const STREAK_RULE_NOTE =
   '💡 Streak rule: one rest day is fine. Miss two days in a row and your streak resets.';
 
 function formatStreakAtRiskWarning(
-  entries: WorkoutLeaderboardEntry[]
+  entries: WorkoutLeaderboardEntry[],
+  mentionablePhoneNumbers: Set<string>
 ): { text: string; mentions: string[] } | null {
   const atRisk = entries.filter((e) => e.atRisk);
   if (atRisk.length === 0) return null;
 
+  const isMentionable = (
+    e: WorkoutLeaderboardEntry
+  ): e is WorkoutLeaderboardEntry & {
+    phoneNumber: string;
+  } => e.phoneNumber !== null && mentionablePhoneNumbers.has(e.phoneNumber);
+
   const tagged = atRisk
-    .map((e) => (e.phoneNumber ? formatMentionTag(e.phoneNumber) : e.user))
+    .map((e) => (isMentionable(e) ? formatMentionTag(e.phoneNumber) : e.user))
     .join(', ');
-  const mentions = atRisk
-    .filter((e): e is WorkoutLeaderboardEntry & { phoneNumber: string } => e.phoneNumber !== null)
-    .map((e) => phoneToMentionJid(e.phoneNumber));
+  const mentions = atRisk.filter(isMentionable).map((e) => phoneToMentionJid(e.phoneNumber));
 
   return {
     text: `Heads up ${tagged}: workout today or your streak ends tomorrow.`,
@@ -244,7 +249,10 @@ function renderLeaderboardBody(entries: WorkoutLeaderboardEntry[]): string {
     .join('\n');
 }
 
-export function formatLeaderboardMessage(entries: WorkoutLeaderboardEntry[]): {
+export function formatLeaderboardMessage(
+  entries: WorkoutLeaderboardEntry[],
+  mentionablePhoneNumbers: Set<string>
+): {
   text: string;
   mentions: string[];
 } {
@@ -259,7 +267,7 @@ export function formatLeaderboardMessage(entries: WorkoutLeaderboardEntry[]): {
     };
   }
 
-  const warning = formatStreakAtRiskWarning(entries);
+  const warning = formatStreakAtRiskWarning(entries, mentionablePhoneNumbers);
   const warningPrefix = warning != null ? `${warning.text}\n\n` : '';
   return {
     text:
@@ -290,7 +298,10 @@ export function formatMonthlyDigestMessage(
   );
 }
 
-export function formatDigestMessage(entries: WorkoutLeaderboardEntry[]): {
+export function formatDigestMessage(
+  entries: WorkoutLeaderboardEntry[],
+  mentionablePhoneNumbers: Set<string>
+): {
   text: string;
   mentions: string[];
 } {
@@ -306,7 +317,7 @@ export function formatDigestMessage(entries: WorkoutLeaderboardEntry[]): {
     };
   }
 
-  const warning = formatStreakAtRiskWarning(entries);
+  const warning = formatStreakAtRiskWarning(entries, mentionablePhoneNumbers);
   const warningBlock = warning != null ? `${warning.text}\n\n` : '';
   return {
     text:

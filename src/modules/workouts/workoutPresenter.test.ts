@@ -11,6 +11,10 @@ import { UNDO_WINDOW_MS } from './workoutService.js';
 import type { WorkoutEntry } from './infra/workoutRepository.js';
 import type { WorkoutLeaderboardEntry } from './workoutService.js';
 
+function allMentionablePhones(entries: WorkoutLeaderboardEntry[]): Set<string> {
+  return new Set(entries.map((e) => e.phoneNumber).filter((p): p is string => p !== null));
+}
+
 describe('formatUndoSuccess', () => {
   it('formats a lift entry with weight', () => {
     const entry: WorkoutEntry = {
@@ -96,7 +100,7 @@ describe('formatDigestMessage', () => {
     '💡 Streak rule: one rest day is fine. Miss two days in a row and your streak resets.';
 
   it('returns morning header + empty leaderboard message when entries are empty', () => {
-    const result = formatDigestMessage([]);
+    const result = formatDigestMessage([], new Set());
     expect(result.text).toContain('Good morning team 👋');
     expect(result.text).toContain('Workout Leaderboard This Month 🏆');
     expect(result.text).toContain('No workouts logged this month');
@@ -111,7 +115,7 @@ describe('formatDigestMessage', () => {
       makeEntry('628333333333', 'Third', 6, 0, 0),
       makeEntry('628444444444', 'Fourth', 4, 0, 0),
     ];
-    const result = formatDigestMessage(entries);
+    const result = formatDigestMessage(entries, allMentionablePhones(entries));
     expect(result.text.startsWith('Good morning team 👋')).toBe(true);
     expect(result.text).toContain('Workout Leaderboard This Month 🏆');
     expect(result.text).toContain('🥇 First');
@@ -128,7 +132,7 @@ describe('formatDigestMessage', () => {
       makeEntry('628111111111', 'Alice', 10, 5, 5, true),
       makeEntry('628222222222', 'Bob', 8, 3, 3, false),
     ];
-    const result = formatDigestMessage(entries);
+    const result = formatDigestMessage(entries, allMentionablePhones(entries));
     expect(result.text).toContain('@628111111111');
     const morningIdx = result.text.indexOf('Good morning team 👋');
     const warningIdx = result.text.indexOf('@628111111111');
@@ -139,7 +143,7 @@ describe('formatDigestMessage', () => {
 
   it('at-risk warning uses @phone token derived from phoneNumber, not the display name', () => {
     const entries = [makeEntry('628111111111', 'Alice', 10, 5, 5, true)];
-    const result = formatDigestMessage(entries);
+    const result = formatDigestMessage(entries, allMentionablePhones(entries));
     expect(result.text).toContain('@628111111111');
     expect(result.text).not.toContain('@Alice');
   });
@@ -150,7 +154,7 @@ describe('formatDigestMessage', () => {
       makeEntry('628222222222', 'Bob', 8, 3, 3, true),
       makeEntry('628333333333', 'Carol', 6, 0, 0, false),
     ];
-    const result = formatDigestMessage(entries);
+    const result = formatDigestMessage(entries, allMentionablePhones(entries));
     expect(result.mentions).toEqual(['628111111111@c.us', '628222222222@c.us']);
   });
 
@@ -159,13 +163,13 @@ describe('formatDigestMessage', () => {
       makeEntry('628111111111', 'Alice', 10, 5, 5, false),
       makeEntry('628222222222', 'Bob', 8, 3, 3, false),
     ];
-    const result = formatDigestMessage(entries);
+    const result = formatDigestMessage(entries, allMentionablePhones(entries));
     expect(result.mentions).toEqual([]);
   });
 
   it('at-risk user with null phoneNumber falls back to plain display name in text, not in mentions', () => {
     const entries = [makeEntry(null, 'Alice', 10, 5, 5, true)];
-    const result = formatDigestMessage(entries);
+    const result = formatDigestMessage(entries, allMentionablePhones(entries));
     expect(result.text).toContain('Alice');
     expect(result.text).not.toContain('@');
     expect(result.mentions).toEqual([]);
@@ -177,16 +181,41 @@ describe('formatDigestMessage', () => {
       makeEntry(null, 'Bob', 8, 3, 3, true),
       makeEntry('628333333333', 'Carol', 6, 0, 0, false),
     ];
-    const result = formatDigestMessage(entries);
+    const result = formatDigestMessage(entries, allMentionablePhones(entries));
     expect(result.text).toContain('@628111111111');
     expect(result.text).toContain('Bob');
     expect(result.text).not.toContain('@Bob');
     expect(result.mentions).toEqual(['628111111111@c.us']);
   });
 
+  it('omits @mentions for at-risk users whose phone is not in mentionablePhoneNumbers; keeps them in text by display name', () => {
+    const entries = [
+      makeEntry('628111111111', 'Alice', 10, 5, 5, true),
+      makeEntry('628222222222', 'Bob', 8, 3, 3, true),
+    ];
+    const onlyAlice = new Set([entries[0].phoneNumber!]);
+    const result = formatDigestMessage(entries, onlyAlice);
+    expect(result.text).toContain('@628111111111');
+    expect(result.text).toContain('Bob');
+    expect(result.text).not.toContain('@628222222222');
+    expect(result.mentions).toEqual(['628111111111@c.us']);
+  });
+
+  it('produces no @mentions when mentionablePhoneNumbers is empty (e.g. membership lookup failed); names still appear', () => {
+    const entries = [
+      makeEntry('628111111111', 'Alice', 10, 5, 5, true),
+      makeEntry('628222222222', 'Bob', 8, 3, 3, true),
+    ];
+    const result = formatDigestMessage(entries, new Set());
+    expect(result.text).toContain('Heads up Alice, Bob');
+    expect(result.text).not.toContain('@628111111111');
+    expect(result.text).not.toContain('@628222222222');
+    expect(result.mentions).toEqual([]);
+  });
+
   it('rule explainer sits immediately above Keep showing up line', () => {
     const entries = [makeEntry('628111111111', 'Alice', 10, 5, 5, false)];
-    const result = formatDigestMessage(entries);
+    const result = formatDigestMessage(entries, allMentionablePhones(entries));
     const noteIdx = result.text.indexOf(RULE_NOTE);
     const closingIdx = result.text.indexOf('Keep showing up. Consistency wins. 💪');
     expect(noteIdx).toBeGreaterThan(-1);
@@ -197,7 +226,7 @@ describe('formatDigestMessage', () => {
   });
 
   it('rule explainer is present in the empty-leaderboard branch', () => {
-    const result = formatDigestMessage([]);
+    const result = formatDigestMessage([], new Set());
     expect(result.text).toContain(RULE_NOTE);
   });
 });
@@ -310,7 +339,7 @@ describe('formatLeaderboardMessage', () => {
     '💡 Streak rule: one rest day is fine. Miss two days in a row and your streak resets.';
 
   it('returns empty-state message with CTA when entries array is empty', () => {
-    const result = formatLeaderboardMessage([]);
+    const result = formatLeaderboardMessage([], new Set());
     expect(result.text).toContain('#workout lift push up 20reps 4sets');
     expect(result.text).toContain('No workouts logged this month');
     expect(result.mentions).toEqual([]);
@@ -323,7 +352,7 @@ describe('formatLeaderboardMessage', () => {
       makeEntry('628333333333', 'Third', 6, 0, 0),
       makeEntry('628444444444', 'Fourth', 4, 0, 0),
     ];
-    const result = formatLeaderboardMessage(entries);
+    const result = formatLeaderboardMessage(entries, allMentionablePhones(entries));
     expect(result.text).toContain('🥇 First');
     expect(result.text).toContain('🥈 Second');
     expect(result.text).toContain('🥉 Third');
@@ -332,7 +361,7 @@ describe('formatLeaderboardMessage', () => {
 
   it('omits streak section when both currentStreak and bestStreak are 0', () => {
     const entries = [makeEntry('628111111111', 'Budi', 4, 0, 0)];
-    const result = formatLeaderboardMessage(entries);
+    const result = formatLeaderboardMessage(entries, allMentionablePhones(entries));
     expect(result.text).toContain('4 sessions');
     expect(result.text).not.toContain('🔥 Streak');
     expect(result.text).not.toContain('🔥');
@@ -340,11 +369,11 @@ describe('formatLeaderboardMessage', () => {
 
   it('appends (Best Y days) only when bestStreak > currentStreak', () => {
     const withBest = [makeEntry('628111111111', 'Farul', 24, 5, 8)];
-    const resultWithBest = formatLeaderboardMessage(withBest);
+    const resultWithBest = formatLeaderboardMessage(withBest, allMentionablePhones(withBest));
     expect(resultWithBest.text).toContain('(Best 8 days)');
 
     const equalStreak = [makeEntry('628222222222', 'Ari', 18, 5, 5)];
-    const resultEqual = formatLeaderboardMessage(equalStreak);
+    const resultEqual = formatLeaderboardMessage(equalStreak, allMentionablePhones(equalStreak));
     expect(resultEqual.text).not.toContain('Best');
   });
 
@@ -353,7 +382,7 @@ describe('formatLeaderboardMessage', () => {
       makeEntry('628111111111', 'Alice', 10, 5, 5, true),
       makeEntry('628222222222', 'Bob', 8, 3, 3, false),
     ];
-    const result = formatLeaderboardMessage(entries);
+    const result = formatLeaderboardMessage(entries, allMentionablePhones(entries));
     expect(result.text).toContain('@628111111111');
     expect(result.text).toContain('workout today or your streak ends tomorrow');
     const warningIdx = result.text.indexOf('@628111111111');
@@ -363,7 +392,7 @@ describe('formatLeaderboardMessage', () => {
 
   it('at-risk warning uses @phone token derived from phoneNumber, not the display name', () => {
     const entries = [makeEntry('628111111111', 'Alice', 10, 5, 5, true)];
-    const result = formatLeaderboardMessage(entries);
+    const result = formatLeaderboardMessage(entries, allMentionablePhones(entries));
     expect(result.text).toContain('@628111111111');
     expect(result.text).not.toContain('@Alice');
   });
@@ -374,7 +403,7 @@ describe('formatLeaderboardMessage', () => {
       makeEntry('628222222222', 'Bob', 8, 3, 3, true),
       makeEntry('628333333333', 'Carol', 6, 0, 0, false),
     ];
-    const result = formatLeaderboardMessage(entries);
+    const result = formatLeaderboardMessage(entries, allMentionablePhones(entries));
     expect(result.text).toContain('@628111111111, @628222222222');
   });
 
@@ -384,7 +413,7 @@ describe('formatLeaderboardMessage', () => {
       makeEntry('628222222222', 'Bob', 8, 3, 3, true),
       makeEntry('628333333333', 'Carol', 6, 0, 0, false),
     ];
-    const result = formatLeaderboardMessage(entries);
+    const result = formatLeaderboardMessage(entries, allMentionablePhones(entries));
     expect(result.mentions).toEqual(['628111111111@c.us', '628222222222@c.us']);
   });
 
@@ -393,14 +422,14 @@ describe('formatLeaderboardMessage', () => {
       makeEntry('628111111111', 'Alice', 10, 5, 5, false),
       makeEntry('628222222222', 'Bob', 8, 3, 3, false),
     ];
-    const result = formatLeaderboardMessage(entries);
+    const result = formatLeaderboardMessage(entries, allMentionablePhones(entries));
     expect(result.text).not.toContain('workout today or your streak ends tomorrow');
     expect(result.mentions).toEqual([]);
   });
 
   it('at-risk user with null phoneNumber falls back to plain display name in text, not in mentions', () => {
     const entries = [makeEntry(null, 'Alice', 10, 5, 5, true)];
-    const result = formatLeaderboardMessage(entries);
+    const result = formatLeaderboardMessage(entries, allMentionablePhones(entries));
     expect(result.text).toContain('Alice');
     expect(result.text).not.toContain('@Alice');
     expect(result.mentions).toEqual([]);
@@ -411,27 +440,52 @@ describe('formatLeaderboardMessage', () => {
       makeEntry('628111111111', 'Alice', 10, 5, 5, true),
       makeEntry(null, 'Bob', 8, 3, 3, true),
     ];
-    const result = formatLeaderboardMessage(entries);
+    const result = formatLeaderboardMessage(entries, allMentionablePhones(entries));
     expect(result.text).toContain('@628111111111');
     expect(result.text).toContain('Bob');
     expect(result.text).not.toContain('@Bob');
     expect(result.mentions).toEqual(['628111111111@c.us']);
   });
 
+  it('only @mentions at-risk users whose phone is in mentionablePhoneNumbers (group with non-member at-risk)', () => {
+    const entries = [
+      makeEntry('628111111111', 'Alice', 10, 5, 5, true),
+      makeEntry('628222222222', 'Bob', 8, 3, 3, true),
+    ];
+    const onlyAlice = new Set([entries[0].phoneNumber!]);
+    const result = formatLeaderboardMessage(entries, onlyAlice);
+    expect(result.text).toContain('@628111111111');
+    expect(result.text).toContain('Bob');
+    expect(result.text).not.toContain('@628222222222');
+    expect(result.mentions).toEqual(['628111111111@c.us']);
+  });
+
+  it('produces no @mentions when mentionablePhoneNumbers is empty (DM equivalent); names still appear', () => {
+    const entries = [
+      makeEntry('628111111111', 'Alice', 10, 5, 5, true),
+      makeEntry('628222222222', 'Bob', 8, 3, 3, true),
+    ];
+    const result = formatLeaderboardMessage(entries, new Set());
+    expect(result.text).toContain('Heads up Alice, Bob');
+    expect(result.text).not.toContain('@628111111111');
+    expect(result.text).not.toContain('@628222222222');
+    expect(result.mentions).toEqual([]);
+  });
+
   it('rule explainer is the last line in the at-risk case', () => {
     const entries = [makeEntry('628111111111', 'Alice', 10, 5, 5, true)];
-    const result = formatLeaderboardMessage(entries);
+    const result = formatLeaderboardMessage(entries, allMentionablePhones(entries));
     expect(result.text.endsWith(RULE_NOTE)).toBe(true);
   });
 
   it('rule explainer is the last line in the not-at-risk case', () => {
     const entries = [makeEntry('628111111111', 'Alice', 10, 5, 5, false)];
-    const result = formatLeaderboardMessage(entries);
+    const result = formatLeaderboardMessage(entries, allMentionablePhones(entries));
     expect(result.text.endsWith(RULE_NOTE)).toBe(true);
   });
 
   it('rule explainer is present in the empty-leaderboard branch', () => {
-    const result = formatLeaderboardMessage([]);
+    const result = formatLeaderboardMessage([], new Set());
     expect(result.text).toContain(RULE_NOTE);
   });
 });

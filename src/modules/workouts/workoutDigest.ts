@@ -5,10 +5,12 @@ import {
   rankLeaderboardEntries,
 } from './workoutPresenter.js';
 import type { WorkoutService, WorkoutLeaderboardEntry } from './workoutService.js';
-import type { MessageSenderPort } from '../../adapters/whatsapp/ports.js';
+import type { GroupMembershipPort, MessageSenderPort } from '../../adapters/whatsapp/ports.js';
+import { resolveMentionablePhoneNumbers } from '../../adapters/whatsapp/resolveMentionablePhoneNumbers.js';
 
 type DigestDeps = {
   senderPort: MessageSenderPort;
+  membershipPort: GroupMembershipPort;
   workoutService: WorkoutService;
   timezoneOffsetMinutes: number;
 };
@@ -31,7 +33,13 @@ export function createDailyStreakDigestSender(deps: DigestDeps) {
       return;
     }
 
-    const result = formatDigestMessage(ranked);
+    const mentionablePhoneNumbers = await resolveMentionablePhoneNumbers(
+      deps.membershipPort,
+      groupChatId,
+      ranked.map((e) => e.phoneNumber)
+    );
+
+    const result = formatDigestMessage(ranked, mentionablePhoneNumbers);
     try {
       await deps.senderPort.sendMessage(groupChatId, result.text, result.mentions);
       debug(`⏰ Digest sent to ${groupChatId}`);
