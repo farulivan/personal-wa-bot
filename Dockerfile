@@ -41,4 +41,4 @@ COPY . .
 RUN pnpm build
 
 # Run the bot
-CMD ["node", "dist/index.js"]
+CMD ["node", "--max-old-space-size=384", "dist/index.js"]
