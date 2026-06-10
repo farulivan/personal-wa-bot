@@ -61,6 +61,7 @@ async function main() {
     workoutRepository,
     userRepository,
     senderPort,
+    membershipPort,
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
     digestGroupId: appConfig.digestGroupId,
     dailyDigestHour: appConfig.dailyDigestHour,

@@ -9,12 +9,13 @@ import {
 } from './workoutDigest.js';
 import type { WorkoutRepository } from './infra/workoutRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
-import type { MessageSenderPort } from '../../adapters/whatsapp/ports.js';
+import type { GroupMembershipPort, MessageSenderPort } from '../../adapters/whatsapp/ports.js';
 
 export type WorkoutModuleDeps = {
   workoutRepository: WorkoutRepository;
   userRepository: UserRepository;
   senderPort: MessageSenderPort;
+  membershipPort: GroupMembershipPort;
   timezoneOffsetMinutes: number;
   digestGroupId: string | undefined;
   dailyDigestHour: number;
@@ -38,13 +39,17 @@ export function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleReg
     deps.workoutListLimit
   );
 
-  const controller = withErrorBoundary('workout', createWorkoutController(workoutService));
+  const controller = withErrorBoundary(
+    'workout',
+    createWorkoutController(workoutService, deps.membershipPort)
+  );
 
   const jobs: ScheduledJob[] = [];
 
   if (deps.digestGroupId) {
     const digestDeps = {
       senderPort: deps.senderPort,
+      membershipPort: deps.membershipPort,
       workoutService,
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
     };

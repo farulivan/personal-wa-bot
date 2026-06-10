@@ -23,10 +23,15 @@ import {
   formatLeaderboardMessage,
 } from './workoutPresenter.js';
 import type { WorkoutService } from './workoutService.js';
+import type { GroupMembershipPort } from '../../adapters/whatsapp/ports.js';
+import { resolveMentionablePhoneNumbers } from '../../adapters/whatsapp/resolveMentionablePhoneNumbers.js';
 
 const WORKOUT_NAMESPACE = 'workout';
 
-export function createWorkoutController(workoutService: WorkoutService): NamespaceHandler {
+export function createWorkoutController(
+  workoutService: WorkoutService,
+  membershipPort: GroupMembershipPort
+): NamespaceHandler {
   async function handleList(ctx: CommandContext, invocation: CommandInvocation): Promise<string> {
     const now = ctx.time.now();
     const page = parsePageNumber(invocation.firstLine);
@@ -71,7 +76,13 @@ export function createWorkoutController(workoutService: WorkoutService): Namespa
       ctx.time.now()
     );
     const ranked = rankLeaderboardEntries(entries);
-    return formatLeaderboardMessage(ranked);
+    const groupChatId = ctx.isGroupChat ? ctx.replyChatId : null;
+    const mentionablePhoneNumbers = await resolveMentionablePhoneNumbers(
+      membershipPort,
+      groupChatId,
+      ranked.map((e) => e.phoneNumber)
+    );
+    return formatLeaderboardMessage(ranked, mentionablePhoneNumbers);
   }
 
   async function handleLog(ctx: CommandContext, invocation: CommandInvocation): Promise<string> {
