@@ -12,9 +12,9 @@
 </p>
 
 <p align="center">
-  <a href="#why-i-built-this">Why</a> ·
+  <a href="#motivation">Why</a> ·
   <a href="#engineering-highlights">Highlights</a> ·
-  <a href="#features">Features</a> ·
+  <a href="#usage">Usage</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#command-reference">Commands</a> ·
   <a href="#configuration">Configuration</a> ·
@@ -33,7 +33,7 @@
 
 ---
 
-## Why I built this
+## Motivation
 
 I wanted to keep track of small daily things — workouts, Quran pages, prayer times — but nothing fit. Notes apps got messy fast: no structure, hard to look back on, easy to forget about. A dedicated tracking app meant another install, another login, and one more thing to remember to open and stay dependent on.
 
@@ -105,7 +105,7 @@ that file and the `infra/` folders and nothing in the domain.
 
 ---
 
-## Features
+## Usage
 
 ### Workout Tracking — `#workout`
 
