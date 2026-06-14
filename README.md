@@ -18,7 +18,7 @@
   <a href="#quick-start">Quick Start</a> ·
   <a href="#command-reference">Commands</a> ·
   <a href="#configuration">Configuration</a> ·
-  <a href="#documentation">Docs</a>
+  <a href="#documentation">Docs</a> ·
   <a href="#contributing">Contributing</a>
 </p>
 
