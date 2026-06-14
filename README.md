@@ -100,7 +100,7 @@ that file and the `infra/` folders and nothing in the domain.
 </details>
 
 <p align="center">
-  <img src="docs/assets/demo.gif" alt="WhatsApp chat: showing this month's workout leaderboard" width="600">
+  <img src="docs/assets/demo.gif" alt="WhatsApp chat: showing this month's workout leaderboard" width="1080">
 </p>
 
 ---
