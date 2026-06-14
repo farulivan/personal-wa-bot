@@ -453,6 +453,31 @@ pnpm format           # Format with Prettier
 
 ---
 
+## Contributing
+
+This is a personal project, but issues and pull requests are welcome — bug reports, small fixes, and ideas all help.
+
+**Getting set up**
+
+Follow [Quick Start](#quick-start) to run it locally. For the bigger picture, [CONTEXT.md](CONTEXT.md) explains the domain words and the [Architecture Guide](docs/architecture.md) shows how the modules fit together.
+
+**Making a change**
+
+- Branch off `main` and keep changes focused.
+- Follow the existing module shape (parser → service → presenter → repository), and add tests where it makes sense.
+- Open a pull request against `main` with a short note on what changed and why.
+
+Before opening a PR, run the same checks CI does:
+
+```bash
+pnpm verify   # type-check + lint
+pnpm test     # unit tests
+```
+
+Adding a new command? The [Architecture Guide](docs/architecture.md#adding-a-new-feature) has a step-by-step walkthrough and a checklist.
+
+---
+
 ## License
 
 MIT
