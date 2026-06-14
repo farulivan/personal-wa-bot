@@ -27,8 +27,8 @@
     "personal",
     "automation"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "farulivan",
+  "license": "MIT",
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
     "drizzle-orm": "^0.45.2",
