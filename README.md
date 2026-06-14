@@ -3,26 +3,105 @@
 <h1 align="center">personal-wa-bot</h1>
 
 <p align="center">
-  A TypeScript WhatsApp bot for personal daily tracking and reminders.
+  A WhatsApp bot my family uses every day, built like a backend I'd put in production.
 </p>
 
 <p align="center">
+  It tracks workouts, Quran reading, and prayer times, and delivers reminders on schedule —<br>
+  TypeScript and PostgreSQL behind a hexagonal architecture, with a job scheduler that survives restarts.
+</p>
+
+<p align="center">
+  <a href="#why-i-built-this">Why</a> ·
+  <a href="#engineering-highlights">Highlights</a> ·
   <a href="#features">Features</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#command-reference">Commands</a> ·
   <a href="#configuration">Configuration</a> ·
-  <a href="#project-structure">Project Structure</a> ·
   <a href="#documentation">Docs</a>
 </p>
 
 <div align="center">
   
 ![GitHub Actions](https://img.shields.io/github/actions/workflow/status/farulivan/personal-wa-bot/ci.yml?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-366%20passing-brightgreen?style=flat-square)
 ![License](https://img.shields.io/github/license/farulivan/personal-wa-bot?style=flat-square)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/typescript-5.x-blue?style=flat-square)
   
 </div>
+
+---
+
+## Why I built this
+
+I wanted to keep track of small daily things — workouts, Quran pages, prayer times — but nothing fit. Notes apps got messy fast: no structure, hard to look back on, easy to forget about. A dedicated tracking app meant another install, another login, and one more thing to remember to open and stay dependent on.
+
+My family already lives in WhatsApp all day, so I put the tracker where we already are. No new app, no new habit, just a few `#` commands in a chat that's always open. That choice set the bar for everything else: it had to be reliable enough to trust with a reminder, and quiet enough to sit in a family group without being annoying.
+
+---
+
+## Engineering Highlights
+
+The interesting part of this project isn't the WhatsApp commands — it's what holds them up.
+
+- **A job scheduler that survives restarts.** Reminders are claimed with a single
+  `UPDATE … FOR UPDATE SKIP LOCKED` statement, so a restart never skips a due reminder and overlapping ticks never send one twice. → [`drizzleRemindRepository.ts`](src/modules/remind/infra/drizzleRemindRepository.ts)
+- **Hexagonal architecture, applied the same way every time.** Each feature is the
+  same shape — parser → service → presenter → repository — and the domain has no idea WhatsApp or PostgreSQL exist. → [`docs/architecture.md`](docs/architecture.md)
+- **Wired for real deployment.** Migrations run on boot, a `/ready` endpoint reports
+  health, and `SIGTERM` triggers a graceful shutdown that stops the schedulers and closes the DB pool. → [`index.ts`](src/index.ts)
+- **366 tests, deterministic on purpose.** Time is injected as `now: () => Date`, so
+  the streak math and timezone boundaries are tested against a frozen clock instead of `Date.now()` luck.
+- **Errors are typed, not thrown.** A small `Result<T>` carries expected failures
+  (bad input, broken rules) back to the caller; exceptions stay reserved for actual bugs. → [`Result<T>`](src/shared/result.ts)
+
+Two of the problems I enjoyed solving:
+
+<details>
+<summary><strong>Surviving restarts without dropping reminders</strong></summary>
+
+<br>
+
+A polling scheduler has two ways to embarrass you: skip a reminder because the bot
+restarted mid-tick, or fire the same one twice because two ticks overlapped.
+
+I made claiming a single statement —
+`UPDATE reminders SET sent_at = now WHERE id IN (SELECT id … FOR UPDATE SKIP LOCKED) RETURNING *`.
+The row is marked sent in the very query that selects it, so a restart re-scans only
+rows that are genuinely unsent, and two concurrent ticks can't grab the same row.
+
+The catch is that I mark a reminder sent *before* WhatsApp confirms it went out. A
+crash in that gap drops one reminder rather than risking a duplicate — at-most-once,
+on purpose. For a family reminder bot that's the trade I want; I wrote up the
+reasoning as an architecture decision record.
+
+</details>
+
+<details>
+<summary><strong>Why the hexagonal split earned its keep</strong></summary>
+
+<br>
+
+It's a solo project, so the layering had to pay for itself or I'd have dropped it.
+Two places where it did:
+
+Adding a feature is mostly mechanical. Every module is the same handful of files, so
+building `#remind` was filling in a shape I already knew rather than designing from
+scratch. The [architecture guide](docs/architecture.md) walks through adding one end
+to end.
+
+Business logic is tested without spinning up WhatsApp or PostgreSQL. Services depend
+on repository *interfaces* and a `now()` function, so streak rules and timezone math
+run as plain unit tests. The Drizzle and WhatsApp specifics live at the edges, wired
+together in the [composition root](src/index.ts) — swapping the database would touch
+that file and the `infra/` folders and nothing in the domain.
+
+</details>
+
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="WhatsApp chat: showing this month's workout leaderboard" width="450">
+</p>
 
 ---
 
