@@ -3,7 +3,7 @@
 <h1 align="center">personal-wa-bot</h1>
 
 <p align="center">
-  A WhatsApp bot my family uses every day, built like a backend I'd put in production.
+  The WhatsApp bot my family actually uses — and a backend built to stay up.
 </p>
 
 <p align="center">
@@ -73,8 +73,8 @@ rows that are genuinely unsent, and two concurrent ticks can't grab the same row
 
 The catch is that I mark a reminder sent *before* WhatsApp confirms it went out. A
 crash in that gap drops one reminder rather than risking a duplicate — at-most-once,
-on purpose. For a family reminder bot that's the trade I want; I wrote up the
-reasoning as an architecture decision record.
+on purpose. For a family reminder bot that's the trade I want; the reasoning is in
+[ADR 0001](docs/adr/0001-reminder-delivery-semantics.md).
 
 </details>
 
@@ -447,7 +447,9 @@ pnpm format           # Format with Prettier
 
 | Document | Description |
 |---|---|
+| [Context & Glossary](CONTEXT.md) | What the project is, the modules, and the domain words it uses |
 | [Architecture Guide](docs/architecture.md) | How the codebase is structured, key patterns, and step-by-step guide for adding new features |
+| [Architecture Decisions](docs/adr/) | The non-obvious calls — reminder delivery semantics, the hexagonal split — and why |
 
 ---
 
