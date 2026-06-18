@@ -93,3 +93,16 @@ export function formatReminderGroupNotAllowed(): string {
     `Tapi kamu tetap bisa mengaktifkannya di chat pribadi dengan: #sholat reminder on`
   );
 }
+
+export function formatPrayerReminder(
+  prayerLabel: string,
+  timeHHMM: string,
+  locationName: string
+): string {
+  return (
+    `🕌 Waktunya sholat *${prayerLabel}* untuk *${locationName}*\n\n` +
+    `Sudah masuk pukul ${timeHHMM}.\n` +
+    `Yuk segera tunaikan 🤲\n\n` +
+    `Semoga harimu berkah ✨`
+  );
+}

@@ -189,6 +189,28 @@ export class SholatService {
     return err({ type: 'persist_error', locationName: selectedLocation.locationName });
   }
 
+  /**
+   * Read-only lookup of today's cached schedule for the default location. Never calls the
+   * upstream API — the daily prefetch job is responsible for warming the cache. Returns null
+   * when the catalog or today's schedule isn't cached yet.
+   */
+  async getCachedTodaySchedule(now: Date): Promise<TodaySchedule | null> {
+    const timezone = this.defaultTimezone;
+    const allLocations = await this.sholatRepository.listLocations();
+    const resolved = this.resolveLocation(allLocations, '');
+    if (!resolved.ok) return null;
+
+    const todayDate = this.toDateInTimezone(now);
+    const schedule = await this.sholatRepository.findDailySchedule(
+      resolved.value.id,
+      todayDate,
+      timezone
+    );
+    if (!schedule) return null;
+
+    return { locationName: resolved.value.locationName, schedule };
+  }
+
   async setReminder(params: {
     chatId: string;
     isGroupChat: boolean;

@@ -4,8 +4,13 @@ import { withErrorBoundary } from '../../app/withErrorBoundary.js';
 import { createSholatController } from './sholatController.js';
 import { SholatService } from './sholatService.js';
 import { prefetchTodaySchedule } from './sholatPrefetchJob.js';
+import {
+  startSholatReminderScheduler,
+  type SholatReminderSchedulerHandle,
+} from './sholatReminderScheduler.js';
 import type { SholatRepository } from './infra/sholatRepository.js';
 import type { MyQuranSholatClient } from './infra/myQuranSholatClient.js';
+import type { MessageSenderPort } from '../../adapters/whatsapp/ports.js';
 
 // When the daily schedule cache is warmed (user-local time). Kept just after midnight so
 // today's schedule is ready well before Subuh, with time to surface upstream errors.
@@ -19,11 +24,13 @@ export type SholatModuleDeps = {
   defaultTimezone: string;
   digestGroupId: string;
   timezoneOffsetMinutes: number;
+  senderPort: MessageSenderPort;
 };
 
 export type SholatModuleRegistration = {
   controller: NamespaceHandler;
   jobs: ScheduledJob[];
+  startScheduler: () => SholatReminderSchedulerHandle;
 };
 
 export function registerSholatModule(deps: SholatModuleDeps): SholatModuleRegistration {
@@ -50,5 +57,13 @@ export function registerSholatModule(deps: SholatModuleDeps): SholatModuleRegist
     },
   ];
 
-  return { controller, jobs };
+  const startScheduler = (): SholatReminderSchedulerHandle =>
+    startSholatReminderScheduler({
+      sholatService,
+      sholatRepository: deps.sholatRepository,
+      senderPort: deps.senderPort,
+      timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+    });
+
+  return { controller, jobs, startScheduler };
 }

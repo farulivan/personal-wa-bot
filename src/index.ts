@@ -96,6 +96,7 @@ async function main() {
     defaultTimezone: appConfig.sholatTimezone,
     digestGroupId: appConfig.digestGroupId,
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
+    senderPort,
   });
 
   const remind = registerRemindModule({
@@ -150,14 +151,17 @@ async function main() {
 
   let reminderHandle: { stop: () => void } | null = null;
   let digestHandle: { stop: () => void } | null = null;
+  let sholatReminderHandle: { stop: () => void } | null = null;
   let reminderSchedulerStarted = false;
   let digestSchedulerStarted = false;
+  let sholatReminderSchedulerStarted = false;
 
   async function shutdown(signal: string): Promise<void> {
     log({ signal }, 'received signal, shutting down gracefully');
     isReady = false;
     reminderHandle?.stop();
     digestHandle?.stop();
+    sholatReminderHandle?.stop();
     healthServer.close();
     try {
       await client.destroy();
@@ -185,6 +189,12 @@ async function main() {
       reminderHandle = remind.startScheduler();
       reminderSchedulerStarted = true;
       log('reminder scheduler started');
+    }
+
+    if (!sholatReminderSchedulerStarted) {
+      sholatReminderHandle = sholat.startScheduler();
+      sholatReminderSchedulerStarted = true;
+      log('sholat reminder scheduler started');
     }
 
     if (!digestSchedulerStarted) {
