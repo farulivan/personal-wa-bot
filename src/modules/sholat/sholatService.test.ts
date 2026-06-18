@@ -171,6 +171,7 @@ describe('SholatService', () => {
   const now = new Date('2026-04-08T10:00:00Z');
   const defaultLocation = 'KAB. BOGOR';
   const defaultTimezone = 'Asia/Jakarta';
+  const digestGroupId = '120363MAINGROUP@g.us';
 
   beforeEach(() => {
     repo = new InMemorySholatRepository();
@@ -179,8 +180,79 @@ describe('SholatService', () => {
       repo,
       client as unknown as MyQuranSholatClient,
       defaultLocation,
-      defaultTimezone
+      defaultTimezone,
+      digestGroupId
     );
+  });
+
+  describe('reminder settings', () => {
+    const dmChat = '628111111111@c.us';
+    const otherGroup = '120363OTHERGROUP@g.us';
+
+    it('enables reminders for a DM chat', async () => {
+      const outcome = await service.setReminder({
+        chatId: dmChat,
+        isGroupChat: false,
+        enabled: true,
+        now,
+      });
+      expect(outcome).toBe('enabled');
+      expect(await service.getReminderStatus(dmChat)).toBe(true);
+      expect(await repo.listEnabledReminderChats()).toEqual([dmChat]);
+    });
+
+    it('enables reminders in the configured main group', async () => {
+      const outcome = await service.setReminder({
+        chatId: digestGroupId,
+        isGroupChat: true,
+        enabled: true,
+        now,
+      });
+      expect(outcome).toBe('enabled');
+      expect(await service.getReminderStatus(digestGroupId)).toBe(true);
+    });
+
+    it('refuses to enable in a non-main group and does not persist', async () => {
+      const outcome = await service.setReminder({
+        chatId: otherGroup,
+        isGroupChat: true,
+        enabled: true,
+        now,
+      });
+      expect(outcome).toBe('group_not_allowed');
+      expect(await service.getReminderStatus(otherGroup)).toBe(false);
+      expect(await repo.listEnabledReminderChats()).toEqual([]);
+    });
+
+    it('disables reminders for any chat', async () => {
+      await service.setReminder({ chatId: dmChat, isGroupChat: false, enabled: true, now });
+      const outcome = await service.setReminder({
+        chatId: dmChat,
+        isGroupChat: false,
+        enabled: false,
+        now,
+      });
+      expect(outcome).toBe('disabled');
+      expect(await service.getReminderStatus(dmChat)).toBe(false);
+      expect(await repo.listEnabledReminderChats()).toEqual([]);
+    });
+
+    it('refuses group enable when no main group is configured', async () => {
+      const noGroupService = new SholatService(
+        repo,
+        client as unknown as MyQuranSholatClient,
+        defaultLocation,
+        defaultTimezone,
+        ''
+      );
+      const outcome = await noGroupService.setReminder({
+        chatId: otherGroup,
+        isGroupChat: true,
+        enabled: true,
+        now,
+      });
+      expect(outcome).toBe('group_not_allowed');
+    });
   });
 
   describe('ensureLocationCatalog', () => {

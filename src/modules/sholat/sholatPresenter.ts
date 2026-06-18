@@ -27,7 +27,8 @@ export function formatHelpMessage(defaultLocation: string): string {
     `• #sholat --today\n` +
     `• #sholat --today --location kab. bogor\n` +
     `• #sholat --location kab-bandung\n` +
-    `• #sholat --today --location bandung\n\n` +
+    `• #sholat --today --location bandung\n` +
+    `• #sholat reminder on / off\n\n` +
     `Default lokasi saat ini: ${defaultLocation}`
   );
 }
@@ -60,4 +61,35 @@ export function formatPersistErrorMessage(locationName: string): string {
 
 export function formatFetchErrorMessage(): string {
   return `Maaf, jadwal sholat belum bisa diambil sekarang. Coba lagi sebentar ya 🙏`;
+}
+
+export function formatReminderEnabled(): string {
+  return (
+    `Pengingat sholat dinyalakan untuk chat ini ✅\n\n` +
+    `Nanti aku kabari tiap masuk waktu sholat (Subuh, Dzuhur, Ashar, Maghrib, Isya) ya 🤲\n\n` +
+    `Mau matiin lagi? Ketik: #sholat reminder off`
+  );
+}
+
+export function formatReminderDisabled(): string {
+  return (
+    `Oke, pengingat sholat dimatikan untuk chat ini 🌙\n\n` +
+    `Kalau mau dinyalakan lagi: #sholat reminder on`
+  );
+}
+
+export function formatReminderStatus(enabled: boolean): string {
+  const state = enabled ? '*aktif* ✅' : '*nonaktif* 🌙';
+  return (
+    `Pengingat sholat untuk chat ini saat ini ${state}\n\n` +
+    `• Nyalakan: #sholat reminder on\n` +
+    `• Matikan: #sholat reminder off`
+  );
+}
+
+export function formatReminderGroupNotAllowed(): string {
+  return (
+    `Pengingat sholat cuma bisa dinyalakan di grup utama ya 🙏\n\n` +
+    `Tapi kamu tetap bisa mengaktifkannya di chat pribadi dengan: #sholat reminder on`
+  );
 }

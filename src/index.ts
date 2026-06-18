@@ -94,6 +94,7 @@ async function main() {
     sholatClient,
     defaultLocation: appConfig.sholatDefaultLocation,
     defaultTimezone: appConfig.sholatTimezone,
+    digestGroupId: appConfig.digestGroupId,
   });
 
   const remind = registerRemindModule({

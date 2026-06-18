@@ -23,6 +23,8 @@ export type SholatError =
 export type LocationLookupResult = Result<SholatLocationRow, SholatError>;
 export type TodayScheduleResult = Result<TodaySchedule, SholatError>;
 
+export type SetReminderOutcome = 'enabled' | 'disabled' | 'group_not_allowed';
+
 function toSholatLocationRows(locations: MyQuranLocation[]): SholatLocationRow[] {
   return locations.map((row) => ({
     id: row.id,
@@ -36,7 +38,8 @@ export class SholatService {
     private readonly sholatRepository: SholatRepository,
     private readonly sholatClient: MyQuranSholatClient,
     private readonly defaultLocation: string,
-    private readonly defaultTimezone: string
+    private readonly defaultTimezone: string,
+    private readonly digestGroupId: string
   ) {}
 
   async syncLocationCatalog(): Promise<SholatLocationRow[]> {
@@ -184,5 +187,28 @@ export class SholatService {
     }
 
     return err({ type: 'persist_error', locationName: selectedLocation.locationName });
+  }
+
+  async setReminder(params: {
+    chatId: string;
+    isGroupChat: boolean;
+    enabled: boolean;
+    now: Date;
+  }): Promise<SetReminderOutcome> {
+    if (params.enabled && params.isGroupChat && params.chatId !== this.digestGroupId) {
+      return 'group_not_allowed';
+    }
+
+    await this.sholatRepository.setReminderEnabled(
+      params.chatId,
+      params.enabled,
+      params.now.toISOString()
+    );
+
+    return params.enabled ? 'enabled' : 'disabled';
+  }
+
+  async getReminderStatus(chatId: string): Promise<boolean> {
+    return this.sholatRepository.isReminderEnabled(chatId);
   }
 }

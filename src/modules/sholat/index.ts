@@ -11,6 +11,7 @@ export type SholatModuleDeps = {
   sholatClient: MyQuranSholatClient;
   defaultLocation: string;
   defaultTimezone: string;
+  digestGroupId: string;
 };
 
 export type SholatModuleRegistration = {
@@ -23,7 +24,8 @@ export function registerSholatModule(deps: SholatModuleDeps): SholatModuleRegist
     deps.sholatRepository,
     deps.sholatClient,
     deps.defaultLocation,
-    deps.defaultTimezone
+    deps.defaultTimezone,
+    deps.digestGroupId
   );
 
   const controller = withErrorBoundary(
