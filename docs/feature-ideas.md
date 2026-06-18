@@ -23,11 +23,15 @@ Everyone shares a single `USER_TIMEZONE_OFFSET_MINUTES`. Supporting per-user tim
 
 If the MyQuran API is down, the sholat module just fails. A last-known-good cache fallback would make it more resilient.
 
+### 5. Per-Chat Sholat Reminder Location
+
+Prayer reminders use the single `SHOLAT_DEFAULT_LOCATION` for every chat. Let each chat choose its own city when enabling — e.g. `#sholat reminder on --location jakarta` — so members in different cities get the right times. Needs a `location_input` column on `sholat_reminder_settings`, validation at enable time (reusing the ambiguous/not-found messages), and the prefetch + ticker extended to handle several locations at once.
+
 ---
 
 ## New Feature Ideas
 
-### 5. Habit Tracker (`#habit`)
+### 6. Habit Tracker (`#habit`)
 
 Generic daily habit check-ins beyond workouts/quran. Track any habit with streaks and completion rates.
 
@@ -38,7 +42,7 @@ Generic daily habit check-ins beyond workouts/quran. Track any habit with streak
 #habit stats
 ```
 
-### 6. Fasting Tracker (`#puasa`)
+### 7. Fasting Tracker (`#puasa`)
 
 Log fasting days (Ramadhan or sunnah), track consistency. Pairs nicely with the existing Quran Ramadhan mode.
 
@@ -48,7 +52,7 @@ Log fasting days (Ramadhan or sunnah), track consistency. Pairs nicely with the 
 #puasa list
 ```
 
-### 7. Expense Tracker (`#expense`)
+### 8. Expense Tracker (`#expense`)
 
 Quick daily expense logging with monthly summaries and category breakdowns. Fits the "personal daily tracking" theme.
 
@@ -59,7 +63,7 @@ Quick daily expense logging with monthly summaries and category breakdowns. Fits
 #expense summary
 ```
 
-### 8. Cross-Module Stats (`#stats`)
+### 9. Cross-Module Stats (`#stats`)
 
 Personal dashboard combining all modules in one reply: workout streak, quran streak, pages this month, active reminders, etc.
 
@@ -67,7 +71,7 @@ Personal dashboard combining all modules in one reply: workout streak, quran str
 #stats
 ```
 
-### 9. Goal Setting (`#goal`)
+### 10. Goal Setting (`#goal`)
 
 Set personal targets and get progress updates in the daily digest.
 

@@ -14,7 +14,7 @@ It runs as a single Node process against one PostgreSQL database, deployed on Ra
 |---|---|
 | `workouts` | Logging lifts and cardio, streaks, the daily leaderboard digest |
 | `quran` | Logging pages read, the bookmark, khatam detection, the nightly reminder |
-| `sholat` | The daily prayer schedule, cached per location per day |
+| `sholat` | The daily prayer schedule (cached per location per day) and opt-in prayer-time reminders |
 | `remind` | Personal reminders and the scheduler that delivers them |
 | `users` | Identity — mapping WhatsApp IDs to people and display names |
 
@@ -24,6 +24,7 @@ It runs as a single Node process against one PostgreSQL database, deployed on Ra
 - **Khatam** — finishing a full read-through of the Quran (604 pages). When a read crosses page 604, the bookmark resets so the next cycle starts from the beginning.
 - **Bookmark / mark** — where someone is up to in the Quran. A read auto-advances it unless `--no-mark` is passed; `#quran mark 145` sets it by hand.
 - **Digest** — a scheduled group message. The workout digest is a morning leaderboard; the Quran reminder is a nightly nudge. On the 1st of the month there's a recap of the previous month.
+- **Prayer reminder** — an opt-in nudge posted to a chat at each of the five fardhu prayer times, built from the cached `#sholat` schedule. Switched on per chat with `#sholat reminder on`.
 - **Leaderboard** — a ranking of the group for the day (or month), built only from people who are actually members of the digest group.
 - **Allowlist** — `ALLOWED_NUMBERS`. Only these phone numbers can run commands. An empty allowlist means nobody can, which is the safe default.
 - **Source chat** — where a reminder was created. It's delivered back to that same chat, group or direct, not only to the person who set it.
