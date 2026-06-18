@@ -95,6 +95,7 @@ async function main() {
     defaultLocation: appConfig.sholatDefaultLocation,
     defaultTimezone: appConfig.sholatTimezone,
     digestGroupId: appConfig.digestGroupId,
+    timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
   });
 
   const remind = registerRemindModule({
@@ -187,11 +188,12 @@ async function main() {
     }
 
     if (!digestSchedulerStarted) {
-      const allJobs = [...workout.jobs, ...quran.jobs];
+      const allJobs = [...workout.jobs, ...quran.jobs, ...sholat.jobs];
       if (allJobs.length > 0) {
         digestHandle = startScheduler(allJobs);
-      } else {
-        log('DIGEST_GROUP_ID not set, daily digest disabled');
+      }
+      if (!appConfig.digestGroupId) {
+        log('DIGEST_GROUP_ID not set, daily digests disabled (sholat prefetch still runs)');
       }
       digestSchedulerStarted = true;
     }
