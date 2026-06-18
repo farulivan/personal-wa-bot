@@ -1,6 +1,6 @@
 import { eq, sql, count, and } from 'drizzle-orm';
 import type { DrizzleDb } from '../../../db/drizzle.js';
-import { sholatLocations, sholatDailyCache } from './schema.js';
+import { sholatLocations, sholatDailyCache, sholatReminderSettings } from './schema.js';
 import type {
   SholatRepository,
   SholatLocationRow,
@@ -117,5 +117,37 @@ export class DrizzleSholatRepository implements SholatRepository {
           fetchedAtUtc: row.fetchedAtUtc,
         },
       });
+  }
+
+  async setReminderEnabled(chatId: string, enabled: boolean, nowIso: string): Promise<void> {
+    await this.db
+      .insert(sholatReminderSettings)
+      .values({ chatId, enabled, createdAt: nowIso, updatedAt: nowIso })
+      .onConflictDoUpdate({
+        target: sholatReminderSettings.chatId,
+        set: {
+          enabled: sql`excluded.enabled`,
+          updatedAt: sql`excluded.updated_at`,
+        },
+      });
+  }
+
+  async isReminderEnabled(chatId: string): Promise<boolean> {
+    const rows = await this.db
+      .select({ enabled: sholatReminderSettings.enabled })
+      .from(sholatReminderSettings)
+      .where(eq(sholatReminderSettings.chatId, chatId))
+      .limit(1);
+
+    return rows[0]?.enabled ?? false;
+  }
+
+  async listEnabledReminderChats(): Promise<string[]> {
+    const rows = await this.db
+      .select({ chatId: sholatReminderSettings.chatId })
+      .from(sholatReminderSettings)
+      .where(eq(sholatReminderSettings.enabled, true));
+
+    return rows.map((row) => row.chatId);
   }
 }

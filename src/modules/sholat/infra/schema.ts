@@ -1,4 +1,4 @@
-import { pgTable, text, index, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, text, index, primaryKey, boolean } from 'drizzle-orm/pg-core';
 
 export const sholatLocations = pgTable(
   'sholat_locations',
@@ -35,3 +35,10 @@ export const sholatDailyCache = pgTable(
     index('idx_sholat_daily_cache_date_tz').on(table.scheduleDate, table.timezone),
   ]
 );
+
+export const sholatReminderSettings = pgTable('sholat_reminder_settings', {
+  chatId: text('chat_id').primaryKey(),
+  enabled: boolean('enabled').notNull().default(true),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});

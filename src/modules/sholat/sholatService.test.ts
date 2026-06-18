@@ -108,6 +108,27 @@ class InMemorySholatRepository implements SholatRepository {
       this.schedules.push(scheduleRow);
     }
   }
+
+  reminderSettings = new Map<string, { enabled: boolean; createdAt: string; updatedAt: string }>();
+
+  async setReminderEnabled(chatId: string, enabled: boolean, nowIso: string): Promise<void> {
+    const existing = this.reminderSettings.get(chatId);
+    this.reminderSettings.set(chatId, {
+      enabled,
+      createdAt: existing?.createdAt ?? nowIso,
+      updatedAt: nowIso,
+    });
+  }
+
+  async isReminderEnabled(chatId: string): Promise<boolean> {
+    return this.reminderSettings.get(chatId)?.enabled ?? false;
+  }
+
+  async listEnabledReminderChats(): Promise<string[]> {
+    return [...this.reminderSettings.entries()]
+      .filter(([, value]) => value.enabled)
+      .map(([chatId]) => chatId);
+  }
 }
 
 class MockSholatClient implements Pick<
