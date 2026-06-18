@@ -122,10 +122,10 @@ export class SholatService {
     }
 
     let selectedLocation = location;
-    let apiSchedule: Awaited<ReturnType<MyQuranSholatClient['fetchTodaySchedule']>>;
+    let apiSchedule: Awaited<ReturnType<MyQuranSholatClient['fetchScheduleForDate']>>;
 
     try {
-      apiSchedule = await this.sholatClient.fetchTodaySchedule(selectedLocation.id, timezone);
+      apiSchedule = await this.sholatClient.fetchScheduleForDate(selectedLocation.id, todayDate);
     } catch (fetchErr) {
       if (!(fetchErr instanceof LocationNotFoundError)) throw fetchErr;
 
@@ -153,7 +153,7 @@ export class SholatService {
         return ok({ locationName: selectedLocation.locationName, schedule: refreshedCached });
       }
 
-      apiSchedule = await this.sholatClient.fetchTodaySchedule(selectedLocation.id, timezone);
+      apiSchedule = await this.sholatClient.fetchScheduleForDate(selectedLocation.id, todayDate);
     }
 
     await this.sholatRepository.upsertDailySchedule({

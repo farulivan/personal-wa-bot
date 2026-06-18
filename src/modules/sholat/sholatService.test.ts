@@ -133,10 +133,10 @@ class InMemorySholatRepository implements SholatRepository {
 
 class MockSholatClient implements Pick<
   MyQuranSholatClient,
-  'fetchAllLocations' | 'fetchTodaySchedule'
+  'fetchAllLocations' | 'fetchScheduleForDate'
 > {
   fetchAllLocationsCalls = 0;
-  fetchTodayScheduleCalls = 0;
+  fetchScheduleCalls = 0;
   private nextFetchError: Error | null = null;
 
   async fetchAllLocations(): Promise<MyQuranLocation[]> {
@@ -144,14 +144,14 @@ class MockSholatClient implements Pick<
     return LOCATIONS;
   }
 
-  async fetchTodaySchedule(locationId: string): Promise<MyQuranTodaySchedule> {
-    this.fetchTodayScheduleCalls++;
+  async fetchScheduleForDate(locationId: string, dateStr: string): Promise<MyQuranTodaySchedule> {
+    this.fetchScheduleCalls++;
     if (this.nextFetchError) {
       const err = this.nextFetchError;
       this.nextFetchError = null; // only throw once
       throw err;
     }
-    return makeSchedule(locationId);
+    return { ...makeSchedule(locationId), scheduleDate: dateStr };
   }
 
   simulateNextFetchLocationNotFound(): void {
@@ -335,13 +335,13 @@ describe('SholatService', () => {
       if (result.ok) {
         expect(result.value.schedule.subuh).toBe('04:40');
       }
-      expect(client.fetchTodayScheduleCalls).toBe(1);
+      expect(client.fetchScheduleCalls).toBe(1);
 
       // Second call should hit cache
-      client.fetchTodayScheduleCalls = 0;
+      client.fetchScheduleCalls = 0;
       const cached = await service.getTodaySchedule('bandung', now);
       expect(cached.ok).toBe(true);
-      expect(client.fetchTodayScheduleCalls).toBe(0);
+      expect(client.fetchScheduleCalls).toBe(0);
     });
 
     it('uses default location when no location arg given', async () => {
