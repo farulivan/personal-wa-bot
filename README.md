@@ -25,7 +25,7 @@
 <div align="center">
   
 ![GitHub Actions](https://img.shields.io/github/actions/workflow/status/farulivan/personal-wa-bot/ci.yml?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-384%20passing-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-386%20passing-brightgreen?style=flat-square)
 ![License](https://img.shields.io/github/license/farulivan/personal-wa-bot?style=flat-square)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/typescript-5.x-blue?style=flat-square)
@@ -408,8 +408,8 @@ pnpm format           # Format with Prettier
 - **Auth:** only phone numbers in `ALLOWED_NUMBERS` can execute commands.
 - **Identity:** user IDs are normalized before persistence to handle WA ID format variations.
 - **Remind scheduler:** runs independently after WA client is ready, polls every 30s.
-- **Sholat reminders:** a daily job caches the schedule just after midnight; a 30s ticker posts at each fardhu time to chats that opted in via `#sholat reminder on`. DMs are self-serve; in groups only `DIGEST_GROUP_ID` may opt in.
-- **Scheduled jobs:** workout/quran digests run only when `DIGEST_GROUP_ID` is set; the daily sholat prefetch always runs.
+- **Sholat reminders:** a 30s ticker reads the cached schedule (warming it on a miss, so a restart at any time of day recovers) and posts at each fardhu time to chats that opted in via `#sholat reminder on`. DMs are self-serve; in groups only `DIGEST_GROUP_ID` may opt in.
+- **Digest/Quran scheduler:** runs only when `DIGEST_GROUP_ID` is configured.
 
 ---
 

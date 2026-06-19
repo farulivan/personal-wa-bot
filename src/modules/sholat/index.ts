@@ -12,11 +12,6 @@ import type { SholatRepository } from './infra/sholatRepository.js';
 import type { MyQuranSholatClient } from './infra/myQuranSholatClient.js';
 import type { MessageSenderPort } from '../../adapters/whatsapp/ports.js';
 
-// When the daily schedule cache is warmed (user-local time). Kept just after midnight so
-// today's schedule is ready well before Subuh, with time to surface upstream errors.
-const SHOLAT_PREFETCH_HOUR = 0;
-const SHOLAT_PREFETCH_MINUTE = 5;
-
 export type SholatModuleDeps = {
   sholatRepository: SholatRepository;
   sholatClient: MyQuranSholatClient;
@@ -47,15 +42,9 @@ export function registerSholatModule(deps: SholatModuleDeps): SholatModuleRegist
     createSholatController(sholatService, deps.defaultLocation)
   );
 
-  const jobs: ScheduledJob[] = [
-    {
-      name: 'Sholat daily prefetch',
-      hour: SHOLAT_PREFETCH_HOUR,
-      minute: SHOLAT_PREFETCH_MINUTE,
-      timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
-      run: () => prefetchTodaySchedule({ sholatService, now: () => new Date() }),
-    },
-  ];
+  // No scheduled prefetch job: the ticker warms the cache on a miss (cache-aside), which also
+  // covers a mid-day restart that a fixed-time job would miss. See ADR 0004.
+  const jobs: ScheduledJob[] = [];
 
   const startScheduler = (): SholatReminderSchedulerHandle =>
     startSholatReminderScheduler({
@@ -63,6 +52,7 @@ export function registerSholatModule(deps: SholatModuleDeps): SholatModuleRegist
       sholatRepository: deps.sholatRepository,
       senderPort: deps.senderPort,
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+      warmCache: () => prefetchTodaySchedule({ sholatService, now: () => new Date() }),
     });
 
   return { controller, jobs, startScheduler };

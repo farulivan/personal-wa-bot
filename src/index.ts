@@ -198,12 +198,11 @@ async function main() {
     }
 
     if (!digestSchedulerStarted) {
-      const allJobs = [...workout.jobs, ...quran.jobs, ...sholat.jobs];
+      const allJobs = [...workout.jobs, ...quran.jobs];
       if (allJobs.length > 0) {
         digestHandle = startScheduler(allJobs);
-      }
-      if (!appConfig.digestGroupId) {
-        log('DIGEST_GROUP_ID not set, daily digests disabled (sholat prefetch still runs)');
+      } else {
+        log('DIGEST_GROUP_ID not set, daily digest disabled');
       }
       digestSchedulerStarted = true;
     }
