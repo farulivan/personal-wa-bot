@@ -1,4 +1,4 @@
-# ADR 0004: Prayer-time reminders — daily prefetch and a read-only ticker
+# ADR 0004: Prayer-time reminders — cache-aside warming and a delivery ticker
 
 - **Status:** Accepted
 - **Date:** 2026-06-18
