@@ -19,6 +19,25 @@ function parseBooleanEnv(name: string, fallback: boolean): boolean {
   return fallback;
 }
 
+function splitGroupIds(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+}
+
+/**
+ * Parses the configured digest group IDs. Prefers the comma-separated
+ * `DIGEST_GROUP_IDS` list and falls back to the legacy single `DIGEST_GROUP_ID`
+ * when the list is empty. Entries are trimmed, empties dropped, and duplicates
+ * removed (first occurrence wins).
+ */
+export function parseGroupIds(idsRaw: string, singleRaw: string): string[] {
+  const fromList = splitGroupIds(idsRaw);
+  const ids = fromList.length > 0 ? fromList : splitGroupIds(singleRaw);
+  return [...new Set(ids)];
+}
+
 const allowedNumbersEnv = process.env.ALLOWED_NUMBERS || '';
 
 export const appConfig = {
@@ -39,6 +58,10 @@ export const appConfig = {
   quranReminderHour: parseIntegerEnv('QURAN_REMINDER_HOUR', 22),
   quranReminderMinute: parseIntegerEnv('QURAN_REMINDER_MINUTE', 0),
   digestGroupId: process.env.DIGEST_GROUP_ID || '',
+  digestGroupIds: parseGroupIds(
+    process.env.DIGEST_GROUP_IDS || '',
+    process.env.DIGEST_GROUP_ID || ''
+  ),
   sholatDefaultLocation: process.env.SHOLAT_DEFAULT_LOCATION || 'KAB. BOGOR',
   sholatTimezone: process.env.SHOLAT_TIMEZONE || 'Asia/Jakarta',
   allowedNumbers: new Set(
