@@ -8,6 +8,10 @@ import {
   formatLocationNotFoundMessage,
   formatPersistErrorMessage,
   formatFetchErrorMessage,
+  formatReminderEnabled,
+  formatReminderDisabled,
+  formatReminderStatus,
+  formatReminderGroupNotAllowed,
 } from './sholatPresenter.js';
 import type { SholatService, SholatError } from './sholatService.js';
 
@@ -28,6 +32,22 @@ export function createSholatController(
 
     const tokens = invocation.firstLine.trim().split(/\s+/).filter(Boolean);
     const actionToken = (tokens[1] || '').toLowerCase();
+
+    if (actionToken === 'reminder') {
+      const value = (tokens[2] || '').toLowerCase();
+      if (value === 'on' || value === 'off') {
+        const outcome = await sholatService.setReminder({
+          chatId: ctx.replyChatId,
+          isGroupChat: ctx.isGroupChat,
+          enabled: value === 'on',
+          now: ctx.time.now(),
+        });
+        if (outcome === 'group_not_allowed') return formatReminderGroupNotAllowed();
+        return outcome === 'enabled' ? formatReminderEnabled() : formatReminderDisabled();
+      }
+      const enabled = await sholatService.getReminderStatus(ctx.replyChatId);
+      return formatReminderStatus(enabled);
+    }
 
     const isHelp = actionToken === 'help' || hasFlag(invocation.firstLine, 'help');
     if (isHelp) {

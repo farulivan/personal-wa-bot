@@ -108,14 +108,35 @@ class InMemorySholatRepository implements SholatRepository {
       this.schedules.push(scheduleRow);
     }
   }
+
+  reminderSettings = new Map<string, { enabled: boolean; createdAt: string; updatedAt: string }>();
+
+  async setReminderEnabled(chatId: string, enabled: boolean, nowIso: string): Promise<void> {
+    const existing = this.reminderSettings.get(chatId);
+    this.reminderSettings.set(chatId, {
+      enabled,
+      createdAt: existing?.createdAt ?? nowIso,
+      updatedAt: nowIso,
+    });
+  }
+
+  async isReminderEnabled(chatId: string): Promise<boolean> {
+    return this.reminderSettings.get(chatId)?.enabled ?? false;
+  }
+
+  async listEnabledReminderChats(): Promise<string[]> {
+    return [...this.reminderSettings.entries()]
+      .filter(([, value]) => value.enabled)
+      .map(([chatId]) => chatId);
+  }
 }
 
 class MockSholatClient implements Pick<
   MyQuranSholatClient,
-  'fetchAllLocations' | 'fetchTodaySchedule'
+  'fetchAllLocations' | 'fetchScheduleForDate'
 > {
   fetchAllLocationsCalls = 0;
-  fetchTodayScheduleCalls = 0;
+  fetchScheduleCalls = 0;
   private nextFetchError: Error | null = null;
 
   async fetchAllLocations(): Promise<MyQuranLocation[]> {
@@ -123,14 +144,14 @@ class MockSholatClient implements Pick<
     return LOCATIONS;
   }
 
-  async fetchTodaySchedule(locationId: string): Promise<MyQuranTodaySchedule> {
-    this.fetchTodayScheduleCalls++;
+  async fetchScheduleForDate(locationId: string, dateStr: string): Promise<MyQuranTodaySchedule> {
+    this.fetchScheduleCalls++;
     if (this.nextFetchError) {
       const err = this.nextFetchError;
       this.nextFetchError = null; // only throw once
       throw err;
     }
-    return makeSchedule(locationId);
+    return { ...makeSchedule(locationId), scheduleDate: dateStr };
   }
 
   simulateNextFetchLocationNotFound(): void {
@@ -150,6 +171,7 @@ describe('SholatService', () => {
   const now = new Date('2026-04-08T10:00:00Z');
   const defaultLocation = 'KAB. BOGOR';
   const defaultTimezone = 'Asia/Jakarta';
+  const digestGroupId = '120363MAINGROUP@g.us';
 
   beforeEach(() => {
     repo = new InMemorySholatRepository();
@@ -158,8 +180,79 @@ describe('SholatService', () => {
       repo,
       client as unknown as MyQuranSholatClient,
       defaultLocation,
-      defaultTimezone
+      defaultTimezone,
+      digestGroupId
     );
+  });
+
+  describe('reminder settings', () => {
+    const dmChat = '628111111111@c.us';
+    const otherGroup = '120363OTHERGROUP@g.us';
+
+    it('enables reminders for a DM chat', async () => {
+      const outcome = await service.setReminder({
+        chatId: dmChat,
+        isGroupChat: false,
+        enabled: true,
+        now,
+      });
+      expect(outcome).toBe('enabled');
+      expect(await service.getReminderStatus(dmChat)).toBe(true);
+      expect(await repo.listEnabledReminderChats()).toEqual([dmChat]);
+    });
+
+    it('enables reminders in the configured main group', async () => {
+      const outcome = await service.setReminder({
+        chatId: digestGroupId,
+        isGroupChat: true,
+        enabled: true,
+        now,
+      });
+      expect(outcome).toBe('enabled');
+      expect(await service.getReminderStatus(digestGroupId)).toBe(true);
+    });
+
+    it('refuses to enable in a non-main group and does not persist', async () => {
+      const outcome = await service.setReminder({
+        chatId: otherGroup,
+        isGroupChat: true,
+        enabled: true,
+        now,
+      });
+      expect(outcome).toBe('group_not_allowed');
+      expect(await service.getReminderStatus(otherGroup)).toBe(false);
+      expect(await repo.listEnabledReminderChats()).toEqual([]);
+    });
+
+    it('disables reminders for any chat', async () => {
+      await service.setReminder({ chatId: dmChat, isGroupChat: false, enabled: true, now });
+      const outcome = await service.setReminder({
+        chatId: dmChat,
+        isGroupChat: false,
+        enabled: false,
+        now,
+      });
+      expect(outcome).toBe('disabled');
+      expect(await service.getReminderStatus(dmChat)).toBe(false);
+      expect(await repo.listEnabledReminderChats()).toEqual([]);
+    });
+
+    it('refuses group enable when no main group is configured', async () => {
+      const noGroupService = new SholatService(
+        repo,
+        client as unknown as MyQuranSholatClient,
+        defaultLocation,
+        defaultTimezone,
+        ''
+      );
+      const outcome = await noGroupService.setReminder({
+        chatId: otherGroup,
+        isGroupChat: true,
+        enabled: true,
+        now,
+      });
+      expect(outcome).toBe('group_not_allowed');
+    });
   });
 
   describe('ensureLocationCatalog', () => {
@@ -242,13 +335,13 @@ describe('SholatService', () => {
       if (result.ok) {
         expect(result.value.schedule.subuh).toBe('04:40');
       }
-      expect(client.fetchTodayScheduleCalls).toBe(1);
+      expect(client.fetchScheduleCalls).toBe(1);
 
       // Second call should hit cache
-      client.fetchTodayScheduleCalls = 0;
+      client.fetchScheduleCalls = 0;
       const cached = await service.getTodaySchedule('bandung', now);
       expect(cached.ok).toBe(true);
-      expect(client.fetchTodayScheduleCalls).toBe(0);
+      expect(client.fetchScheduleCalls).toBe(0);
     });
 
     it('uses default location when no location arg given', async () => {

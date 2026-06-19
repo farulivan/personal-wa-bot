@@ -23,6 +23,8 @@ export type SholatError =
 export type LocationLookupResult = Result<SholatLocationRow, SholatError>;
 export type TodayScheduleResult = Result<TodaySchedule, SholatError>;
 
+export type SetReminderOutcome = 'enabled' | 'disabled' | 'group_not_allowed';
+
 function toSholatLocationRows(locations: MyQuranLocation[]): SholatLocationRow[] {
   return locations.map((row) => ({
     id: row.id,
@@ -36,7 +38,8 @@ export class SholatService {
     private readonly sholatRepository: SholatRepository,
     private readonly sholatClient: MyQuranSholatClient,
     private readonly defaultLocation: string,
-    private readonly defaultTimezone: string
+    private readonly defaultTimezone: string,
+    private readonly digestGroupId: string
   ) {}
 
   async syncLocationCatalog(): Promise<SholatLocationRow[]> {
@@ -119,10 +122,10 @@ export class SholatService {
     }
 
     let selectedLocation = location;
-    let apiSchedule: Awaited<ReturnType<MyQuranSholatClient['fetchTodaySchedule']>>;
+    let apiSchedule: Awaited<ReturnType<MyQuranSholatClient['fetchScheduleForDate']>>;
 
     try {
-      apiSchedule = await this.sholatClient.fetchTodaySchedule(selectedLocation.id, timezone);
+      apiSchedule = await this.sholatClient.fetchScheduleForDate(selectedLocation.id, todayDate);
     } catch (fetchErr) {
       if (!(fetchErr instanceof LocationNotFoundError)) throw fetchErr;
 
@@ -150,7 +153,7 @@ export class SholatService {
         return ok({ locationName: selectedLocation.locationName, schedule: refreshedCached });
       }
 
-      apiSchedule = await this.sholatClient.fetchTodaySchedule(selectedLocation.id, timezone);
+      apiSchedule = await this.sholatClient.fetchScheduleForDate(selectedLocation.id, todayDate);
     }
 
     await this.sholatRepository.upsertDailySchedule({
@@ -184,5 +187,50 @@ export class SholatService {
     }
 
     return err({ type: 'persist_error', locationName: selectedLocation.locationName });
+  }
+
+  /**
+   * Read-only lookup of today's cached schedule for the default location. Never calls the
+   * upstream API — the daily prefetch job is responsible for warming the cache. Returns null
+   * when the catalog or today's schedule isn't cached yet.
+   */
+  async getCachedTodaySchedule(now: Date): Promise<TodaySchedule | null> {
+    const timezone = this.defaultTimezone;
+    const allLocations = await this.sholatRepository.listLocations();
+    const resolved = this.resolveLocation(allLocations, '');
+    if (!resolved.ok) return null;
+
+    const todayDate = this.toDateInTimezone(now);
+    const schedule = await this.sholatRepository.findDailySchedule(
+      resolved.value.id,
+      todayDate,
+      timezone
+    );
+    if (!schedule) return null;
+
+    return { locationName: resolved.value.locationName, schedule };
+  }
+
+  async setReminder(params: {
+    chatId: string;
+    isGroupChat: boolean;
+    enabled: boolean;
+    now: Date;
+  }): Promise<SetReminderOutcome> {
+    if (params.enabled && params.isGroupChat && params.chatId !== this.digestGroupId) {
+      return 'group_not_allowed';
+    }
+
+    await this.sholatRepository.setReminderEnabled(
+      params.chatId,
+      params.enabled,
+      params.now.toISOString()
+    );
+
+    return params.enabled ? 'enabled' : 'disabled';
+  }
+
+  async getReminderStatus(chatId: string): Promise<boolean> {
+    return this.sholatRepository.isReminderEnabled(chatId);
   }
 }

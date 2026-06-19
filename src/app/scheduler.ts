@@ -11,13 +11,15 @@ export type ScheduledJob = {
 
 export type SchedulerHandle = { stop: () => void };
 
-function getUserLocalTime(timezoneOffsetMinutes: number): {
+export function getUserLocalTime(
+  timezoneOffsetMinutes: number,
+  now: Date = new Date()
+): {
   hour: number;
   minute: number;
   day: number;
   dateString: string;
 } {
-  const now = new Date();
   const userNow = new Date(now.getTime() + timezoneOffsetMinutes * 60000);
   const y = userNow.getUTCFullYear();
   const m = String(userNow.getUTCMonth() + 1).padStart(2, '0');

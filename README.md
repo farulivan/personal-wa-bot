@@ -25,7 +25,7 @@
 <div align="center">
   
 ![GitHub Actions](https://img.shields.io/github/actions/workflow/status/farulivan/personal-wa-bot/ci.yml?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-366%20passing-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-386%20passing-brightgreen?style=flat-square)
 ![License](https://img.shields.io/github/license/farulivan/personal-wa-bot?style=flat-square)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/typescript-5.x-blue?style=flat-square)
@@ -145,15 +145,18 @@ Track daily pages, manage bookmarks, and get nightly group reminders.
 
 ### Sholat Schedule — `#sholat`
 
-Fetch daily prayer times with location-aware caching.
+Fetch daily prayer times with location-aware caching, and opt a chat in to prayer-time reminders.
 
 ```
 #sholat --today
 #sholat --today --location bandung
+#sholat reminder on
 ```
 
 - DB-cached schedules (fetched once per location per day)
 - Self-healing location catalog refresh on stale data
+- Opt-in reminders at each of the five fardhu times — `#sholat reminder on` / `off`
+- Works in DMs for anyone allowed; in groups, only the configured main group can enable them
 
 ### Personal Reminders — `#remind`
 
@@ -258,6 +261,9 @@ docker compose up --build
 |---|---|
 | `#sholat` / `#sholat --today` | Today's schedule (default location) |
 | `#sholat --today --location bandung` | Specify location |
+| `#sholat reminder on` | Turn on prayer-time reminders for this chat |
+| `#sholat reminder off` | Turn them off |
+| `#sholat reminder` | Show whether reminders are on for this chat |
 | `#sholat help` | Show command help |
 
 ### Remind
@@ -284,7 +290,7 @@ See [`.env.example`](.env.example) for the full template.
 |---|---|---|
 | `DATABASE_URL` | — | PostgreSQL connection URL |
 | `ALLOWED_NUMBERS` | `""` | Comma-separated phone allowlist (digits only, e.g. `6281234567890`) |
-| `DIGEST_GROUP_ID` | `""` | Target group for scheduled digests. Scheduler disabled if empty. |
+| `DIGEST_GROUP_ID` | `""` | Target group for scheduled digests (disabled if empty); also the only group that can enable `#sholat` reminders. |
 | `DEBUG` | `false` | Enable debug logs (`true`/`1`) |
 
 </details>
@@ -402,6 +408,7 @@ pnpm format           # Format with Prettier
 - **Auth:** only phone numbers in `ALLOWED_NUMBERS` can execute commands.
 - **Identity:** user IDs are normalized before persistence to handle WA ID format variations.
 - **Remind scheduler:** runs independently after WA client is ready, polls every 30s.
+- **Sholat reminders:** a 30s ticker reads the cached schedule (warming it on a miss, so a restart at any time of day recovers) and posts at each fardhu time to chats that opted in via `#sholat reminder on`. DMs are self-serve; in groups only `DIGEST_GROUP_ID` may opt in.
 - **Digest/Quran scheduler:** runs only when `DIGEST_GROUP_ID` is configured.
 
 ---

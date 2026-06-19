@@ -78,21 +78,20 @@ export class MyQuranSholatClient {
     return payload.data.map((row) => ({ id: row.id, locationName: row.lokasi }));
   }
 
-  async fetchTodaySchedule(locationId: string, timezone: string): Promise<MyQuranTodaySchedule> {
-    const encodedTimezone = encodeURIComponent(timezone);
+  async fetchScheduleForDate(locationId: string, dateStr: string): Promise<MyQuranTodaySchedule> {
     const payload = await this.fetchJson<ApiBaseResponse<ApiTodayData>>(
-      `${this.baseUrl}/jadwal/${locationId}/today?tz=${encodedTimezone}`
+      `${this.baseUrl}/jadwal/${locationId}/${dateStr}`
     );
 
     if (!payload.status || !payload.data || !payload.data.jadwal) {
       throw new LocationNotFoundError(
-        `Sholat schedule unavailable for location ${locationId}: ${payload.message}`
+        `Sholat schedule unavailable for location ${locationId} on ${dateStr}: ${payload.message}`
       );
     }
 
     const scheduleDate = Object.keys(payload.data.jadwal)[0];
     if (!scheduleDate) {
-      throw new Error('Sholat schedule response did not include today schedule key');
+      throw new Error('Sholat schedule response did not include a schedule key');
     }
 
     const schedule = payload.data.jadwal[scheduleDate];

@@ -42,6 +42,13 @@ export type NewSholatDailySchedule = {
   fetchedAtUtc: string;
 };
 
+export type SholatReminderSettingRow = {
+  chatId: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export interface SholatRepository {
   countLocations(): Promise<number>;
   upsertLocations(rows: NewSholatLocation[]): Promise<void>;
@@ -52,4 +59,7 @@ export interface SholatRepository {
     timezone: string
   ): Promise<SholatDailyScheduleRow | null>;
   upsertDailySchedule(row: NewSholatDailySchedule): Promise<void>;
+  setReminderEnabled(chatId: string, enabled: boolean, nowIso: string): Promise<void>;
+  isReminderEnabled(chatId: string): Promise<boolean>;
+  listEnabledReminderChats(): Promise<string[]>;
 }
