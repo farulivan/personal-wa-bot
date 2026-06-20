@@ -57,7 +57,6 @@ export const appConfig = {
   monthlyDigestMinute: parseIntegerEnv('MONTHLY_DIGEST_MINUTE', 0),
   quranReminderHour: parseIntegerEnv('QURAN_REMINDER_HOUR', 22),
   quranReminderMinute: parseIntegerEnv('QURAN_REMINDER_MINUTE', 0),
-  digestGroupId: process.env.DIGEST_GROUP_ID || '',
   digestGroupIds: parseGroupIds(
     process.env.DIGEST_GROUP_IDS || '',
     process.env.DIGEST_GROUP_ID || ''

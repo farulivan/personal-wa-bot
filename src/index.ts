@@ -202,7 +202,7 @@ async function main() {
       if (allJobs.length > 0) {
         digestHandle = startScheduler(allJobs);
       } else {
-        log('DIGEST_GROUP_ID not set, daily digest disabled');
+        log('DIGEST_GROUP_IDS not set, scheduled digests disabled');
       }
       digestSchedulerStarted = true;
     }
