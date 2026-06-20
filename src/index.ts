@@ -78,7 +78,7 @@ async function main() {
     membershipPort,
     senderPort,
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
-    digestGroupId: appConfig.digestGroupId,
+    digestGroupIds: appConfig.digestGroupIds,
     quranReminderHour: appConfig.quranReminderHour,
     quranReminderMinute: appConfig.quranReminderMinute,
     monthlyDigestHour: appConfig.monthlyDigestHour,
