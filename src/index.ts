@@ -94,7 +94,7 @@ async function main() {
     sholatClient,
     defaultLocation: appConfig.sholatDefaultLocation,
     defaultTimezone: appConfig.sholatTimezone,
-    digestGroupId: appConfig.digestGroupId,
+    digestGroupIds: appConfig.digestGroupIds,
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
     senderPort,
   });

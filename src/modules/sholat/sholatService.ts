@@ -39,7 +39,7 @@ export class SholatService {
     private readonly sholatClient: MyQuranSholatClient,
     private readonly defaultLocation: string,
     private readonly defaultTimezone: string,
-    private readonly digestGroupId: string
+    private readonly digestGroupIds: string[]
   ) {}
 
   async syncLocationCatalog(): Promise<SholatLocationRow[]> {
@@ -217,7 +217,7 @@ export class SholatService {
     enabled: boolean;
     now: Date;
   }): Promise<SetReminderOutcome> {
-    if (params.enabled && params.isGroupChat && params.chatId !== this.digestGroupId) {
+    if (params.enabled && params.isGroupChat && !this.digestGroupIds.includes(params.chatId)) {
       return 'group_not_allowed';
     }
 
