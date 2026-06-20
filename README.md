@@ -122,7 +122,7 @@ Log lift and cardio sessions with compact syntax, track streaks, and get daily g
 - Configurable streak threshold (`MIN_WORKOUTS_FOR_STREAK`)
 - Paginated history with mode badges (`[lift]`, `[cardio]`)
 - Daily digest leaderboard in group chat
-- Monthly recap: on day 1 of each month, sends the previous month's Workout and Quran leaderboards to `DIGEST_GROUP_ID`
+- Monthly recap: on day 1 of each month, sends the previous month's Workout and Quran leaderboards to every group in `DIGEST_GROUP_IDS`
 - Undo last workout log within 5 minutes (`#workout undo`)
 - Leaderboard preview on demand (`#workout leaderboard`)
 
@@ -290,7 +290,7 @@ See [`.env.example`](.env.example) for the full template.
 |---|---|---|
 | `DATABASE_URL` | — | PostgreSQL connection URL |
 | `ALLOWED_NUMBERS` | `""` | Comma-separated phone allowlist (digits only, e.g. `6281234567890`) |
-| `DIGEST_GROUP_ID` | `""` | Target group for scheduled digests (disabled if empty); also the only group that can enable `#sholat` reminders. |
+| `DIGEST_GROUP_IDS` | `""` | Comma-separated target groups for scheduled digests (disabled if empty); also the groups that can enable `#sholat` reminders. |
 | `DEBUG` | `false` | Enable debug logs (`true`/`1`) |
 
 </details>
@@ -408,8 +408,8 @@ pnpm format           # Format with Prettier
 - **Auth:** only phone numbers in `ALLOWED_NUMBERS` can execute commands.
 - **Identity:** user IDs are normalized before persistence to handle WA ID format variations.
 - **Remind scheduler:** runs independently after WA client is ready, polls every 30s.
-- **Sholat reminders:** a 30s ticker reads the cached schedule (warming it on a miss, so a restart at any time of day recovers) and posts at each fardhu time to chats that opted in via `#sholat reminder on`. DMs are self-serve; in groups only `DIGEST_GROUP_ID` may opt in.
-- **Digest/Quran scheduler:** runs only when `DIGEST_GROUP_ID` is configured.
+- **Sholat reminders:** a 30s ticker reads the cached schedule (warming it on a miss, so a restart at any time of day recovers) and posts at each fardhu time to chats that opted in via `#sholat reminder on`. DMs are self-serve; in groups only those listed in `DIGEST_GROUP_IDS` may opt in.
+- **Digest/Quran scheduler:** runs only when `DIGEST_GROUP_IDS` is configured.
 
 ---
 
@@ -436,7 +436,7 @@ pnpm format           # Format with Prettier
 <details>
 <summary><strong>Scheduler not running</strong></summary>
 
-- **Digest/Quran jobs:** verify `DIGEST_GROUP_ID` is set and timezone/hour/minute values are correct
+- **Digest/Quran jobs:** verify `DIGEST_GROUP_IDS` is set and timezone/hour/minute values are correct
 - **Reminders:** ensure WA client reached `ready` state; check DB for pending reminders (`sent_at IS NULL`, `scheduled_at <= now`)
 
 </details>
