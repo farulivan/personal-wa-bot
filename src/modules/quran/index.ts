@@ -14,7 +14,7 @@ export type QuranModuleDeps = {
   membershipPort: GroupMembershipPort;
   senderPort: MessageSenderPort;
   timezoneOffsetMinutes: number;
-  digestGroupId: string | undefined;
+  digestGroupIds: string[];
   quranReminderHour: number;
   quranReminderMinute: number;
   monthlyDigestHour: number;
@@ -44,7 +44,7 @@ export function registerQuranModule(deps: QuranModuleDeps): QuranModuleRegistrat
 
   const jobs: ScheduledJob[] = [];
 
-  if (deps.digestGroupId) {
+  if (deps.digestGroupIds.length > 0) {
     const sendNightlyQuranReminder = createQuranReminderSender({
       membershipPort: deps.membershipPort,
       senderPort: deps.senderPort,
@@ -58,22 +58,24 @@ export function registerQuranModule(deps: QuranModuleDeps): QuranModuleRegistrat
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
     });
 
-    jobs.push({
-      name: 'Quran Night Reminder',
-      hour: deps.quranReminderHour,
-      minute: deps.quranReminderMinute,
-      timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
-      run: () => sendNightlyQuranReminder(deps.digestGroupId!),
-    });
+    for (const groupId of deps.digestGroupIds) {
+      jobs.push({
+        name: `Quran Night Reminder · ${groupId}`,
+        hour: deps.quranReminderHour,
+        minute: deps.quranReminderMinute,
+        timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+        run: () => sendNightlyQuranReminder(groupId),
+      });
 
-    jobs.push({
-      name: 'Monthly Quran Recap',
-      hour: deps.monthlyDigestHour,
-      minute: deps.monthlyDigestMinute,
-      timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
-      dayOfMonth: 1,
-      run: () => sendMonthlyQuranDigest(deps.digestGroupId!),
-    });
+      jobs.push({
+        name: `Monthly Quran Recap · ${groupId}`,
+        hour: deps.monthlyDigestHour,
+        minute: deps.monthlyDigestMinute,
+        timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+        dayOfMonth: 1,
+        run: () => sendMonthlyQuranDigest(groupId),
+      });
+    }
   }
 
   return { controller, jobs };

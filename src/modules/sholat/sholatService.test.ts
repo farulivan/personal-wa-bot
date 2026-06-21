@@ -181,7 +181,7 @@ describe('SholatService', () => {
       client as unknown as MyQuranSholatClient,
       defaultLocation,
       defaultTimezone,
-      digestGroupId
+      [digestGroupId]
     );
   });
 
@@ -210,6 +210,26 @@ describe('SholatService', () => {
       });
       expect(outcome).toBe('enabled');
       expect(await service.getReminderStatus(digestGroupId)).toBe(true);
+    });
+
+    it('enables reminders in any of several configured groups', async () => {
+      const secondGroupId = '120363SECONDGROUP@g.us';
+      const multiGroupService = new SholatService(
+        repo,
+        client as unknown as MyQuranSholatClient,
+        defaultLocation,
+        defaultTimezone,
+        [digestGroupId, secondGroupId]
+      );
+
+      const outcome = await multiGroupService.setReminder({
+        chatId: secondGroupId,
+        isGroupChat: true,
+        enabled: true,
+        now,
+      });
+      expect(outcome).toBe('enabled');
+      expect(await multiGroupService.getReminderStatus(secondGroupId)).toBe(true);
     });
 
     it('refuses to enable in a non-main group and does not persist', async () => {
@@ -243,7 +263,7 @@ describe('SholatService', () => {
         client as unknown as MyQuranSholatClient,
         defaultLocation,
         defaultTimezone,
-        ''
+        []
       );
       const outcome = await noGroupService.setReminder({
         chatId: otherGroup,

@@ -63,7 +63,7 @@ async function main() {
     senderPort,
     membershipPort,
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
-    digestGroupId: appConfig.digestGroupId,
+    digestGroupIds: appConfig.digestGroupIds,
     dailyDigestHour: appConfig.dailyDigestHour,
     dailyDigestMinute: appConfig.dailyDigestMinute,
     monthlyDigestHour: appConfig.monthlyDigestHour,
@@ -78,7 +78,7 @@ async function main() {
     membershipPort,
     senderPort,
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
-    digestGroupId: appConfig.digestGroupId,
+    digestGroupIds: appConfig.digestGroupIds,
     quranReminderHour: appConfig.quranReminderHour,
     quranReminderMinute: appConfig.quranReminderMinute,
     monthlyDigestHour: appConfig.monthlyDigestHour,
@@ -94,7 +94,7 @@ async function main() {
     sholatClient,
     defaultLocation: appConfig.sholatDefaultLocation,
     defaultTimezone: appConfig.sholatTimezone,
-    digestGroupId: appConfig.digestGroupId,
+    digestGroupIds: appConfig.digestGroupIds,
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
     senderPort,
   });
@@ -202,7 +202,7 @@ async function main() {
       if (allJobs.length > 0) {
         digestHandle = startScheduler(allJobs);
       } else {
-        log('DIGEST_GROUP_ID not set, daily digest disabled');
+        log('DIGEST_GROUP_IDS not set, scheduled digests disabled');
       }
       digestSchedulerStarted = true;
     }

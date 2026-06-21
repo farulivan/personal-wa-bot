@@ -17,7 +17,7 @@ export type WorkoutModuleDeps = {
   senderPort: MessageSenderPort;
   membershipPort: GroupMembershipPort;
   timezoneOffsetMinutes: number;
-  digestGroupId: string | undefined;
+  digestGroupIds: string[];
   dailyDigestHour: number;
   dailyDigestMinute: number;
   monthlyDigestHour: number;
@@ -46,7 +46,7 @@ export function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleReg
 
   const jobs: ScheduledJob[] = [];
 
-  if (deps.digestGroupId) {
+  if (deps.digestGroupIds.length > 0) {
     const digestDeps = {
       senderPort: deps.senderPort,
       membershipPort: deps.membershipPort,
@@ -57,22 +57,24 @@ export function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleReg
     const sendDailyStreakDigest = createDailyStreakDigestSender(digestDeps);
     const sendMonthlyWorkoutDigest = createMonthlyWorkoutDigestSender(digestDeps);
 
-    jobs.push({
-      name: 'Daily Workout Leaderboard',
-      hour: deps.dailyDigestHour,
-      minute: deps.dailyDigestMinute,
-      timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
-      run: () => sendDailyStreakDigest(deps.digestGroupId!),
-    });
+    for (const groupId of deps.digestGroupIds) {
+      jobs.push({
+        name: `Daily Workout Leaderboard · ${groupId}`,
+        hour: deps.dailyDigestHour,
+        minute: deps.dailyDigestMinute,
+        timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+        run: () => sendDailyStreakDigest(groupId),
+      });
 
-    jobs.push({
-      name: 'Monthly Workout Recap',
-      hour: deps.monthlyDigestHour,
-      minute: deps.monthlyDigestMinute,
-      timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
-      dayOfMonth: 1,
-      run: () => sendMonthlyWorkoutDigest(deps.digestGroupId!),
-    });
+      jobs.push({
+        name: `Monthly Workout Recap · ${groupId}`,
+        hour: deps.monthlyDigestHour,
+        minute: deps.monthlyDigestMinute,
+        timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+        dayOfMonth: 1,
+        run: () => sendMonthlyWorkoutDigest(groupId),
+      });
+    }
   }
 
   return { controller, jobs };

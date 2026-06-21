@@ -23,7 +23,7 @@ The warm is **bounded and throttled** so a cache miss during an upstream outage 
 
 Fetching is **date-explicit**. The schedule is requested as `/jadwal/{id}/{YYYY-MM-DD}` for the date computed in the sholat timezone, not the `/today` endpoint. `/today` derives "today" from the server clock and ignores the `tz` query, so between local midnight and ~07:00 it can return yesterday's schedule — right when the first warm and the Subuh reminder need today's.
 
-Which chats get reminders is a **per-chat toggle** in `sholat_reminder_settings`. Anyone allowed can switch it on in their own DM; in a group, only the configured main group (`DIGEST_GROUP_ID`) may, so a random group can't opt the bot in. De-duplication is in memory — a `Set` of `prayer:date` keys, cleared when the day rolls over.
+Which chats get reminders is a **per-chat toggle** in `sholat_reminder_settings`. Anyone allowed can switch it on in their own DM; in a group, only a configured group (one listed in `DIGEST_GROUP_IDS`) may, so a random group can't opt the bot in. De-duplication is in memory — a `Set` of `prayer:date` keys, cleared when the day rolls over.
 
 ## Consequences
 
