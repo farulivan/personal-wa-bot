@@ -3,7 +3,7 @@ import { formatReminderMessage, formatMonthlyQuranDigestMessage } from './quranP
 import type { UserReminder } from './quranPresenter.js';
 import type { QuranService } from './quranService.js';
 import type { GroupMembershipPort, MessageSenderPort } from '../../adapters/whatsapp/ports.js';
-import { resolveGroupDbUserIds } from '../../adapters/whatsapp/resolveGroupDbUserIds.js';
+import { resolveKnownGroupDbUserIds } from '../../adapters/whatsapp/resolveKnownGroupDbUserIds.js';
 
 type QuranReminderDeps = {
   membershipPort: GroupMembershipPort;
@@ -65,7 +65,7 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
     let reminders: UserReminder[];
     try {
       const dbUsers = await deps.quranService.listDistinctUsers();
-      const targets = await resolveGroupDbUserIds(deps.membershipPort, groupChatId, dbUsers);
+      const targets = await resolveKnownGroupDbUserIds(deps.membershipPort, groupChatId, dbUsers);
 
       debug(`📖 Found ${targets.length} reminder targets from group participants`);
 
