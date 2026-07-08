@@ -152,6 +152,7 @@ async function main() {
   let reminderHandle: { stop: () => void } | null = null;
   let digestHandle: { stop: () => void } | null = null;
   let sholatReminderHandle: { stop: () => void } | null = null;
+  let restartHandle: { stop: () => void } | null = null;
   let reminderSchedulerStarted = false;
   let digestSchedulerStarted = false;
   let sholatReminderSchedulerStarted = false;
@@ -162,6 +163,7 @@ async function main() {
     reminderHandle?.stop();
     digestHandle?.stop();
     sholatReminderHandle?.stop();
+    restartHandle?.stop();
     healthServer.close();
     try {
       await client.destroy();
@@ -216,6 +218,22 @@ async function main() {
     .catch((err) => {
       error({ err }, 'client.initialize() failed');
     });
+
+  // Nightly restart caps Chromium's memory creep. Scheduled outside the
+  // 'ready' handler on purpose: a bot stuck at QR/auth burns RAM too.
+  if (appConfig.scheduledRestartEnabled) {
+    restartHandle = startScheduler([
+      {
+        name: 'scheduled-restart',
+        hour: appConfig.scheduledRestartHour,
+        minute: appConfig.scheduledRestartMinute,
+        timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
+        run: () => shutdown('scheduled-restart'),
+      },
+    ]);
+  } else {
+    log('SCHEDULED_RESTART_ENABLED=false, scheduled restart disabled');
+  }
 }
 
 main().catch((err) => {
