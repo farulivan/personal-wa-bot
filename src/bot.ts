@@ -56,6 +56,13 @@ export function createWhatsAppClient(): InstanceType<typeof Client> {
         '--hide-scrollbars',
         '--metrics-recording-only',
         '--js-flags=--max-old-space-size=384',
+        // Memory squeeze: WhatsApp Web is a single origin, so per-site
+        // process isolation only multiplies renderer processes.
+        '--renderer-process-limit=2',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--no-zygote',
+        '--disable-accelerated-2d-canvas',
+        '--disable-software-rasterizer',
       ],
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     },
