@@ -44,6 +44,9 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     && rm -rf /var/lib/apt/lists/*; \
     fi
 
+# Fail the build loudly if the browser is missing or cannot execute
+RUN /usr/bin/chromium --version
+
 # Set Puppeteer to use the pinned browser
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
