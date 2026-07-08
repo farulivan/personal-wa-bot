@@ -3,7 +3,7 @@ import type { GroupMembershipPort } from './ports.js';
 
 /**
  * Fetches the group's member identities and removes the bot's own identity.
- * Shared building block for higher-level helpers like `resolveGroupDbUserIds`
+ * Shared building block for higher-level helpers like `resolveKnownGroupDbUserIds`
  * and `resolveMentionablePhoneNumbers` so the "fetch + exclude bot" prelude
  * lives in one place.
  *
