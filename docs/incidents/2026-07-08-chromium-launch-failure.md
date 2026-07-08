@@ -51,5 +51,5 @@ Notably, the failure had nothing to do with the changes being deployed. Any depl
 - [x] Pin the browser to the puppeteer-supported version (`CHROME_VERSION` build arg in the Dockerfile), with a comment on how to find the matching version when whatsapp-web.js is updated.
 - [x] Log the browser executable path and version at startup, so a version change shows up in deploy logs instead of requiring local forensics.
 - [x] Assert the browser executes during the image build (`RUN chromium --version`), so a missing or broken browser fails the build instead of the deploy.
-- [ ] Guard the profile at startup: if `session/Last Version` on the volume is newer than the pinned Chrome, fail with an explicit message (or reset the profile deliberately) instead of crashing with a protocol error.
+- [ ] Guard the profile at startup: if `session/Last Version` on the volume is newer than the pinned Chrome, fail with an explicit message (or reset the profile deliberately) instead of crashing with a protocol error. Tracked in [#56](https://github.com/farulivan/personal-wa-bot/issues/56).
 - [ ] Delete `session.bak` from the Railway volume once the bot has been stable for a few days.
