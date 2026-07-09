@@ -50,6 +50,9 @@ export const appConfig = {
   monthlyDigestMinute: parseIntegerEnv('MONTHLY_DIGEST_MINUTE', 0),
   quranReminderHour: parseIntegerEnv('QURAN_REMINDER_HOUR', 22),
   quranReminderMinute: parseIntegerEnv('QURAN_REMINDER_MINUTE', 0),
+  scheduledRestartEnabled: parseBooleanEnv('SCHEDULED_RESTART_ENABLED', true),
+  scheduledRestartHour: parseIntegerEnv('SCHEDULED_RESTART_HOUR', 3),
+  scheduledRestartMinute: parseIntegerEnv('SCHEDULED_RESTART_MINUTE', 0),
   digestGroupIds: parseGroupIds(process.env.DIGEST_GROUP_IDS || ''),
   sholatDefaultLocation: process.env.SHOLAT_DEFAULT_LOCATION || 'KAB. BOGOR',
   sholatTimezone: process.env.SHOLAT_TIMEZONE || 'Asia/Jakarta',
@@ -91,6 +94,12 @@ export function validateConfig(config: AppConfig): void {
   }
   if (config.quranReminderMinute < 0 || config.quranReminderMinute > 59) {
     errors.push(`QURAN_REMINDER_MINUTE must be 0-59, got ${config.quranReminderMinute}`);
+  }
+  if (config.scheduledRestartHour < 0 || config.scheduledRestartHour > 23) {
+    errors.push(`SCHEDULED_RESTART_HOUR must be 0-23, got ${config.scheduledRestartHour}`);
+  }
+  if (config.scheduledRestartMinute < 0 || config.scheduledRestartMinute > 59) {
+    errors.push(`SCHEDULED_RESTART_MINUTE must be 0-59, got ${config.scheduledRestartMinute}`);
   }
   if (config.minWorkoutsForStreak < 1) {
     errors.push(`MIN_WORKOUTS_FOR_STREAK must be >= 1, got ${config.minWorkoutsForStreak}`);

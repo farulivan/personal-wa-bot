@@ -307,6 +307,9 @@ See [`.env.example`](.env.example) for the full template.
 | `QURAN_REMINDER_MINUTE` | `0` | Quran reminder minute |
 | `MONTHLY_DIGEST_HOUR` | `8` | Monthly recap hour (day 1, 24h, user timezone) |
 | `MONTHLY_DIGEST_MINUTE` | `0` | Monthly recap minute |
+| `SCHEDULED_RESTART_ENABLED` | `true` | Nightly restart to cap Chromium memory creep |
+| `SCHEDULED_RESTART_HOUR` | `3` | Restart hour (24h, user timezone) |
+| `SCHEDULED_RESTART_MINUTE` | `0` | Restart minute |
 
 </details>
 
@@ -410,6 +413,7 @@ pnpm format           # Format with Prettier
 - **Remind scheduler:** runs independently after WA client is ready, polls every 30s.
 - **Sholat reminders:** a 30s ticker reads the cached schedule (warming it on a miss, so a restart at any time of day recovers) and posts at each fardhu time to chats that opted in via `#sholat reminder on`. DMs are self-serve; in groups only those listed in `DIGEST_GROUP_IDS` may opt in.
 - **Digest/Quran scheduler:** runs only when `DIGEST_GROUP_IDS` is configured.
+- **Nightly restart:** the WhatsApp Web page leaks memory over days, so the bot exits cleanly at 03:00 (user timezone) and lets the platform bring it back with a fresh Chromium. It is scheduled even when the client is stuck at the QR screen. The deploy config must relaunch on clean exits — `railway.json` uses `restartPolicyType: ALWAYS`, docker-compose uses `unless-stopped`.
 
 ---
 

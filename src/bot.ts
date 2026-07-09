@@ -1,6 +1,7 @@
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode-terminal';
+import { execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { debug, log, error } from './logger.js';
@@ -33,6 +34,19 @@ function clearLockFiles(dir: string): void {
 
 export function createWhatsAppClient(): InstanceType<typeof Client> {
   const dataPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || '.wwebjs_auth';
+  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+
+  // A browser/puppeteer version mismatch once cost an afternoon of forensics
+  // (see docs/incidents/2026-07-08). Make the version visible in deploy logs.
+  if (executablePath) {
+    execFile(executablePath, ['--version'], (err, stdout) => {
+      if (err) {
+        error({ err, executablePath }, 'browser version check failed');
+      } else {
+        log({ executablePath, browser: stdout.trim() }, 'browser version');
+      }
+    });
+  }
 
   debug({ dataPath }, 'clearing stale chromium locks');
   clearLockFiles(dataPath);
@@ -56,8 +70,15 @@ export function createWhatsAppClient(): InstanceType<typeof Client> {
         '--hide-scrollbars',
         '--metrics-recording-only',
         '--js-flags=--max-old-space-size=384',
+        // Memory squeeze: WhatsApp Web is a single origin, so per-site
+        // process isolation only multiplies renderer processes.
+        '--renderer-process-limit=2',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--no-zygote',
+        '--disable-accelerated-2d-canvas',
+        '--disable-software-rasterizer',
       ],
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+      executablePath,
     },
   });
 
