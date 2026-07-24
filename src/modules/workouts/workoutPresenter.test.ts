@@ -6,10 +6,20 @@ import {
   formatDigestMessage,
   rankLeaderboardEntries,
   formatLeaderboardMessage,
+  formatWorkoutList,
+  formatLiftLogResponse,
+  formatCardioLogResponse,
+  formatStreakNote,
+  formatStreakSection,
+  formatListPageFooter,
+  formatEmptyListMessage,
+  formatPageOverflowMessage,
+  formatMonthlyDigestMessage,
 } from './workoutPresenter.js';
 import { UNDO_WINDOW_MS } from './workoutService.js';
 import type { WorkoutEntry } from './infra/workoutRepository.js';
 import type { WorkoutLeaderboardEntry } from './workoutService.js';
+import type { StreakInfo } from '../../shared/streaks.js';
 
 function allMentionablePhones(entries: WorkoutLeaderboardEntry[]): Set<string> {
   return new Set(entries.map((e) => e.phoneNumber).filter((p): p is string => p !== null));
@@ -487,5 +497,277 @@ describe('formatLeaderboardMessage', () => {
   it('rule explainer is present in the empty-leaderboard branch', () => {
     const result = formatLeaderboardMessage([], new Set());
     expect(result.text).toContain(RULE_NOTE);
+  });
+});
+
+const TZ = 420; // GMT+7
+
+function wlEntry(
+  user: string,
+  sessionsInMonth: number,
+  currentStreak: number,
+  bestStreak: number
+): WorkoutLeaderboardEntry {
+  return { phoneNumber: null, user, sessionsInMonth, currentStreak, bestStreak, atRisk: false };
+}
+
+describe('formatWorkoutList', () => {
+  const now = new Date('2026-06-17T12:00:00.000Z'); // local 2026-06-17 at GMT+7
+
+  it('labels rows as Today, Yesterday, or a YYYY/MM/DD date', () => {
+    const rows: WorkoutEntry[] = [
+      {
+        createdAt: '2026-06-17T02:00:00.000Z',
+        workoutMode: 'lift',
+        type: 'bench',
+        reps: 5,
+        sets: 5,
+        weight: 40,
+      },
+      {
+        createdAt: '2026-06-16T02:00:00.000Z',
+        workoutMode: 'lift',
+        type: 'squat',
+        reps: 5,
+        sets: 5,
+        weight: 60,
+      },
+      {
+        createdAt: '2026-06-10T02:00:00.000Z',
+        workoutMode: 'lift',
+        type: 'deadlift',
+        reps: 3,
+        sets: 3,
+        weight: 100,
+      },
+    ];
+    const text = formatWorkoutList(rows, TZ, now);
+    expect(text).toContain('Today');
+    expect(text).toContain('Yesterday');
+    expect(text).toContain('2026/06/10');
+  });
+
+  it('formats a weighted lift with reps × sets @ weight', () => {
+    const rows: WorkoutEntry[] = [
+      {
+        createdAt: '2026-06-17T02:00:00.000Z',
+        workoutMode: 'lift',
+        type: 'bench press',
+        reps: 10,
+        sets: 3,
+        weight: 60,
+      },
+    ];
+    expect(formatWorkoutList(rows, TZ, now)).toContain('[lift] bench press | 10 × 3 @ 60kg');
+  });
+
+  it('renders a zero-weight lift as bodyweight', () => {
+    const rows: WorkoutEntry[] = [
+      {
+        createdAt: '2026-06-17T02:00:00.000Z',
+        workoutMode: 'lift',
+        type: 'push up',
+        reps: 20,
+        sets: 4,
+        weight: 0,
+      },
+    ];
+    expect(formatWorkoutList(rows, TZ, now)).toContain('@ bodyweight');
+  });
+
+  it('formats cardio with an integer duration and distance', () => {
+    const rows: WorkoutEntry[] = [
+      {
+        createdAt: '2026-06-17T02:00:00.000Z',
+        workoutMode: 'cardio',
+        type: 'run',
+        durationMinutes: 30,
+        distanceKm: 5,
+      },
+    ];
+    expect(formatWorkoutList(rows, TZ, now)).toContain('[cardio] run | 30min | 5km');
+  });
+
+  it('formats cardio with a fractional duration and omits distance when zero', () => {
+    const rows: WorkoutEntry[] = [
+      {
+        createdAt: '2026-06-17T02:00:00.000Z',
+        workoutMode: 'cardio',
+        type: 'row',
+        durationMinutes: 30.5,
+        distanceKm: 0,
+      },
+    ];
+    const text = formatWorkoutList(rows, TZ, now);
+    expect(text).toContain('30.5min');
+    expect(text).not.toContain('km');
+  });
+});
+
+describe('formatLiftLogResponse', () => {
+  // now chosen so that now + 7h lands in each part-of-day window.
+  const at = (utc: string) => new Date(utc);
+
+  it('greets an early-morning session', () => {
+    const text = formatLiftLogResponse(
+      'bench press',
+      10,
+      3,
+      60,
+      TZ,
+      at('2026-06-17T01:00:00.000Z')
+    ); // 08:00
+    expect(text).toContain('bench press');
+    expect(text).toContain('10 × 3 @ 60kg');
+    expect(text).toContain('Early grind');
+  });
+
+  it('greets a midday session', () => {
+    const text = formatLiftLogResponse('squat', 5, 5, 80, TZ, at('2026-06-17T06:00:00.000Z')); // 13:00
+    expect(text).toContain('Midday work');
+  });
+
+  it('greets an evening session', () => {
+    const text = formatLiftLogResponse('deadlift', 3, 3, 100, TZ, at('2026-06-17T11:00:00.000Z')); // 18:00
+    expect(text).toContain('After-hours effort');
+  });
+
+  it('greets a late-night session', () => {
+    const text = formatLiftLogResponse('curl', 12, 3, 15, TZ, at('2026-06-17T16:00:00.000Z')); // 23:00
+    expect(text).toContain('Late session');
+  });
+
+  it('renders zero weight as bodyweight', () => {
+    const text = formatLiftLogResponse('pull up', 8, 3, 0, TZ, at('2026-06-17T01:00:00.000Z'));
+    expect(text).toContain('8 × 3 @ bodyweight');
+  });
+});
+
+describe('formatCardioLogResponse', () => {
+  const at = (utc: string) => new Date(utc);
+
+  it('greets each part of the day with its own line', () => {
+    expect(formatCardioLogResponse('run', 30, 5, TZ, at('2026-06-17T01:00:00.000Z'))).toContain(
+      'Strong start'
+    );
+    expect(formatCardioLogResponse('run', 30, 5, TZ, at('2026-06-17T06:00:00.000Z'))).toContain(
+      'Midday momentum'
+    );
+    expect(formatCardioLogResponse('run', 30, 5, TZ, at('2026-06-17T11:00:00.000Z'))).toContain(
+      'Evening push'
+    );
+    expect(formatCardioLogResponse('run', 30, 5, TZ, at('2026-06-17T16:00:00.000Z'))).toContain(
+      'Late grind'
+    );
+  });
+
+  it('includes distance when present and omits it when zero', () => {
+    const withDistance = formatCardioLogResponse('run', 30, 5, TZ, at('2026-06-17T01:00:00.000Z'));
+    expect(withDistance).toContain('30min | 5km');
+
+    const noDistance = formatCardioLogResponse('yoga', 45, 0, TZ, at('2026-06-17T01:00:00.000Z'));
+    expect(noDistance).toContain('45min');
+    expect(noDistance).not.toContain('km');
+  });
+});
+
+describe('formatStreakNote', () => {
+  it('counts how many more workouts are needed today', () => {
+    expect(formatStreakNote(1, 3, null)).toContain('2 more to go today');
+  });
+
+  it('confirms the day when the quota is just met, with a singular day', () => {
+    const streaks: StreakInfo = { current: 1, best: 1, atRisk: false };
+    expect(formatStreakNote(3, 3, streaks)).toContain('Day counted! Streak: 1 day');
+  });
+
+  it('pluralises the streak day count', () => {
+    const streaks: StreakInfo = { current: 5, best: 5, atRisk: false };
+    expect(formatStreakNote(3, 3, streaks)).toContain('Streak: 5 days');
+  });
+
+  it('acknowledges an already-locked-in day when the quota was passed', () => {
+    expect(formatStreakNote(5, 3, { current: 4, best: 4, atRisk: false })).toContain(
+      'Already locked in today'
+    );
+  });
+
+  it('falls back to locked-in when the quota is met but no streak info is given', () => {
+    expect(formatStreakNote(3, 3, null)).toContain('Already locked in today');
+  });
+});
+
+describe('formatStreakSection', () => {
+  it('is empty when there is neither a current nor best streak', () => {
+    expect(formatStreakSection({ current: 0, best: 0, atRisk: false })).toBe('');
+  });
+
+  it('shows a singular day and no Best part when best does not exceed current', () => {
+    const text = formatStreakSection({ current: 1, best: 1, atRisk: false });
+    expect(text).toContain('Streak: 1 day');
+    expect(text).not.toContain('Best:');
+  });
+
+  it('appends the Best part when best exceeds current', () => {
+    const text = formatStreakSection({ current: 2, best: 7, atRisk: false });
+    expect(text).toContain('Streak: 2 days');
+    expect(text).toContain('Best: 7 days');
+  });
+});
+
+describe('formatListPageFooter', () => {
+  it('is empty for a single page', () => {
+    expect(formatListPageFooter(1, 1)).toBe('');
+  });
+
+  it('adds a next-page hint when more pages follow', () => {
+    const footer = formatListPageFooter(1, 3);
+    expect(footer).toContain('Page 1 of 3');
+    expect(footer).toContain('#workout list 2 for next');
+  });
+
+  it('drops the next-page hint on the last page', () => {
+    const footer = formatListPageFooter(3, 3);
+    expect(footer).toContain('Page 3 of 3');
+    expect(footer).not.toContain('for next');
+  });
+});
+
+describe('formatPageOverflowMessage', () => {
+  it('suggests the last page number when there is more than one page', () => {
+    expect(formatPageOverflowMessage(5, 3)).toContain('Try: #workout list 3');
+  });
+
+  it('suggests a bare list command when there is only one page', () => {
+    const text = formatPageOverflowMessage(2, 1);
+    expect(text).toContain('Try: #workout list');
+    expect(text).not.toContain('list 1');
+  });
+});
+
+describe('formatEmptyListMessage', () => {
+  it('shows both a lift and a cardio starter example', () => {
+    const text = formatEmptyListMessage();
+    expect(text).toContain('#workout lift');
+    expect(text).toContain('#workout cardio');
+  });
+});
+
+describe('formatMonthlyDigestMessage', () => {
+  it('shows an empty recap when nothing was logged', () => {
+    const text = formatMonthlyDigestMessage([], 'June 2026');
+    expect(text).toContain('Monthly Workout Recap — June 2026');
+    expect(text).toContain('No workouts were logged last month');
+  });
+
+  it('medals ranked entries and pluralises sessions and streaks', () => {
+    const text = formatMonthlyDigestMessage(
+      [wlEntry('A', 1, 0, 0), wlEntry('B', 5, 2, 7)],
+      'June 2026'
+    );
+    expect(text).toContain('🥇 A');
+    expect(text).toContain('🏋️ 1 session');
+    expect(text).toContain('🥈 B');
+    expect(text).toContain('🏋️ 5 sessions | 🔥 Streak 2 days (Best 7 days)');
   });
 });
