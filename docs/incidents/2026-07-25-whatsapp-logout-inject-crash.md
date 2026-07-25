@@ -1,7 +1,7 @@
 # Postmortem: WhatsApp logout crashed the bot and it never came back
 
 **Date:** 2026-07-25
-**Duration:** ~most of a day — went down overnight, noticed in the morning, restored that evening
+**Duration:** ~most of a day — crashed mid-morning, restored that evening
 **Severity:** total outage — process dead, no messages processed
 **Status:** resolved — manual redeploy + QR re-scan restored service; durable fix shipped in [#61](https://github.com/farulivan/personal-wa-bot/pull/61)
 
@@ -19,10 +19,10 @@ Our app had nothing to catch it: no `unhandledRejection`/`uncaughtException` han
 
 ## Timeline (WIB)
 
-Exact timestamps to be filled from Railway logs — grep for `client disconnected` and the crash stack.
+Times in WIB (UTC+7).
 
-- **overnight** — WhatsApp navigates the page to `…post_logout=1`. whatsapp-web.js emits `DISCONNECTED: LOGOUT`, deletes the LocalAuth session, then re-injects. The re-inject throws `Failed to add page binding with name onQRChangedEvent: window['onQRChangedEvent'] already exists!`. Unhandled rejection → `Node.js v20.20.2` fatal exit. Process dead.
-- **morning** — Bot noticed down; the crash stack is in the logs. Session already gone.
+- **09:33** (`02:33:38Z`) — WhatsApp navigates the page to `…post_logout=1`. whatsapp-web.js emits `DISCONNECTED: LOGOUT` (confirmed in the Railway logs, `reason: "LOGOUT"`), deletes the LocalAuth session, then re-injects. The re-inject throws `Failed to add page binding with name onQRChangedEvent: window['onQRChangedEvent'] already exists!`. Unhandled rejection → `Node.js v20.20.2` fatal exit. Process dead.
+- **daytime** — Bot noticed down; the crash stack is in the logs. Session already gone.
 - **evening** — Redeploy + QR re-scan. Bot back online.
 
 ## Root cause
@@ -66,6 +66,6 @@ On restart, LocalAuth reconnects automatically if the session is still valid (no
 
 - [x] Process-level `unhandledRejection` and `uncaughtException` handlers that log and exit non-zero, so a library throw becomes a controlled restart instead of a silent death — shipped in [#61](https://github.com/farulivan/personal-wa-bot/pull/61).
 - [x] `disconnected` handler forces a clean restart instead of only logging — shipped in [#61](https://github.com/farulivan/personal-wa-bot/pull/61).
-- [ ] Confirm the disconnect reason from Railway logs for this incident (`LOGOUT` vs other) and record it in the timeline above.
+- [x] Confirmed the disconnect reason from Railway logs — `reason: "LOGOUT"` at 02:33:38Z, matching the `post_logout` path above.
 - [ ] (Optional) Add an external uptime check against the existing `/ready` endpoint so the next outage pages someone instead of waiting to be noticed.
 - [x] Decided against bumping whatsapp-web.js or pinning `webVersionCache` — verified neither fixes this, and likely superseded by a Baileys migration.
