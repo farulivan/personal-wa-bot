@@ -1,6 +1,7 @@
 import http from 'http';
 import { createWhatsAppClient } from './bot.js';
 import { debug, log, error } from './logger.js';
+import { installProcessGuards } from './processGuards.js';
 import { appConfig, validateConfig } from './config/env.js';
 import { runMigrations } from './db/migrate.js';
 import { createDrizzleDb } from './db/drizzle.js';
@@ -31,6 +32,11 @@ import { UserService } from './modules/users/userService.js';
 import { createAuthGuard } from './app/authGuard.js';
 
 async function main() {
+  // A WhatsApp logout makes whatsapp-web.js throw from an un-awaited handler
+  // (see docs/incidents/2026-07-25-whatsapp-logout-inject-crash.md). Catch it
+  // at the process level and exit cleanly so the platform restarts us.
+  installProcessGuards();
+
   validateConfig(appConfig);
 
   // --- Run migrations before anything else ---
