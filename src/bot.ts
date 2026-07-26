@@ -5,6 +5,7 @@ import { execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { debug, log, error } from './logger.js';
+import { handleDisconnect } from './processGuards.js';
 
 // Clear ALL Chromium lock files recursively from the data directory
 function clearLockFiles(dir: string): void {
@@ -113,9 +114,7 @@ export function createWhatsAppClient(): InstanceType<typeof Client> {
     error({ reason: msg }, 'authentication failure');
   });
 
-  client.on('disconnected', (reason) => {
-    log({ reason }, 'client disconnected');
-  });
+  client.on('disconnected', (reason) => handleDisconnect(reason));
 
   return client;
 }
