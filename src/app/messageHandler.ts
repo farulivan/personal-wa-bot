@@ -1,23 +1,19 @@
-import type pkg from 'whatsapp-web.js';
-type Message = pkg.Message;
 import { parseCommand } from './parseCommand.js';
 import type { CommandRouter, CommandContext } from './commandRouter.js';
 import { error, createRequestLogger } from '../logger.js';
 import type { AppContext } from './appContext.js';
-import { normalizeUserId } from './normalizeUserId.js';
+import type { IncomingMessage } from '../adapters/whatsapp/ports.js';
 import { isGreeting, handleGreeting } from './greetingHandler.js';
 import { createTimeContext } from './timeContext.js';
 
 export function createMessageHandler(router: CommandRouter, appContext: AppContext) {
-  return async function handleMessage(msg: Message): Promise<void> {
+  return async function handleMessage(msg: IncomingMessage): Promise<void> {
     try {
-      let text = msg.body.trim();
-      const isGroup = msg.from.endsWith('@g.us');
-      const rawSender = msg.author ?? msg.from;
-      const sender = normalizeUserId(rawSender);
+      const { chatId, isGroup, senderId: sender } = msg;
+      let text = msg.text.trim();
       const reqLog = createRequestLogger(sender);
 
-      reqLog.debug({ from: msg.from, rawSender, isGroup }, 'message received');
+      reqLog.debug({ chatId, sender, isGroup }, 'message received');
 
       if (!appContext.isAllowedUser(sender)) {
         reqLog.debug('blocked by auth guard');
@@ -34,22 +30,14 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
       }
 
       try {
-        const contact = await msg.getContact();
-        await appContext.userService.captureIfNew(sender, {
-          phoneNumber: contact.number,
-          contactName: contact.name,
-          pushname: contact.pushname,
-        });
+        await appContext.userService.captureIfNew(sender, await msg.getContact());
       } catch (err) {
         reqLog.debug({ err }, 'failed to capture user info');
       }
 
       let isBotMentioned = false;
       if (isGroup && text.includes('@')) {
-        const mentions = await msg.getMentions();
-        const botInfo = await appContext.client.info;
-        const botNumber = botInfo?.wid?._serialized;
-        isBotMentioned = mentions.some((m) => m.id._serialized === botNumber);
+        isBotMentioned = await msg.isBotMentioned();
       }
 
       if (isBotMentioned && isGreeting(text)) {
@@ -92,7 +80,7 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
 
       const ctx: CommandContext = {
         sender,
-        replyChatId: msg.from,
+        replyChatId: chatId,
         isGroupChat: isGroup,
         time,
       };

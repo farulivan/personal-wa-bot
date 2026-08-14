@@ -11,6 +11,7 @@ import { CommandRouter } from './app/commandRouter.js';
 import { createMessageHandler } from './app/messageHandler.js';
 import { startScheduler } from './app/scheduler.js';
 import { createMessageGateway } from './adapters/whatsapp/messageGateway.js';
+import { createIncomingMessageMapper } from './adapters/whatsapp/wwebjsMessage.js';
 import { WhatsAppGroupMembershipAdapter } from './adapters/whatsapp/whatsAppGroupMembershipAdapter.js';
 
 // --- Infra ---
@@ -122,13 +123,13 @@ async function main() {
   router.registerNamespace('remind', remind.controller);
 
   const appContext = {
-    client,
     config: appConfig,
     messageGateway,
     userService,
     isAllowedUser,
   };
 
+  const toIncomingMessage = createIncomingMessageMapper(client);
   const handleMessage = createMessageHandler(router, appContext);
 
   let isReady = false;
@@ -152,7 +153,7 @@ async function main() {
   log('starting bot initialization');
 
   client.on('message', async (msg) => {
-    await handleMessage(msg);
+    await handleMessage(toIncomingMessage(msg));
   });
 
   let reminderHandle: { stop: () => void } | null = null;
