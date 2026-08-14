@@ -20,6 +20,7 @@ export type SholatModuleDeps = {
   digestGroupIds: string[];
   timezoneOffsetMinutes: number;
   senderPort: MessageSenderPort;
+  isConnected?: () => boolean;
 };
 
 export type SholatModuleRegistration = {
@@ -53,6 +54,7 @@ export function registerSholatModule(deps: SholatModuleDeps): SholatModuleRegist
       senderPort: deps.senderPort,
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
       warmCache: () => prefetchTodaySchedule({ sholatService, now: () => new Date() }),
+      isConnected: deps.isConnected,
     });
 
   return { controller, jobs, startScheduler };

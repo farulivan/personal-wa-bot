@@ -80,7 +80,7 @@ describe('createQuranReminderSender', () => {
     expect(chatId).toBe(GROUP);
     expect(text).toContain('@628111111111');
     expect(text).not.toContain('628999999999');
-    expect(mentions).toEqual(['628111111111@c.us']);
+    expect(mentions).toEqual(['628111111111']);
   });
 
   it('sends nothing when no group member has reading data', async () => {

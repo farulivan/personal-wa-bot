@@ -70,7 +70,7 @@ describe('createDailyStreakDigestSender', () => {
     expect(chatId).toBe(GROUP);
     expect(text).toContain('Workout Leaderboard This Month');
     expect(text).toContain('@628111111111');
-    expect(mentions).toEqual(['628111111111@c.us']);
+    expect(mentions).toEqual(['628111111111']);
   });
 
   it('sends nothing when the leaderboard is empty', async () => {

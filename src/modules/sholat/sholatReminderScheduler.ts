@@ -18,6 +18,8 @@ export type SholatReminderTickerDeps = {
   timezoneOffsetMinutes: number;
   /** Warms today's schedule into the cache, with its own bounded retry. Called on a cache miss. */
   warmCache: () => Promise<void>;
+  /** Defaults to always-connected so tests and callers can leave it out. */
+  isConnected?: () => boolean;
 };
 
 export type SholatReminderSchedulerDeps = SholatReminderTickerDeps & {
@@ -49,6 +51,10 @@ export class SholatReminderTicker {
   constructor(private readonly deps: SholatReminderTickerDeps) {}
 
   async tick(now: Date): Promise<void> {
+    // A prayer is marked fired before it is sent, so ticking while the socket
+    // is down would burn today's reminder without delivering it.
+    if (this.deps.isConnected && !this.deps.isConnected()) return;
+
     const { hour, minute, dateString } = getUserLocalTime(this.deps.timezoneOffsetMinutes, now);
 
     // Nobody opted in → nothing to send, and no reason to warm the cache.

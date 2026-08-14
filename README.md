@@ -180,7 +180,7 @@ Set reminders with natural date/time input, delivered back to the source chat.
 | Layer | Technology |
 |---|---|
 | **Runtime** | Node.js 20+ · TypeScript 5.x |
-| **WhatsApp** | whatsapp-web.js |
+| **WhatsApp** | Baileys (`@whiskeysockets/baileys`) |
 | **Database** | PostgreSQL · Drizzle ORM |
 | **Testing** | Vitest |
 | **Linting** | ESLint · Prettier |
@@ -195,7 +195,6 @@ Set reminders with natural date/time input, delivered back to the source chat.
 - **Node.js** 20+
 - **pnpm**
 - **PostgreSQL** instance (local or remote)
-- Chromium dependencies (OS-dependent, only if running outside Docker)
 
 ### Install and run
 
@@ -220,7 +219,7 @@ On first run, scan the QR code shown in terminal to authenticate your WhatsApp s
 docker compose up --build
 ```
 
-`docker-compose.yml` mounts `.wwebjs_auth/` for session persistence and `data/` for local storage.
+`docker-compose.yml` mounts `baileys_auth/` for session persistence and `data/` for local storage.
 
 ---
 
@@ -307,7 +306,7 @@ See [`.env.example`](.env.example) for the full template.
 | `QURAN_REMINDER_MINUTE` | `0` | Quran reminder minute |
 | `MONTHLY_DIGEST_HOUR` | `8` | Monthly recap hour (day 1, 24h, user timezone) |
 | `MONTHLY_DIGEST_MINUTE` | `0` | Monthly recap minute |
-| `SCHEDULED_RESTART_ENABLED` | `true` | Nightly restart to cap Chromium memory creep |
+| `SCHEDULED_RESTART_ENABLED` | `true` | Nightly restart as a self-healing backstop |
 | `SCHEDULED_RESTART_HOUR` | `3` | Restart hour (24h, user timezone) |
 | `SCHEDULED_RESTART_MINUTE` | `0` | Restart minute |
 
@@ -335,8 +334,9 @@ See [`.env.example`](.env.example) for the full template.
 
 | Variable | Default | Description |
 |---|---|---|
-| `PUPPETEER_EXECUTABLE_PATH` | — | Override Chromium binary path |
-| `RAILWAY_VOLUME_MOUNT_PATH` | — | Override WA auth storage path |
+| `RAILWAY_VOLUME_MOUNT_PATH` | — | Parent directory for the WhatsApp session |
+| `WA_AUTH_DIR` | `<volume>/baileys_auth` | Override the session directory outright |
+| `WA_LOG_LEVEL` | `warn` | Log level for the WhatsApp transport itself |
 
 </details>
 
@@ -413,7 +413,8 @@ pnpm format           # Format with Prettier
 - **Remind scheduler:** runs independently after WA client is ready, polls every 30s.
 - **Sholat reminders:** a 30s ticker reads the cached schedule (warming it on a miss, so a restart at any time of day recovers) and posts at each fardhu time to chats that opted in via `#sholat reminder on`. DMs are self-serve; in groups only those listed in `DIGEST_GROUP_IDS` may opt in.
 - **Digest/Quran scheduler:** runs only when `DIGEST_GROUP_IDS` is configured.
-- **Nightly restart:** the WhatsApp Web page leaks memory over days, so the bot exits cleanly at 03:00 (user timezone) and lets the platform bring it back with a fresh Chromium. It is scheduled even when the client is stuck at the QR screen. The deploy config must relaunch on clean exits — `railway.json` uses `restartPolicyType: ALWAYS`, docker-compose uses `unless-stopped`.
+- **Reconnects:** an ordinary disconnect is retried in-process on a bounded backoff. Only a logout, a restricted account, or a run of failures that exhausts the budget takes the process down for the platform to restart. While the socket is down both tickers stop, so a reminder is never claimed and dropped.
+- **Nightly restart:** the coarse backstop for a socket wedged in a way the reconnect ladder cannot see. The bot exits cleanly at 03:00 (user timezone) and the platform brings it back. It is scheduled even when the client is stuck at the QR screen. The deploy config must relaunch on clean exits — `railway.json` uses `restartPolicyType: ALWAYS`, docker-compose uses `unless-stopped`.
 
 ---
 
@@ -421,7 +422,7 @@ pnpm format           # Format with Prettier
 
 - Keep `.env` out of version control (already in `.gitignore`).
 - Restrict access via `ALLOWED_NUMBERS` — no allowlist means no one can use the bot.
-- Persist `.wwebjs_auth/` and `data/` in production environments.
+- Persist `baileys_auth/` and `data/` in production environments.
 - Do not share terminal logs publicly (may contain operational details).
 
 ---
@@ -448,7 +449,7 @@ pnpm format           # Format with Prettier
 <details>
 <summary><strong>Authentication issues</strong></summary>
 
-- Ensure auth path is writable (`.wwebjs_auth/` or `RAILWAY_VOLUME_MOUNT_PATH`)
+- Ensure auth path is writable (`baileys_auth/`, or `WA_AUTH_DIR` / `RAILWAY_VOLUME_MOUNT_PATH`)
 - Delete auth folder and rescan QR if session is corrupted
 
 </details>

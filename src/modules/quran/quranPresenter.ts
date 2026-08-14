@@ -3,7 +3,7 @@ import type { QuranDailyReadRow, QuranHistoryRow } from './infra/quranRepository
 import type { QuranLeaderboardEntry, QuranLeaderboardMode } from './quranService.js';
 import { QURAN_UNDO_WINDOW_MS } from './quranService.js';
 import type { StreakInfo } from '../../shared/streaks.js';
-import { formatMentionTag, phoneToMentionJid } from '../../shared/mentions.js';
+import { formatMentionTag } from '../../shared/mentions.js';
 
 const QURAN_LEADERBOARD_LIMIT = 10;
 
@@ -320,12 +320,8 @@ export function formatReminderMessage(reminders: UserReminder[]): {
   }
 
   const mentions = [
-    ...notReadWithStreak
-      .filter((u) => u.phoneNumber !== null)
-      .map((u) => phoneToMentionJid(u.phoneNumber!)),
-    ...notReadNoStreak
-      .filter((u) => u.phoneNumber !== null)
-      .map((u) => phoneToMentionJid(u.phoneNumber!)),
+    ...notReadWithStreak.filter((u) => u.phoneNumber !== null).map((u) => u.phoneNumber!),
+    ...notReadNoStreak.filter((u) => u.phoneNumber !== null).map((u) => u.phoneNumber!),
   ];
 
   if (notReadYet.length === 0) {

@@ -4,41 +4,41 @@ import type { CommandRouter } from './commandRouter.js';
 import type { CommandInvocation } from './parseCommand.js';
 import type { RichReply } from './commandRouter.js';
 
-// Minimal stub for whatsapp-web.js Message
+// Minimal stub for a transport-neutral IncomingMessage
 function makeMsg(overrides: {
   body: string;
   from: string;
   author?: string;
-  getMentions?: () => Promise<{ id: { _serialized: string } }[]>;
+  botMentioned?: boolean;
+  senderCandidates?: string[];
 }): {
-  body: string;
-  from: string;
-  author?: string;
+  chatId: string;
+  isGroup: boolean;
+  senderId: string;
+  senderCandidates: string[];
+  text: string;
   getContact: ReturnType<typeof vi.fn>;
-  getMentions: ReturnType<typeof vi.fn>;
+  isBotMentioned: ReturnType<typeof vi.fn>;
 } {
+  const chatId = overrides.from;
+  const senderId = (overrides.author ?? chatId).replace(/@(c\.us|lid|g\.us)$/, '');
   return {
-    body: overrides.body,
-    from: overrides.from,
-    author: overrides.author,
+    chatId,
+    isGroup: chatId.endsWith('@g.us'),
+    senderId,
+    senderCandidates: overrides.senderCandidates ?? [senderId],
+    text: overrides.body,
     getContact: vi.fn().mockResolvedValue({
-      number: '628111',
-      name: 'Test User',
+      phoneNumber: '628111',
+      contactName: 'Test User',
       pushname: 'Test',
     }),
-    getMentions: overrides.getMentions
-      ? vi.fn().mockImplementation(overrides.getMentions)
-      : vi.fn().mockResolvedValue([]),
+    isBotMentioned: vi.fn().mockResolvedValue(overrides.botMentioned ?? false),
   };
 }
 
-const BOT_SERIALIZED = '628999@c.us';
-
 function makeAppContext(isAllowed: boolean) {
   return {
-    client: {
-      info: Promise.resolve({ wid: { _serialized: BOT_SERIALIZED } }),
-    },
     config: { userTimezoneOffsetMinutes: 420 },
     messageGateway: {
       reply: vi.fn().mockResolvedValue(undefined),
@@ -73,7 +73,7 @@ describe('createMessageHandler', () => {
 
       expect(msg.getContact).not.toHaveBeenCalled();
       expect(appContext.userService.captureIfNew).not.toHaveBeenCalled();
-      expect(msg.getMentions).not.toHaveBeenCalled();
+      expect(msg.isBotMentioned).not.toHaveBeenCalled();
       expect(router.route).not.toHaveBeenCalled();
     });
   });
@@ -93,13 +93,51 @@ describe('createMessageHandler', () => {
 
       expect(msg.getContact).not.toHaveBeenCalled();
       expect(appContext.userService.captureIfNew).not.toHaveBeenCalled();
-      expect(msg.getMentions).not.toHaveBeenCalled();
+      expect(msg.isBotMentioned).not.toHaveBeenCalled();
       expect(router.route).not.toHaveBeenCalled();
     });
   });
 
+  describe('2b. sender allowed under an alternate identity form', () => {
+    it('admits them when any candidate is on the allowlist', async () => {
+      const appContext = makeAppContext(false);
+      // Allowlist holds the WA ID; this chat is addressing them the other way.
+      appContext.isAllowedUser.mockImplementation((id: string) => id === '199887766554433');
+      const router = makeRouter();
+      router.route.mockResolvedValue('result');
+      const handle = createMessageHandler(router as unknown as CommandRouter, appContext as never);
+      const msg = makeMsg({
+        body: '#workout list',
+        from: GROUP_FROM,
+        author: '628111111111@s.whatsapp.net',
+        senderCandidates: ['628111111111', '199887766554433'],
+      });
+
+      await handle(msg as never);
+
+      expect(router.route).toHaveBeenCalledOnce();
+    });
+
+    it('still blocks when no candidate is on the allowlist', async () => {
+      const appContext = makeAppContext(false);
+      const router = makeRouter();
+      const handle = createMessageHandler(router as unknown as CommandRouter, appContext as never);
+      const msg = makeMsg({
+        body: '#workout list',
+        from: GROUP_FROM,
+        author: '628999999999@s.whatsapp.net',
+        senderCandidates: ['628999999999', '199000000000000'],
+      });
+
+      await handle(msg as never);
+
+      expect(router.route).not.toHaveBeenCalled();
+      expect(msg.getContact).not.toHaveBeenCalled();
+    });
+  });
+
   describe('3. allowed group ordinary chatter "lunch?"', () => {
-    it('skips getMentions, captureIfNew, and routing', async () => {
+    it('skips the mention lookup, captureIfNew, and routing', async () => {
       const appContext = makeAppContext(true);
       const router = makeRouter();
       const handle = createMessageHandler(router as unknown as CommandRouter, appContext as never);
@@ -107,14 +145,14 @@ describe('createMessageHandler', () => {
 
       await handle(msg as never);
 
-      expect(msg.getMentions).not.toHaveBeenCalled();
+      expect(msg.isBotMentioned).not.toHaveBeenCalled();
       expect(appContext.userService.captureIfNew).not.toHaveBeenCalled();
       expect(router.route).not.toHaveBeenCalled();
     });
   });
 
   describe('4. allowed group #workout list (no mention)', () => {
-    it('routes correctly without calling getMentions', async () => {
+    it('routes correctly without looking up mentions', async () => {
       const appContext = makeAppContext(true);
       const router = makeRouter();
       router.route.mockResolvedValue('result');
@@ -123,7 +161,7 @@ describe('createMessageHandler', () => {
 
       await handle(msg as never);
 
-      expect(msg.getMentions).not.toHaveBeenCalled();
+      expect(msg.isBotMentioned).not.toHaveBeenCalled();
       expect(router.route).toHaveBeenCalledOnce();
       const invocation = router.route.mock.calls[0][1] as CommandInvocation;
       expect(invocation.namespace).toBe('workout');
@@ -132,7 +170,7 @@ describe('createMessageHandler', () => {
   });
 
   describe('5. allowed group @628111 #workout list (with mention)', () => {
-    it('calls getMentions, strips mention, routes with correct invocation', async () => {
+    it('resolves the mention, strips it, and routes with the correct invocation', async () => {
       const appContext = makeAppContext(true);
       const router = makeRouter();
       router.route.mockResolvedValue('result');
@@ -141,12 +179,12 @@ describe('createMessageHandler', () => {
         body: '@628999 #workout list',
         from: GROUP_FROM,
         author: ALLOWED_AUTHOR,
-        getMentions: () => Promise.resolve([{ id: { _serialized: BOT_SERIALIZED } }]),
+        botMentioned: true,
       });
 
       await handle(msg as never);
 
-      expect(msg.getMentions).toHaveBeenCalledOnce();
+      expect(msg.isBotMentioned).toHaveBeenCalledOnce();
       expect(router.route).toHaveBeenCalledOnce();
       const invocation = router.route.mock.calls[0][1] as CommandInvocation;
       expect(invocation.namespace).toBe('workout');
@@ -155,7 +193,7 @@ describe('createMessageHandler', () => {
   });
 
   describe('6. allowed group @628111 hi (greeting with mention)', () => {
-    it('calls getMentions, sends greeting reply, does not route', async () => {
+    it('resolves the mention, sends a greeting reply, does not route', async () => {
       const appContext = makeAppContext(true);
       const router = makeRouter();
       const handle = createMessageHandler(router as unknown as CommandRouter, appContext as never);
@@ -163,19 +201,19 @@ describe('createMessageHandler', () => {
         body: '@628999 hi',
         from: GROUP_FROM,
         author: ALLOWED_AUTHOR,
-        getMentions: () => Promise.resolve([{ id: { _serialized: BOT_SERIALIZED } }]),
+        botMentioned: true,
       });
 
       await handle(msg as never);
 
-      expect(msg.getMentions).toHaveBeenCalledOnce();
+      expect(msg.isBotMentioned).toHaveBeenCalledOnce();
       expect(appContext.messageGateway.reply).toHaveBeenCalledOnce();
       expect(router.route).not.toHaveBeenCalled();
     });
   });
 
   describe('7. allowed DM #workout list', () => {
-    it('routes correctly without calling getMentions', async () => {
+    it('routes correctly without looking up mentions', async () => {
       const appContext = makeAppContext(true);
       const router = makeRouter();
       router.route.mockResolvedValue('result');
@@ -184,7 +222,7 @@ describe('createMessageHandler', () => {
 
       await handle(msg as never);
 
-      expect(msg.getMentions).not.toHaveBeenCalled();
+      expect(msg.isBotMentioned).not.toHaveBeenCalled();
       expect(router.route).toHaveBeenCalledOnce();
       const invocation = router.route.mock.calls[0][1] as CommandInvocation;
       expect(invocation.namespace).toBe('workout');

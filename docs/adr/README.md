@@ -8,3 +8,4 @@ Short notes on the decisions that weren't obvious, written down so future-me —
 | [0002](0002-hexagonal-modular-monolith.md) | Hexagonal architecture in a modular monolith |
 | [0003](0003-command-grammar.md) | Command grammar — positional verbs, flag options |
 | [0004](0004-prayer-reminders.md) | Prayer-time reminders — cache-aside warming and a delivery ticker |
+| [0005](0005-whatsapp-transport.md) | Baileys as the WhatsApp transport |

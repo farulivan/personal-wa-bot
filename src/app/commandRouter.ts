@@ -8,6 +8,7 @@ export type CommandContext = {
   time: TimeContext;
 };
 
+/** `mentions` holds bare phone numbers; the transport adapter builds the JIDs. */
 export type RichReply = { text: string; mentions: string[] };
 
 export type NamespaceHandler = (

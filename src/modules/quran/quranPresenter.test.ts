@@ -52,7 +52,7 @@ describe('formatReminderMessage', () => {
     expect(result.mentions).toEqual([]);
   });
 
-  it('only notReadWithStreak — text contains @phone tokens, mentions contains their JIDs', () => {
+  it('only notReadWithStreak — text contains @phone tokens, mentions contains their phone numbers', () => {
     const reminders = [
       makeReminder('628111111111', 'Ali', false, 5),
       makeReminder('628222222222', 'Budi', false, 3),
@@ -62,10 +62,10 @@ describe('formatReminderMessage', () => {
     expect(result.text).toContain('@628222222222');
     expect(result.text).not.toContain('Ali');
     expect(result.text).not.toContain('Budi');
-    expect(result.mentions).toEqual(['628111111111@c.us', '628222222222@c.us']);
+    expect(result.mentions).toEqual(['628111111111', '628222222222']);
   });
 
-  it('only notReadNoStreak — text contains @phone tokens, mentions contains their JIDs', () => {
+  it('only notReadNoStreak — text contains @phone tokens, mentions contains their phone numbers', () => {
     const reminders = [
       makeReminder('628333333333', 'Cici', false, 0),
       makeReminder('628444444444', 'Dani', false, 0),
@@ -75,7 +75,7 @@ describe('formatReminderMessage', () => {
     expect(result.text).toContain('@628444444444');
     expect(result.text).not.toContain('Cici');
     expect(result.text).not.toContain('Dani');
-    expect(result.mentions).toEqual(['628333333333@c.us', '628444444444@c.us']);
+    expect(result.mentions).toEqual(['628333333333', '628444444444']);
   });
 
   it('mixed: readToday uses plain names, unread groups use mention tokens, mentions order is withStreak then noStreak', () => {
@@ -89,16 +89,16 @@ describe('formatReminderMessage', () => {
     expect(result.text).not.toContain('@628111111111');
     expect(result.text).toContain('@628222222222');
     expect(result.text).toContain('@628333333333');
-    expect(result.mentions).toEqual(['628222222222@c.us', '628333333333@c.us']);
+    expect(result.mentions).toEqual(['628222222222', '628333333333']);
   });
 
-  it('mentions order: notReadWithStreak JIDs come before notReadNoStreak JIDs', () => {
+  it('mentions order: notReadWithStreak numbers come before notReadNoStreak numbers', () => {
     const reminders = [
       makeReminder('628555555555', 'Evan', false, 0),
       makeReminder('628666666666', 'Fara', false, 2),
     ];
     const result = formatReminderMessage(reminders);
-    expect(result.mentions).toEqual(['628666666666@c.us', '628555555555@c.us']);
+    expect(result.mentions).toEqual(['628666666666', '628555555555']);
   });
 
   it('all-read branch: returns all-read message variant, mentions empty', () => {
@@ -133,7 +133,7 @@ describe('formatReminderMessage', () => {
     expect(result.text).toContain('@628111111111');
     expect(result.text).toContain('Budi');
     expect(result.text).not.toContain('@Budi');
-    expect(result.mentions).toEqual(['628111111111@c.us']);
+    expect(result.mentions).toEqual(['628111111111']);
   });
 
   it('mixed unread noStreak: one with phone, one with null phone — only phone user in mentions', () => {
@@ -145,7 +145,7 @@ describe('formatReminderMessage', () => {
     expect(result.text).toContain('@628333333333');
     expect(result.text).toContain('Dani');
     expect(result.text).not.toContain('@Dani');
-    expect(result.mentions).toEqual(['628333333333@c.us']);
+    expect(result.mentions).toEqual(['628333333333']);
   });
 });
 

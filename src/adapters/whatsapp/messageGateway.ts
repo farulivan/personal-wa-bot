@@ -1,60 +1,28 @@
-import type pkg from 'whatsapp-web.js';
-import { debug, error } from '../../logger.js';
-
-type Message = pkg.Message;
-
-type ChatLike = {
-  sendMessage: (text: string) => Promise<unknown>;
-};
-
-type WhatsAppClientLike = {
-  sendMessage: (
-    chatId: string,
-    text: string,
-    options?: { sendSeen?: boolean; mentions?: string[] }
-  ) => Promise<unknown>;
-};
+import { error } from '../../logger.js';
+import type { IncomingMessage, MessageSenderPort } from './ports.js';
 
 export type MessageGateway = {
-  reply: (msg: Message, text: string, mentions?: string[]) => Promise<void>;
-  sendMessage: (chatId: string, text: string, mentions?: string[]) => Promise<unknown>;
+  /** `mentionNumbers` are bare phone numbers; the sender turns them into JIDs. */
+  reply: (msg: IncomingMessage, text: string, mentionNumbers?: string[]) => Promise<void>;
+  sendMessage: (chatId: string, text: string, mentionNumbers?: string[]) => Promise<unknown>;
 };
 
-export function createMessageGateway(client: WhatsAppClientLike): MessageGateway {
-  function buildOptions(
-    chatId: string,
-    mentions?: string[]
-  ): { sendSeen: boolean; mentions?: string[] } {
-    const opts: { sendSeen: boolean; mentions?: string[] } = { sendSeen: false };
-    const isGroup = chatId.endsWith('@g.us');
-    if (isGroup && mentions && mentions.length > 0) {
-      opts.mentions = mentions;
-    }
-    return opts;
-  }
+/**
+ * Replying is just sending to the chat the message came from. It stays a
+ * separate seam because the handler holds an IncomingMessage rather than a
+ * chat id, and because a failed reply is logged rather than thrown — one bad
+ * send should not take down the message loop.
+ */
+export function createMessageGateway(sender: MessageSenderPort): MessageGateway {
+  return {
+    sendMessage: (chatId, text, mentionNumbers) => sender.sendMessage(chatId, text, mentionNumbers),
 
-  function sendMessage(chatId: string, text: string, mentions?: string[]): Promise<unknown> {
-    return client.sendMessage(chatId, text, buildOptions(chatId, mentions));
-  }
-
-  async function reply(msg: Message, text: string, mentions?: string[]): Promise<void> {
-    try {
-      await client.sendMessage(msg.from, text, buildOptions(msg.from, mentions));
-    } catch (_err) {
-      debug({ method: 'client.sendMessage' }, 'send failed, trying chat.sendMessage');
+    async reply(msg, text, mentionNumbers): Promise<void> {
       try {
-        const chat = (await msg.getChat()) as ChatLike;
-        await chat.sendMessage(text); // fallbacks lose mentions — acceptable
-      } catch (_err2) {
-        debug({ method: 'chat.sendMessage' }, 'send failed, trying msg.reply');
-        try {
-          await msg.reply(text);
-        } catch (_err3) {
-          error({ chatId: msg.from }, 'all send methods failed');
-        }
+        await sender.sendMessage(msg.chatId, text, mentionNumbers);
+      } catch (err) {
+        error({ err, chatId: msg.chatId }, 'failed to send reply');
       }
-    }
-  }
-
-  return { reply, sendMessage };
+    },
+  };
 }
