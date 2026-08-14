@@ -84,12 +84,18 @@ export function createBaileysTransport(deps: BaileysTransportDeps): BaileysTrans
     return socket.groupMetadata(groupId);
   });
 
-  const senderPort = createBaileysMessageSender(async (jid, content) => {
-    if (!socket || !connected) {
-      throw new Error('whatsapp socket is not connected');
-    }
-    return socket.sendMessage(jid, content);
-  }, fetchGroupMetadata);
+  const senderPort = createBaileysMessageSender(
+    async (jid, content) => {
+      if (!socket || !connected) {
+        throw new Error('whatsapp socket is not connected');
+      }
+      return socket.sendMessage(jid, content);
+    },
+    fetchGroupMetadata,
+    // Baileys keeps its own PN↔LID mapping, populated as it discovers pairs.
+    // It is the authority when a group's participant row omits the lid.
+    (pnJid) => socket?.signalRepository?.lidMapping?.getLIDForPN(pnJid) ?? Promise.resolve(null)
+  );
 
   const membershipPort = new BaileysGroupMembershipAdapter(fetchGroupMetadata, () => socket?.user);
 

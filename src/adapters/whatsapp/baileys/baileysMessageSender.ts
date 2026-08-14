@@ -1,8 +1,15 @@
 import { normalizeUserId } from '../../../app/normalizeUserId.js';
 import type { MessageSenderPort } from '../ports.js';
-import { participantJids } from './groupMetadata.js';
+import { isLidAddressed, participantJids } from './groupMetadata.js';
 import type { FetchGroupMetadata } from './groupMetadata.js';
 import { debug, error } from '../../../logger.js';
+
+/**
+ * Looks up a member's LID from their phone JID via Baileys' own PN↔LID mapping
+ * store. Group metadata is the first source, but it does not always carry the
+ * complement — this is the fallback that keeps the mention rather than dropping it.
+ */
+export type ResolveLidForPhone = (pnJid: string) => Promise<string | null>;
 
 export type BaileysSendLike = (
   jid: string,
@@ -39,10 +46,11 @@ export type ResolvedMentions = {
 export async function resolveGroupMentions(
   fetchGroupMetadata: FetchGroupMetadata,
   groupId: string,
-  mentionNumbers: string[]
+  mentionNumbers: string[],
+  resolveLidForPhone?: ResolveLidForPhone
 ): Promise<ResolvedMentions> {
   const metadata = await fetchGroupMetadata(groupId);
-  const useLid = metadata.addressingMode === 'lid';
+  const useLid = isLidAddressed(metadata);
 
   const byPhoneNumber = new Map<string, { pnJid?: string; lidJid?: string }>();
   for (const participant of metadata.participants) {
@@ -57,7 +65,17 @@ export async function resolveGroupMentions(
 
   for (const phoneNumber of mentionNumbers) {
     const member = byPhoneNumber.get(normalizeUserId(phoneNumber));
-    const jid = useLid ? member?.lidJid : member?.pnJid;
+    let jid = useLid ? member?.lidJid : member?.pnJid;
+
+    // A lid-addressed group does not always carry the lid on the participant
+    // row. Baileys keeps its own PN↔LID mapping, so ask that before giving up.
+    if (!jid && useLid && member?.pnJid && resolveLidForPhone) {
+      try {
+        jid = (await resolveLidForPhone(member.pnJid)) ?? undefined;
+      } catch (err) {
+        debug({ err, groupId }, 'lid mapping lookup failed');
+      }
+    }
 
     if (!jid) {
       debug({ groupId, useLid }, 'dropping mention for an unresolvable group member');
@@ -84,7 +102,8 @@ export function applyMentionRewrites(text: string, rewrites: Map<string, string>
 
 export function createBaileysMessageSender(
   send: BaileysSendLike,
-  fetchGroupMetadata: FetchGroupMetadata
+  fetchGroupMetadata: FetchGroupMetadata,
+  resolveLidForPhone?: ResolveLidForPhone
 ): MessageSenderPort {
   return {
     async sendMessage(chatId: string, text: string, mentionNumbers?: string[]): Promise<unknown> {
@@ -99,7 +118,8 @@ export function createBaileysMessageSender(
         const { jids, textRewrites } = await resolveGroupMentions(
           fetchGroupMetadata,
           chatId,
-          mentionNumbers
+          mentionNumbers,
+          resolveLidForPhone
         );
 
         if (jids.length === 0) {

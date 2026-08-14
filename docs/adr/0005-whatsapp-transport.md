@@ -21,7 +21,7 @@ Choosing a release candidate deserves its own justification. The alternative was
 
 Supporting decisions:
 
-- **Session storage** stays on the Railway volume via `useMultiFileAuthState`, in `baileys_auth` — a *sibling* of the old `.wwebjs_auth`, never replacing it.
+- **Session storage** stays on the Railway volume via `useMultiFileAuthState`, in `baileys_auth` — a *sibling* of the old `.wwebjs_auth`, never replacing it. This is load-bearing, not just convenient: v7 requires the auth state to support three new key types (`lid-mapping`, `device-list`, `tctoken`), and the built-in store handles them. **Any future move to a Postgres-backed key store must implement all three**, or LID resolution breaks in ways that are quiet rather than loud.
 - **No transport feature flag.** A flag would keep both libraries in the image, so none of the memory win would be realised until it was removed. Rollback is repointing Railway at `main` instead.
 - **Reconnects are handled in-process**, on a bounded ladder, rather than by exiting on every disconnect.
 
@@ -30,6 +30,10 @@ Supporting decisions:
 The image drops from roughly 1.2 GB to roughly 250 MB and the Node heap cap from 384 to 256 MB. Chromium version pinning, the browser profile on the volume, and the puppeteer contract all stop existing.
 
 **Identity is where the risk concentrated.** WhatsApp addresses a message either by phone number or by LID and supplies the other form alongside. In Baileys 7.x that arrives as `participantAlt`/`remoteJidAlt` plus `addressingMode`; 6.x had named `senderPn`/`participantPn` fields, so any 6.x-era example reads as `undefined` against 7.x. Getting it wrong is silent: it produces a different id for the same person, which forks their history and makes the allowlist reject them. We always prefer the phone form, because that is what existing rows and `ALLOWED_NUMBERS` hold, which is why no data migration was needed.
+
+Group metadata is the first source for a member's LID, but it does not always carry one. Baileys keeps its own PN↔LID mapping at `sock.signalRepository.lidMapping`, and we fall back to it before dropping a mention.
+
+One thing improves for free: v7 stops sending message delivery acknowledgments, which WhatsApp has been banning accounts for. That is a reduction in the ban risk we are carrying, not just a neutral change.
 
 **In-process reconnects opened a hole the old design did not have.** `claimDueReminders` stamps `sent_at` before sending and never retries (ADR 0001), so a reminder claimed during a reconnect window would be destroyed rather than deferred. Both tickers now skip while the socket is down. The sholat ticker needed the same guard, since it marks a prayer fired before delivering it.
 

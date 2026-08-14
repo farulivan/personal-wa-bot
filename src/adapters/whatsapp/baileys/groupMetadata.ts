@@ -1,6 +1,10 @@
-import { isLidUser } from '@whiskeysockets/baileys';
+import { isLidUser, WAMessageAddressingMode } from '@whiskeysockets/baileys';
 
-/** The slice of Baileys' GroupParticipant we actually rely on. */
+/**
+ * The slice of Baileys' GroupParticipant we rely on. Since v7 a participant
+ * carries `id` plus exactly one complement: `phoneNumber` when `id` is a LID,
+ * `lid` when `id` is a phone number.
+ */
 export type ParticipantLike = {
   id: string;
   phoneNumber?: string;
@@ -9,10 +13,14 @@ export type ParticipantLike = {
 
 /** The slice of Baileys' GroupMetadata we actually rely on. */
 export type GroupMetadataLike = {
-  /** 'pn' or 'lid' — which form this group addresses its members by. */
+  /** Which form this group addresses its members by. */
   addressingMode?: string;
   participants: ParticipantLike[];
 };
+
+export function isLidAddressed(metadata: GroupMetadataLike): boolean {
+  return metadata.addressingMode === WAMessageAddressingMode.LID;
+}
 
 export type FetchGroupMetadata = (groupId: string) => Promise<GroupMetadataLike>;
 

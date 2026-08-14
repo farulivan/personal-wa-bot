@@ -71,15 +71,58 @@ describe('resolveGroupMentions', () => {
     expect(result.jids).toEqual([]);
   });
 
-  it('drops a lid-group member whose lid is unknown rather than guessing', async () => {
+  it('falls back to the lid mapping store when the participant row omits the lid', async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      addressingMode: 'lid',
+      participants: [{ id: PN }],
+    });
+    const resolveLid = vi.fn().mockResolvedValue(LID);
+
+    const result = await resolveGroupMentions(fetch, GROUP, ['628111111111'], resolveLid);
+
+    expect(resolveLid).toHaveBeenCalledWith(PN);
+    expect(result.jids).toEqual([LID]);
+    expect(result.textRewrites.get('628111111111')).toBe('199887766554433');
+  });
+
+  it('drops the mention when even the lid mapping store has nothing', async () => {
     const fetch = vi.fn().mockResolvedValue({
       addressingMode: 'lid',
       participants: [{ id: PN }],
     });
 
-    const result = await resolveGroupMentions(fetch, GROUP, ['628111111111']);
+    const result = await resolveGroupMentions(
+      fetch,
+      GROUP,
+      ['628111111111'],
+      vi.fn().mockResolvedValue(null)
+    );
 
     expect(result.jids).toEqual([]);
+  });
+
+  it('drops the mention rather than throwing when the lid lookup fails', async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      addressingMode: 'lid',
+      participants: [{ id: PN }],
+    });
+
+    const result = await resolveGroupMentions(
+      fetch,
+      GROUP,
+      ['628111111111'],
+      vi.fn().mockRejectedValue(new Error('mapping store down'))
+    );
+
+    expect(result.jids).toEqual([]);
+  });
+
+  it('does not consult the lid mapping store in a pn-addressed group', async () => {
+    const resolveLid = vi.fn();
+
+    await resolveGroupMentions(pnGroup(), GROUP, ['628111111111'], resolveLid);
+
+    expect(resolveLid).not.toHaveBeenCalled();
   });
 });
 

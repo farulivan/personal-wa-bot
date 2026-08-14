@@ -1,4 +1,4 @@
-import { isLidUser, jidNormalizedUser } from '@whiskeysockets/baileys';
+import { isLidUser, jidNormalizedUser, WAMessageAddressingMode } from '@whiskeysockets/baileys';
 import type { WAMessageKey } from '@whiskeysockets/baileys';
 import { normalizeUserId } from '../../../app/normalizeUserId.js';
 
@@ -26,10 +26,13 @@ export type SenderIdentity = {
 export function resolveSenderIdentity(key: WAMessageKey, isGroup: boolean): SenderIdentity {
   const rawJid = (isGroup ? key.participant : key.remoteJid) ?? '';
   const altJid = (isGroup ? key.participantAlt : key.remoteJidAlt) || undefined;
-  const addressingMode = key.addressingMode ?? (isLidUser(rawJid) ? 'lid' : 'pn');
+  const addressingMode =
+    key.addressingMode ??
+    (isLidUser(rawJid) ? WAMessageAddressingMode.LID : WAMessageAddressingMode.PN);
+  const isLidAddressed = addressingMode === WAMessageAddressingMode.LID;
 
-  const pnJid = addressingMode === 'lid' ? altJid : rawJid || undefined;
-  const lidJid = addressingMode === 'lid' ? rawJid || undefined : altJid;
+  const pnJid = isLidAddressed ? altJid : rawJid || undefined;
+  const lidJid = isLidAddressed ? rawJid || undefined : altJid;
 
   return {
     pnJid: pnJid ? jidNormalizedUser(pnJid) : undefined,
