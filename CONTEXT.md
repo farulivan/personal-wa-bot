@@ -6,7 +6,7 @@ What this project is, in plain terms, and the words I use for things. If you're 
 
 A WhatsApp bot my family uses to track daily habits and get reminders. We talk to it with short `#` commands in our normal WhatsApp chats — there's no separate app to open. It tracks workouts, Quran reading, and prayer times, posts a couple of daily and nightly group digests, and delivers personal reminders.
 
-It runs as a single Node process against one PostgreSQL database, deployed on Railway.
+It runs as a single Node process against one PostgreSQL database, deployed on Railway. It talks to WhatsApp over a WebSocket via Baileys — no browser involved (see [ADR 0005](docs/adr/0005-whatsapp-transport.md)).
 
 ## The modules
 

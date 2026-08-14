@@ -23,7 +23,7 @@ The codebase follows a **Hexagonal Architecture** (Ports & Adapters) organized a
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  Infrastructure Layer                                     │
-│  whatsapp-web.js · PostgreSQL · setInterval · HTTP        │
+│  Baileys · PostgreSQL · setInterval · HTTP                │
 │                                                           │
 │  ┌────────────────────────────────────────────────────┐  │
 │  │  Application Layer                                  │  │
