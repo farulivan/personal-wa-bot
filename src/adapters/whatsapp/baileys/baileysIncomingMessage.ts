@@ -2,7 +2,11 @@ import { normalizeMessageContent } from '@whiskeysockets/baileys';
 import type { WAMessage } from '@whiskeysockets/baileys';
 import { normalizeUserId } from '../../../app/normalizeUserId.js';
 import type { IncomingMessage } from '../ports.js';
-import { resolveSenderIdentity, toDbUserId } from './resolveSenderIdentity.js';
+import {
+  resolveSenderIdentity,
+  toDbUserId,
+  toDbUserIdCandidates,
+} from './resolveSenderIdentity.js';
 
 const GROUP_SUFFIX = '@g.us';
 
@@ -58,6 +62,7 @@ export function toIncomingMessage(
     chatId,
     isGroup,
     senderId,
+    senderCandidates: toDbUserIdCandidates(identity),
     text,
     getContact: async () => ({
       phoneNumber: identity.pnJid ? normalizeUserId(identity.pnJid) : undefined,

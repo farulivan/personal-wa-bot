@@ -15,7 +15,14 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
 
       reqLog.debug({ chatId, sender, isGroup }, 'message received');
 
-      if (!appContext.isAllowedUser(sender)) {
+      // Match on any form this sender is known by. The two forms are the same
+      // WhatsApp account, so this is not a widening of the allowlist — it just
+      // stops a chat switching to LID addressing from locking everyone out.
+      const isAllowed = msg.senderCandidates.some((candidate) =>
+        appContext.isAllowedUser(candidate)
+      );
+
+      if (!isAllowed) {
         reqLog.debug('blocked by auth guard');
         return;
       }

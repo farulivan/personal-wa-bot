@@ -110,7 +110,7 @@ describe('toIncomingMessage — group messages', () => {
     expect(msg?.senderId).toBe('628111111111');
   });
 
-  it('recovers the phone-form id in a lid-addressed group', () => {
+  it('keys a lid-addressed group message by the lid, matching stored rows', () => {
     const msg = toIncomingMessage(
       makeMessage({
         remoteJid: GROUP,
@@ -121,8 +121,11 @@ describe('toIncomingMessage — group messages', () => {
       BOT
     );
 
-    // The db and ALLOWED_NUMBERS hold the phone form; a lid here would go deaf.
-    expect(msg?.senderId).toBe('628111111111');
+    // users.id and ALLOWED_NUMBERS hold the WA ID that whatsapp-web.js wrote
+    // through from msg.author. Using the phone number here would orphan every
+    // existing row and make the allowlist reject the whole family.
+    expect(msg?.senderId).toBe('199887766554433');
+    expect(msg?.senderCandidates).toEqual(['199887766554433', '628111111111']);
   });
 
   it('falls back to the lid when a lid group withholds the phone number', async () => {

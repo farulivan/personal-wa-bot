@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { resolveSenderIdentity, toDbUserId } from './resolveSenderIdentity.js';
+import {
+  resolveSenderIdentity,
+  toDbUserId,
+  toDbUserIdCandidates,
+} from './resolveSenderIdentity.js';
 import type { WAMessageKey } from '@whiskeysockets/baileys';
 
 const PN = '628111111111@s.whatsapp.net';
@@ -110,19 +114,24 @@ describe('resolveSenderIdentity — group messages', () => {
 });
 
 describe('toDbUserId', () => {
-  it('prefers the phone form, because that is what existing rows hold', () => {
-    expect(toDbUserId({ pnJid: PN, lidJid: LID, rawJid: LID })).toBe('628111111111');
+  it('uses the addressed form, not the phone number, in a lid chat', () => {
+    // ALLOWED_NUMBERS and users.id hold the WA ID, so the lid is the match.
+    expect(toDbUserId({ pnJid: PN, lidJid: LID, rawJid: LID })).toBe('199887766554433');
   });
 
-  it('falls back to the lid when no phone number is available', () => {
-    expect(toDbUserId({ lidJid: LID, rawJid: LID })).toBe('199887766554433');
+  it('uses the phone number when that is what addressed the sender', () => {
+    expect(toDbUserId({ pnJid: PN, lidJid: LID, rawJid: PN })).toBe('628111111111');
   });
 
-  it('falls back to the raw jid when neither form resolved', () => {
+  it('falls back to a resolved form when there is no raw jid', () => {
+    expect(toDbUserId({ lidJid: LID, rawJid: '' })).toBe('199887766554433');
+  });
+
+  it('normalizes a legacy @c.us raw jid', () => {
     expect(toDbUserId({ rawJid: '628111111111@c.us' })).toBe('628111111111');
   });
 
-  it('matches what whatsapp-web.js produced for the same person', () => {
+  it('reproduces the id whatsapp-web.js stored for a lid-addressed group', () => {
     const viaBaileys = toDbUserId(
       resolveSenderIdentity(
         key({
@@ -135,7 +144,24 @@ describe('toDbUserId', () => {
       )
     );
 
-    // whatsapp-web.js gave us "628111111111@c.us" -> "628111111111"
-    expect(viaBaileys).toBe('628111111111');
+    // whatsapp-web.js wrote msg.author through verbatim: "…@lid" -> the lid.
+    expect(viaBaileys).toBe('199887766554433');
+  });
+});
+
+describe('toDbUserIdCandidates', () => {
+  it('lists the addressed form first, then the alternate', () => {
+    expect(toDbUserIdCandidates({ pnJid: PN, lidJid: LID, rawJid: LID })).toEqual([
+      '199887766554433',
+      '628111111111',
+    ]);
+  });
+
+  it('deduplicates when the forms collapse to one id', () => {
+    expect(toDbUserIdCandidates({ pnJid: PN, rawJid: PN })).toEqual(['628111111111']);
+  });
+
+  it('drops empty forms', () => {
+    expect(toDbUserIdCandidates({ rawJid: '' })).toEqual([]);
   });
 });

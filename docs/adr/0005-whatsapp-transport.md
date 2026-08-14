@@ -29,7 +29,13 @@ Supporting decisions:
 
 The image drops from roughly 1.2 GB to roughly 250 MB and the Node heap cap from 384 to 256 MB. Chromium version pinning, the browser profile on the volume, and the puppeteer contract all stop existing.
 
-**Identity is where the risk concentrated.** WhatsApp addresses a message either by phone number or by LID and supplies the other form alongside. In Baileys 7.x that arrives as `participantAlt`/`remoteJidAlt` plus `addressingMode`; 6.x had named `senderPn`/`participantPn` fields, so any 6.x-era example reads as `undefined` against 7.x. Getting it wrong is silent: it produces a different id for the same person, which forks their history and makes the allowlist reject them. We always prefer the phone form, because that is what existing rows and `ALLOWED_NUMBERS` hold, which is why no data migration was needed.
+**Identity is where the risk concentrated.** WhatsApp addresses a message either by phone number or by LID and supplies the other form alongside. In Baileys 7.x that arrives as `participantAlt`/`remoteJidAlt` plus `addressingMode`; 6.x had named `senderPn`/`participantPn` fields, so any 6.x-era example reads as `undefined` against 7.x. Getting it wrong is silent: it produces a different id for the same person, which forks their history and makes the allowlist reject them.
+
+The rule is: **use the form WhatsApp addressed the sender by**, not the phone number. whatsapp-web.js passed `msg.author` straight through, so `users.id` holds whatever WhatsApp used — and for these chats that is the LID, not the phone number. The evidence was in the code all along: the original `normalizeUserId` stripped `@lid`, which it would only need to do if LIDs were already arriving. `phone_number` is separate metadata from the address book and does not match `id`.
+
+We got this backwards at first, on the assumption that `ALLOWED_NUMBERS` held phone numbers. It does not — it holds WA IDs. Checking the actual table before cutover is what caught it; had it shipped, the allowlist would have rejected every member and every history would have looked empty. **Verify against the data, not against what the column is named.**
+
+Because a chat can flip between phone-number and LID addressing as WhatsApp migrates, `IncomingMessage` also carries `senderCandidates` — every form the sender is known by — and identity checks match on any of them. Both forms belong to the same WhatsApp account, so this is not a widening of the allowlist.
 
 Group metadata is the first source for a member's LID, but it does not always carry one. Baileys keeps its own PN↔LID mapping at `sock.signalRepository.lidMapping`, and we fall back to it before dropping a mention.
 

@@ -42,10 +42,29 @@ export function resolveSenderIdentity(key: WAMessageKey, isGroup: boolean): Send
 }
 
 /**
- * The id we store and match against. Always prefers the phone form: that is
- * what whatsapp-web.js gave us, so it is what existing rows and
- * ALLOWED_NUMBERS hold.
+ * The id we store and match against: the form WhatsApp actually addressed the
+ * sender by, which in a lid-addressed chat is their LID, not their phone number.
+ *
+ * This is compatibility, not preference. whatsapp-web.js passed `msg.author`
+ * through verbatim, so that raw form is what `users.id` and `ALLOWED_NUMBERS`
+ * already hold — which is why `normalizeUserId` has always had to strip `@lid`.
+ * Deriving the id any other way orphans every existing row and makes the
+ * allowlist reject people it used to admit.
  */
 export function toDbUserId(identity: SenderIdentity): string {
-  return normalizeUserId(identity.pnJid ?? identity.lidJid ?? identity.rawJid);
+  return normalizeUserId(identity.rawJid || identity.pnJid || identity.lidJid || '');
+}
+
+/**
+ * Every id this sender could be known by, most-likely first. Lets a caller
+ * find an existing row even if WhatsApp has since switched the chat between
+ * phone-number and LID addressing.
+ */
+export function toDbUserIdCandidates(identity: SenderIdentity): string[] {
+  const candidates = [identity.rawJid, identity.pnJid, identity.lidJid]
+    .filter((jid): jid is string => Boolean(jid))
+    .map(normalizeUserId)
+    .filter((id) => id !== '');
+
+  return Array.from(new Set(candidates));
 }

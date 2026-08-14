@@ -10,19 +10,23 @@ function makeMsg(overrides: {
   from: string;
   author?: string;
   botMentioned?: boolean;
+  senderCandidates?: string[];
 }): {
   chatId: string;
   isGroup: boolean;
   senderId: string;
+  senderCandidates: string[];
   text: string;
   getContact: ReturnType<typeof vi.fn>;
   isBotMentioned: ReturnType<typeof vi.fn>;
 } {
   const chatId = overrides.from;
+  const senderId = (overrides.author ?? chatId).replace(/@(c\.us|lid|g\.us)$/, '');
   return {
     chatId,
     isGroup: chatId.endsWith('@g.us'),
-    senderId: (overrides.author ?? chatId).replace(/@(c\.us|lid|g\.us)$/, ''),
+    senderId,
+    senderCandidates: overrides.senderCandidates ?? [senderId],
     text: overrides.body,
     getContact: vi.fn().mockResolvedValue({
       phoneNumber: '628111',
@@ -91,6 +95,44 @@ describe('createMessageHandler', () => {
       expect(appContext.userService.captureIfNew).not.toHaveBeenCalled();
       expect(msg.isBotMentioned).not.toHaveBeenCalled();
       expect(router.route).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('2b. sender allowed under an alternate identity form', () => {
+    it('admits them when any candidate is on the allowlist', async () => {
+      const appContext = makeAppContext(false);
+      // Allowlist holds the WA ID; this chat is addressing them the other way.
+      appContext.isAllowedUser.mockImplementation((id: string) => id === '199887766554433');
+      const router = makeRouter();
+      router.route.mockResolvedValue('result');
+      const handle = createMessageHandler(router as unknown as CommandRouter, appContext as never);
+      const msg = makeMsg({
+        body: '#workout list',
+        from: GROUP_FROM,
+        author: '628111111111@s.whatsapp.net',
+        senderCandidates: ['628111111111', '199887766554433'],
+      });
+
+      await handle(msg as never);
+
+      expect(router.route).toHaveBeenCalledOnce();
+    });
+
+    it('still blocks when no candidate is on the allowlist', async () => {
+      const appContext = makeAppContext(false);
+      const router = makeRouter();
+      const handle = createMessageHandler(router as unknown as CommandRouter, appContext as never);
+      const msg = makeMsg({
+        body: '#workout list',
+        from: GROUP_FROM,
+        author: '628999999999@s.whatsapp.net',
+        senderCandidates: ['628999999999', '199000000000000'],
+      });
+
+      await handle(msg as never);
+
+      expect(router.route).not.toHaveBeenCalled();
+      expect(msg.getContact).not.toHaveBeenCalled();
     });
   });
 

@@ -11,6 +11,7 @@ function makeFakeMessage(chatId: string): IncomingMessage {
     chatId,
     isGroup: chatId.endsWith('@g.us'),
     senderId: '628111',
+    senderCandidates: ['628111'],
     text: 'irrelevant',
     getContact: vi.fn().mockResolvedValue({}),
     isBotMentioned: vi.fn().mockResolvedValue(false),

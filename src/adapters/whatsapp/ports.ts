@@ -36,6 +36,13 @@ export type IncomingMessage = {
   isGroup: boolean;
   /** Already normalized to the bare id used as our db user id. */
   senderId: string;
+  /**
+   * Every id this sender could be known by, `senderId` first. WhatsApp is
+   * migrating chats from phone-number to LID addressing, and a chat that flips
+   * changes which form arrives — so identity checks match on any of these
+   * rather than going deaf to someone we already know.
+   */
+  senderCandidates: string[];
   text: string;
   getContact: () => Promise<IncomingContact>;
   isBotMentioned: () => Promise<boolean>;
