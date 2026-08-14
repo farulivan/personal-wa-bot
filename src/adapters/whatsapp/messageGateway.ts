@@ -10,30 +10,35 @@ type WhatsAppClientLike = {
 };
 
 export type MessageGateway = {
-  reply: (msg: IncomingMessage, text: string, mentions?: string[]) => Promise<void>;
-  sendMessage: (chatId: string, text: string, mentions?: string[]) => Promise<unknown>;
+  /** `mentionNumbers` are bare phone numbers; this adapter turns them into JIDs. */
+  reply: (msg: IncomingMessage, text: string, mentionNumbers?: string[]) => Promise<void>;
+  sendMessage: (chatId: string, text: string, mentionNumbers?: string[]) => Promise<unknown>;
 };
 
 export function createMessageGateway(client: WhatsAppClientLike): MessageGateway {
   function buildOptions(
     chatId: string,
-    mentions?: string[]
+    mentionNumbers?: string[]
   ): { sendSeen: boolean; mentions?: string[] } {
     const opts: { sendSeen: boolean; mentions?: string[] } = { sendSeen: false };
     const isGroup = chatId.endsWith('@g.us');
-    if (isGroup && mentions && mentions.length > 0) {
-      opts.mentions = mentions;
+    if (isGroup && mentionNumbers && mentionNumbers.length > 0) {
+      opts.mentions = mentionNumbers.map((phoneNumber) => `${phoneNumber}@c.us`);
     }
     return opts;
   }
 
-  function sendMessage(chatId: string, text: string, mentions?: string[]): Promise<unknown> {
-    return client.sendMessage(chatId, text, buildOptions(chatId, mentions));
+  function sendMessage(chatId: string, text: string, mentionNumbers?: string[]): Promise<unknown> {
+    return client.sendMessage(chatId, text, buildOptions(chatId, mentionNumbers));
   }
 
-  async function reply(msg: IncomingMessage, text: string, mentions?: string[]): Promise<void> {
+  async function reply(
+    msg: IncomingMessage,
+    text: string,
+    mentionNumbers?: string[]
+  ): Promise<void> {
     try {
-      await client.sendMessage(msg.chatId, text, buildOptions(msg.chatId, mentions));
+      await client.sendMessage(msg.chatId, text, buildOptions(msg.chatId, mentionNumbers));
       return;
     } catch (_err) {
       debug({ method: 'client.sendMessage' }, 'send failed, trying fallbacks');

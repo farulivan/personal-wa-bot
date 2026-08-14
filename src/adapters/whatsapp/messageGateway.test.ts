@@ -24,16 +24,16 @@ describe('MessageGateway.sendMessage — group-chat guard', () => {
   it('strips mentions for direct chat (non-@g.us)', async () => {
     const { gateway, sendMessageFn } = makeGateway();
 
-    await gateway.sendMessage('123@c.us', 'hi', ['456@c.us']);
+    await gateway.sendMessage('123@c.us', 'hi', ['456']);
 
     expect(sendMessageFn).toHaveBeenCalledWith('123@c.us', 'hi', { sendSeen: false });
     expect(sendMessageFn.mock.calls[0][2]).not.toHaveProperty('mentions');
   });
 
-  it('passes mentions for group chat (@g.us)', async () => {
+  it('builds mention JIDs from phone numbers for group chat (@g.us)', async () => {
     const { gateway, sendMessageFn } = makeGateway();
 
-    await gateway.sendMessage('120-1@g.us', 'hi', ['456@c.us']);
+    await gateway.sendMessage('120-1@g.us', 'hi', ['456']);
 
     expect(sendMessageFn).toHaveBeenCalledWith('120-1@g.us', 'hi', {
       sendSeen: false,
@@ -65,17 +65,17 @@ describe('MessageGateway.reply — group-chat guard', () => {
     const { gateway, sendMessageFn } = makeGateway();
     const msg = makeFakeMessage('123@c.us');
 
-    await gateway.reply(msg as never, 'hi', ['456@c.us']);
+    await gateway.reply(msg as never, 'hi', ['456']);
 
     expect(sendMessageFn).toHaveBeenCalledWith('123@c.us', 'hi', { sendSeen: false });
     expect(sendMessageFn.mock.calls[0][2]).not.toHaveProperty('mentions');
   });
 
-  it('passes mentions for group chat (@g.us)', async () => {
+  it('builds mention JIDs from phone numbers for group chat (@g.us)', async () => {
     const { gateway, sendMessageFn } = makeGateway();
     const msg = makeFakeMessage('120-1@g.us');
 
-    await gateway.reply(msg as never, 'hi', ['456@c.us']);
+    await gateway.reply(msg as never, 'hi', ['456']);
 
     expect(sendMessageFn).toHaveBeenCalledWith('120-1@g.us', 'hi', {
       sendSeen: false,

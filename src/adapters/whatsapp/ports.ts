@@ -49,5 +49,10 @@ export interface GroupMembershipPort {
 }
 
 export interface MessageSenderPort {
-  sendMessage(chatId: string, text: string, mentions?: string[]): Promise<unknown>;
+  /**
+   * `mentionNumbers` are bare phone numbers, not JIDs — the adapter builds
+   * whatever form its transport needs. Mentions only apply to group chats and
+   * are ignored elsewhere.
+   */
+  sendMessage(chatId: string, text: string, mentionNumbers?: string[]): Promise<unknown>;
 }

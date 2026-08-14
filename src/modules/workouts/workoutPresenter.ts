@@ -2,7 +2,7 @@ import type { WorkoutEntry } from './infra/workoutRepository.js';
 import type { StreakInfo } from '../../shared/streaks.js';
 import { UNDO_WINDOW_MS } from './workoutService.js';
 import type { WorkoutLeaderboardEntry } from './workoutService.js';
-import { formatMentionTag, phoneToMentionJid } from '../../shared/mentions.js';
+import { formatMentionTag } from '../../shared/mentions.js';
 
 const WORKOUT_LEADERBOARD_LIMIT = 10;
 
@@ -210,7 +210,7 @@ function formatStreakAtRiskWarning(
   const tagged = atRisk
     .map((e) => (isMentionable(e) ? formatMentionTag(e.phoneNumber) : e.user))
     .join(', ');
-  const mentions = atRisk.filter(isMentionable).map((e) => phoneToMentionJid(e.phoneNumber));
+  const mentions = atRisk.filter(isMentionable).map((e) => e.phoneNumber);
 
   return {
     text: `Heads up ${tagged}: workout today or your streak ends tomorrow.`,

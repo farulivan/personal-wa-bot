@@ -22,7 +22,7 @@ describe('formatSchedulerReminderMessage', () => {
   const reminderText = 'Submit the report';
   const localDateTimeLabel = '2026-05-06 10:30';
 
-  it('group + phone present → text contains @phone token (not the name), mentions has the JID', () => {
+  it('group + phone present → text contains @phone token (not the name), mentions has the phone number', () => {
     const result = formatSchedulerReminderMessage(
       phoneNumber,
       name,
@@ -33,7 +33,7 @@ describe('formatSchedulerReminderMessage', () => {
 
     expect(result.text).toContain('@6281234567890');
     expect(result.text).not.toContain(name);
-    expect(result.mentions).toEqual(['6281234567890@c.us']);
+    expect(result.mentions).toEqual(['6281234567890']);
   });
 
   it('group + phone present → text contains the full reminder body and label', () => {

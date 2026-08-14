@@ -1,6 +1,6 @@
 import type { ReminderListRow } from './infra/remindRepository.js';
 import { REMIND_UNDO_WINDOW_MS } from './remindService.js';
-import { formatMentionTag, phoneToMentionJid } from '../../shared/mentions.js';
+import { formatMentionTag } from '../../shared/mentions.js';
 
 const REMINDER_TEXT_MAX_CHARS = 200;
 const REMINDER_ACTIVE_LIMIT = 50;
@@ -137,7 +137,7 @@ export function formatSchedulerReminderMessage(
       `Schedule: ${localDateTimeLabel} (GMT+7)\n\n` +
       `${reminderText}\n\n` +
       `Hope this helps you stay on track.`,
-    mentions: useMention ? [phoneToMentionJid(phoneNumber)] : [],
+    mentions: useMention ? [phoneNumber] : [],
   };
 }
 

@@ -4,7 +4,7 @@ import type { UserRepository } from '../users/infra/userRepository.js';
 import { toLocalDateTimeLabel, formatSchedulerReminderMessage } from './remindPresenter.js';
 
 type ReminderClientLike = {
-  sendMessage: (chatId: string, text: string, mentions?: string[]) => Promise<unknown>;
+  sendMessage: (chatId: string, text: string, mentionNumbers?: string[]) => Promise<unknown>;
 };
 
 type StartReminderSchedulerDeps = {
