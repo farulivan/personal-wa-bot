@@ -62,3 +62,15 @@ Scanning the Baileys QR links a **new** device; it does not unlink the whatsapp-
 - **Do not call `sock.logout()`** — it unlinks the Baileys device, and it is exactly the kind of call that ends up in a cleanup script.
 
 Within about two weeks of the last whatsapp-web.js connection, rolling back is repointing Railway at `main`: no QR, no data change. After that, add one QR re-scan.
+
+There is no schema change either way — the migration adds no tables and no columns, so there is nothing to apply going forward and nothing to undo coming back.
+
+### One thing to avoid while the soak is running
+
+**Keep `#remind` and `#sholat reminder on` to group chats until this merges to `main`.**
+
+The two columns that persist a chat id — `reminders.target_chat_id` and `sholat_reminder_settings.chat_id` — hold whatever the transport calls the chat. Groups are `@g.us` under both libraries, so they are byte-identical and safe. Direct messages are not: whatsapp-web.js writes `@c.us`, Baileys writes `@s.whatsapp.net`.
+
+That difference only bites in one direction. Baileys reads the old `@c.us` rows fine, because `toSendJid` coerces them. whatsapp-web.js cannot read `@s.whatsapp.net`, so a DM row written during the soak would fail to send if we rolled back. Nothing else is affected — no tracking history is keyed by chat id — and re-running the command fixes it. Avoiding DM scheduling for the soak is simply cheaper than carrying code to paper over it.
+
+Once `main` has the migration and rollback is no longer a consideration, the restriction goes away.
