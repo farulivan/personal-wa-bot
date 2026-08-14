@@ -51,6 +51,7 @@ async function main() {
 
   const transport = createBaileysTransport({
     authDir: appConfig.waAuthDir,
+    logLevel: appConfig.waLogLevel,
     onMessage: async (msg) => {
       await handleMessage?.(msg);
     },

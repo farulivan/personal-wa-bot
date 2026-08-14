@@ -32,6 +32,7 @@ export type BaileysTransport = {
 
 export type BaileysTransportDeps = {
   authDir: string;
+  logLevel?: string;
   onMessage: (msg: IncomingMessage) => Promise<void>;
   onReady: () => void;
 };
@@ -55,7 +56,7 @@ function wipeAuthDir(authDir: string): void {
 }
 
 export function createBaileysTransport(deps: BaileysTransportDeps): BaileysTransport {
-  const waLogger = rootLogger.child({ component: 'baileys' });
+  const waLogger = rootLogger.child({ component: 'baileys' }, { level: deps.logLevel ?? 'warn' });
 
   let socket: WASocket | undefined;
   let connected = false;
