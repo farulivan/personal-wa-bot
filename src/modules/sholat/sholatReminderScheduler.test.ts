@@ -44,6 +44,7 @@ type TickerOpts = {
   chats: string[];
   sender: FakeSender;
   warmCache?: () => Promise<void>;
+  isConnected?: () => boolean;
 };
 
 function makeTicker(opts: TickerOpts) {
@@ -53,6 +54,7 @@ function makeTicker(opts: TickerOpts) {
     senderPort: opts.sender,
     timezoneOffsetMinutes: TZ,
     warmCache: opts.warmCache ?? (async () => {}),
+    isConnected: opts.isConnected,
   });
 }
 
@@ -70,6 +72,39 @@ describe('SholatReminderTicker', () => {
     expect(sender.sent.map((s) => s.chatId)).toEqual(['a@c.us', 'b@g.us']);
     expect(sender.sent[0].text).toContain('Dzuhur');
     expect(sender.sent[0].text).toContain('11:57');
+  });
+
+  it('skips the tick entirely while whatsapp is disconnected', async () => {
+    const sender = new FakeSender();
+    const ticker = makeTicker({
+      cache: { today: makeToday() },
+      chats: ['a@c.us'],
+      sender,
+      isConnected: () => false,
+    });
+
+    await ticker.tick(dzuhurNow);
+
+    expect(sender.sent).toEqual([]);
+  });
+
+  it('still delivers the prayer once the connection is back', async () => {
+    const sender = new FakeSender();
+    let connected = false;
+    const ticker = makeTicker({
+      cache: { today: makeToday() },
+      chats: ['a@c.us'],
+      sender,
+      isConnected: () => connected,
+    });
+
+    // A prayer is marked fired before it is sent, so a tick that ran while
+    // disconnected would otherwise burn today's reminder without delivering it.
+    await ticker.tick(dzuhurNow);
+    connected = true;
+    await ticker.tick(dzuhurNow);
+
+    expect(sender.sent.map((s) => s.chatId)).toEqual(['a@c.us']);
   });
 
   it('does not send the same prayer twice within the day', async () => {

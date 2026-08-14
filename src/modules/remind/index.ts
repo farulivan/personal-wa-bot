@@ -16,6 +16,7 @@ export type RemindModuleDeps = {
   timezoneOffsetMinutes: number;
   remindListLimit: number;
   remindActiveLimit: number;
+  isConnected?: () => boolean;
 };
 
 export type RemindModuleRegistration = {
@@ -39,6 +40,7 @@ export function registerRemindModule(deps: RemindModuleDeps): RemindModuleRegist
       remindRepository: deps.remindRepository,
       userRepository: deps.userRepository,
       timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+      isConnected: deps.isConnected,
     });
 
   return { controller, jobs: [], startScheduler };

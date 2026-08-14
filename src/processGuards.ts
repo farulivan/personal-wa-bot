@@ -20,11 +20,11 @@ const defaultDeps: RestartDeps = {
  * platform (Railway) restarts from a known-good state instead of leaving a
  * dead process.
  *
- * whatsapp-web.js throws inside un-awaited event handlers — it re-injects on
- * every page navigation, and a logout navigation makes that re-inject fail
- * with "Failed to add page binding ... already exists". Node surfaces it as an
- * unhandledRejection with no local catch point, so the process-level handler
- * is the only place we can react.
+ * This exists because a library once threw inside an un-awaited event handler
+ * on logout, which Node surfaced as an unhandledRejection with no local catch
+ * point and no restart — the process just died. The transport has changed
+ * since, but the class of failure has not: a process-level guard is the only
+ * place some async throws can be caught at all.
  *
  * See docs/incidents/2026-07-25-whatsapp-logout-inject-crash.md.
  */
@@ -46,12 +46,10 @@ export function installProcessGuards(deps: RestartDeps = defaultDeps): void {
 }
 
 /**
- * A WhatsApp disconnect (including a logout) is expected background noise for
- * an unofficial client. Exit non-zero so the platform restarts cleanly: on a
- * still-valid session LocalAuth reconnects with no QR; on a real logout the QR
- * prints to logs for a manual scan. We deliberately do not call
- * `client.destroy()` here — during a logout that can drive more navigations,
- * more re-injects, and more throws.
+ * The end of the reconnect ladder: called only once the transport has decided
+ * a disconnect is not worth retrying in-process. Exit non-zero so the platform
+ * restarts cleanly — a still-valid session reconnects with no QR, and a real
+ * logout prints one to the logs for a manual scan.
  */
 export function handleDisconnect(reason: unknown, deps: RestartDeps = defaultDeps): void {
   deps.log({ reason: String(reason) }, 'client disconnected — exiting for restart');

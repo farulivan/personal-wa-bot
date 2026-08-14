@@ -1,6 +1,13 @@
-import type { GroupMemberIdentity } from './waId.js';
-
-export type { GroupMemberIdentity };
+/**
+ * One group member, in every id form we might match them by. WhatsApp
+ * addresses people by phone number or by LID depending on the group, and our
+ * stored rows only ever hold one of them — so `primaryId` is the phone form
+ * where it exists, and `aliases` carries every form for lookups.
+ */
+export type GroupMemberIdentity = {
+  primaryId: string;
+  aliases: string[];
+};
 
 /**
  * Best-effort identity details for user capture. Every field is optional
@@ -14,21 +21,13 @@ export type IncomingContact = {
 };
 
 /**
- * An alternative send path, tried when the primary send fails. `name` labels
- * the path in logs. Transports that only have one way to send omit these.
- */
-export type ReplyFallback = {
-  name: string;
-  send: (text: string) => Promise<unknown>;
-};
-
-/**
  * A received text message in terms the app layer can reason about without
  * knowing which WhatsApp library produced it.
  *
  * `getContact` and `isBotMentioned` are deferred rather than eager: the
  * handler resolves them only after the auth guard and the group filter have
- * passed, and under whatsapp-web.js each one costs a puppeteer round trip.
+ * passed, so a transport that has to go and fetch them does not pay for
+ * messages the bot ignores.
  */
 export type IncomingMessage = {
   /** Chat the message arrived in; also the reply target. */
@@ -40,7 +39,6 @@ export type IncomingMessage = {
   text: string;
   getContact: () => Promise<IncomingContact>;
   isBotMentioned: () => Promise<boolean>;
-  replyFallbacks?: ReplyFallback[];
 };
 
 export interface GroupMembershipPort {
