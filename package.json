@@ -31,6 +31,7 @@
   "license": "MIT",
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
     "drizzle-orm": "^0.45.2",
     "pino": "^10.3.1",
     "postgres": "^3.4.8",
