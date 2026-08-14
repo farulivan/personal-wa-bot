@@ -1,8 +1,11 @@
 /**
  * One group member, in every id form we might match them by. WhatsApp
- * addresses people by phone number or by LID depending on the group, and our
- * stored rows only ever hold one of them — so `primaryId` is the phone form
- * where it exists, and `aliases` carries every form for lookups.
+ * addresses people by phone number or by LID depending on the chat, so
+ * `primaryId` is the form this group addresses them by — matching what we
+ * store as a user id — while `aliases` carries every form.
+ *
+ * Always match on `aliases`. A chat can switch addressing mode, and a stored
+ * row keyed under the older form would otherwise stop resolving.
  */
 export type GroupMemberIdentity = {
   primaryId: string;

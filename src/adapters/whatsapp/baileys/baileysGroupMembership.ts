@@ -26,7 +26,10 @@ export function toGroupMemberIdentity(participant: ParticipantLike): GroupMember
   }
 
   return {
-    primaryId: normalizeUserId(pnJid ?? lidJid!),
+    // participant.id is the form this group addresses members by, which is the
+    // same form our db rows are keyed on. Matching is done on aliases, but
+    // keeping primaryId consistent with toDbUserId avoids a trap later.
+    primaryId: normalizeUserId(participant.id) || aliases[0],
     aliases,
   };
 }

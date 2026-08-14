@@ -32,8 +32,16 @@ describe('participantJids', () => {
 });
 
 describe('toGroupMemberIdentity', () => {
-  it('prefers the phone form as primary and keeps both as aliases', () => {
+  it('uses the addressed form as primary and keeps both as aliases', () => {
+    // A lid-addressed group keys members by lid, and so do our user rows.
     expect(toGroupMemberIdentity({ id: LID, phoneNumber: PN })).toEqual({
+      primaryId: '199887766554433',
+      aliases: ['628111111111', '199887766554433'],
+    });
+  });
+
+  it('uses the phone number as primary in a pn-addressed group', () => {
+    expect(toGroupMemberIdentity({ id: PN, lid: LID })).toEqual({
       primaryId: '628111111111',
       aliases: ['628111111111', '199887766554433'],
     });
@@ -80,7 +88,7 @@ describe('BaileysGroupMembershipAdapter', () => {
     const adapter = new BaileysGroupMembershipAdapter(fetch, () => ({ id: PN }));
 
     await expect(adapter.listMemberIdentities(GROUP)).resolves.toEqual([
-      { primaryId: '628111111111', aliases: ['628111111111', '199887766554433'] },
+      { primaryId: '199887766554433', aliases: ['628111111111', '199887766554433'] },
       { primaryId: '199000000000000', aliases: ['199000000000000'] },
     ]);
   });
