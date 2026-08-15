@@ -75,7 +75,7 @@ export function createSholatController(
 
       return formatScheduleResponse(result.value.locationName, result.value.schedule);
     } catch (err) {
-      error('🕌 Failed handling #sholat command:', err);
+      error({ err }, '🕌 Failed handling #sholat command');
       return formatFetchErrorMessage();
     }
   };

@@ -16,36 +16,55 @@ export function createRequestLogger(sender: string): RequestLogger {
 }
 
 /**
- * Structured: debug({ key: val }, 'message')
- * Simple:     debug('message')
- * Legacy:     debug('message', extra1, extra2)
+ * Two shapes only:
+ *   structured — error({ err, chatId }, 'failed to send')
+ *   plain      — error('failed to send')
+ *
+ * There used to be a third, `error('message', err)`, which packed the extras
+ * into `{ data: [...] }`. That quietly destroyed every error it was given:
+ * pino only runs its error serializer on a top-level `err` key, and an Error's
+ * `message` and `stack` are non-enumerable, so the whole thing serialized to
+ * `{"data":[{}]}`. Errors are the one thing these helpers exist to record, so
+ * the form is gone rather than merely discouraged — pass the error as `err`.
  */
-export function debug(first: string | Record<string, unknown>, ...rest: unknown[]): void {
-  if (typeof first === 'object') {
-    rootLogger.debug(first, (rest[0] as string) ?? '');
-  } else if (rest.length > 0) {
-    rootLogger.debug({ data: rest }, first);
-  } else {
-    rootLogger.debug(first);
+type LogFields = Record<string, unknown>;
+
+function emit(
+  write: (fields: LogFields, msg?: string) => void,
+  writePlain: (msg: string) => void,
+  first: string | LogFields,
+  msg?: string
+): void {
+  if (typeof first === 'string') {
+    writePlain(first);
+    return;
   }
+  write(first, msg);
 }
 
-export function log(first: string | Record<string, unknown>, ...rest: unknown[]): void {
-  if (typeof first === 'object') {
-    rootLogger.info(first, (rest[0] as string) ?? '');
-  } else if (rest.length > 0) {
-    rootLogger.info({ data: rest }, first);
-  } else {
-    rootLogger.info(first);
-  }
+export function debug(first: string | LogFields, msg?: string): void {
+  emit(
+    (fields, m) => rootLogger.debug(fields, m),
+    (m) => rootLogger.debug(m),
+    first,
+    msg
+  );
 }
 
-export function error(first: string | Record<string, unknown>, ...rest: unknown[]): void {
-  if (typeof first === 'object') {
-    rootLogger.error(first, (rest[0] as string) ?? '');
-  } else if (rest.length > 0) {
-    rootLogger.error({ data: rest }, first);
-  } else {
-    rootLogger.error(first);
-  }
+export function log(first: string | LogFields, msg?: string): void {
+  emit(
+    (fields, m) => rootLogger.info(fields, m),
+    (m) => rootLogger.info(m),
+    first,
+    msg
+  );
+}
+
+export function error(first: string | LogFields, msg?: string): void {
+  emit(
+    (fields, m) => rootLogger.error(fields, m),
+    (m) => rootLogger.error(m),
+    first,
+    msg
+  );
 }

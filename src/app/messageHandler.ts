@@ -106,7 +106,7 @@ export function createMessageHandler(router: CommandRouter, appContext: AppConte
         }
       }
     } catch (err) {
-      error('❌ Error handling message:', err);
+      error({ err }, '❌ Error handling message');
     }
   };
 }

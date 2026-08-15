@@ -6,7 +6,7 @@ export function withErrorBoundary(moduleName: string, handler: NamespaceHandler)
     try {
       return await handler(ctx, invocation);
     } catch (err) {
-      error(`[${moduleName}] Unhandled error in command handler:`, err);
+      error({ err, moduleName }, 'Unhandled error in command handler');
       return `Something went wrong. Please try again in a moment.`;
     }
   };

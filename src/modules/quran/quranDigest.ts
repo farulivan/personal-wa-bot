@@ -33,7 +33,7 @@ export function createMonthlyQuranDigestSender(deps: QuranMonthlyDigestDeps) {
       entries = result.entries;
       monthLabel = result.monthLabel;
     } catch (err) {
-      error(`📅 Failed to load monthly Quran leaderboard for ${groupChatId}:`, err);
+      error({ err, groupChatId }, '📅 Failed to load monthly Quran leaderboard');
       return;
     }
 
@@ -51,7 +51,7 @@ export function createMonthlyQuranDigestSender(deps: QuranMonthlyDigestDeps) {
       await deps.senderPort.sendMessage(groupChatId, message);
       debug(`📅 Monthly Quran digest sent to ${groupChatId}`);
     } catch (err) {
-      error('📅 Failed to send monthly Quran digest:', err);
+      error({ err, groupChatId }, '📅 Failed to send monthly Quran digest');
     }
   };
 }
@@ -90,7 +90,7 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
         })
       );
     } catch (err) {
-      error(`📖 Failed to load group members for ${groupChatId}:`, err);
+      error({ err, groupChatId }, '📖 Failed to load group members');
       return;
     }
 
@@ -106,7 +106,7 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
       await deps.senderPort.sendMessage(groupChatId, result.text, result.mentions);
       debug(`📖 Quran reminder sent to ${groupChatId}`);
     } catch (err) {
-      error('📖 Failed to send Quran reminder:', err);
+      error({ err, groupChatId }, '📖 Failed to send Quran reminder');
     }
   };
 }
