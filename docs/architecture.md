@@ -48,31 +48,36 @@ The codebase follows a **Hexagonal Architecture** (Ports & Adapters) organized a
 ```
 src/
 ├── index.ts                    # Composition root — wires everything
-├── bot.ts                      # WhatsApp client factory
 ├── logger.ts                   # Pino logger wrapper
+├── processGuards.ts            # Process-level crash guards → clean restart
 │
 ├── config/
 │   └── env.ts                  # Centralized env parsing, exports AppConfig
 │
 ├── app/                        # Application layer
-│   ├── appContext.ts            # Shared context type (client, config, gateway)
+│   ├── appContext.ts           # Shared context type (config, gateway, users)
 │   ├── messageHandler.ts       # Incoming message → parse → route → reply
 │   ├── commandRouter.ts        # Namespace-based command dispatch
 │   ├── parseCommand.ts         # Raw text → CommandInvocation
-│   ├── authGuard.ts            # Phone number allowlist check
-│   ├── normalizeUserId.ts      # WA ID normalization
+│   ├── authGuard.ts            # WA user ID allowlist check
 │   ├── scheduler.ts            # Minute-tick scheduled job runner
 │   ├── greetingHandler.ts      # Bot mention greeting response
 │   └── withErrorBoundary.ts    # Wraps handlers with try/catch
 │
 ├── adapters/
 │   └── whatsapp/
-│       ├── ports.ts                          # Interfaces: GroupMembershipPort, MessageSenderPort
-│       ├── messageGateway.ts                 # Reply/send with fallback chain
-│       ├── whatsAppGroupMembershipAdapter.ts # Implements GroupMembershipPort
-│       ├── resolveGroupDbUserIds.ts          # Map WA participants → DB user IDs
-│       ├── waId.ts                           # WA ID parsing and normalization helpers
-│       └── types.ts                          # Shared WA-specific types
+│       ├── ports.ts                          # IncomingMessage + the two ports
+│       ├── messageGateway.ts                 # Reply/send over MessageSenderPort
+│       ├── resolveKnownGroupDbUserIds.ts     # Map WA participants → DB user IDs
+│       ├── resolveMentionablePhoneNumbers.ts # Who may be @-mentioned in a group
+│       └── baileys/                          # The only Baileys-aware code
+│           ├── createBaileysTransport.ts     # Socket, QR, connection lifecycle
+│           ├── reconnectPolicy.ts            # Pure reconnect/exit decision table
+│           ├── resolveSenderIdentity.ts      # PN vs LID → the id we store
+│           ├── baileysIncomingMessage.ts     # WAMessage → IncomingMessage
+│           ├── baileysMessageSender.ts       # Sending, incl. per-group mentions
+│           ├── baileysGroupMembership.ts     # Implements GroupMembershipPort
+│           └── groupMetadata.ts              # Participant shapes + TTL cache
 │
 ├── db/
 │   ├── drizzle.ts              # Drizzle connection factory
@@ -104,7 +109,7 @@ main()
  │
  ├── 1. runMigrations(databaseUrl)         — apply schema before anything else
  ├── 2. createDrizzleDb(databaseUrl)       — raw DB connection
- ├── 3. createWhatsAppClient()             — raw WA client
+ ├── 3. createBaileysTransport()          — socket, ports, reconnect ladder
  │
  ├── 4. Construct repositories             — concrete Drizzle implementations
  │      DrizzleWorkoutRepository(db)
@@ -114,8 +119,9 @@ main()
  │      DrizzleUserRepository(db)
  │
  ├── 5. Construct adapters
- │      createMessageGateway(client)       — reply/send wrapper
- │      WhatsAppGroupMembershipAdapter()   — group membership port
+ │      transport.senderPort               — MessageSenderPort
+ │      transport.membershipPort           — GroupMembershipPort
+ │      createMessageGateway(senderPort)   — reply/send wrapper
  │
  ├── 6. Register modules                   — each returns { controller, jobs }
  │      registerWorkoutModule({ workoutRepository, ... })
