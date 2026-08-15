@@ -56,12 +56,11 @@ The ban risk is unchanged: Baileys is as unofficial as whatsapp-web.js. That is 
 
 ## Runbook notes
 
-Scanning the Baileys QR links a **new** device; it does not unlink the whatsapp-web.js one. That is what makes rollback nearly free, and it depends on two things:
+**Never call `sock.logout()`.** It unlinks the Baileys device and forces a QR re-scan, and it is exactly the kind of call that ends up in a cleanup script. Ending the socket (`sock.end`) is the correct way to disconnect.
 
-- **Do not delete `.wwebjs_auth`** from the Railway volume.
-- **Do not call `sock.logout()`** — it unlinks the Baileys device, and it is exactly the kind of call that ends up in a cleanup script.
+**On rollback.** Scanning the Baileys QR linked a *new* device rather than unlinking the whatsapp-web.js one, so during the migration a rollback cost nothing: the old session was still on the volume and still valid. That property expires in two ways — WhatsApp drops idle linked devices after roughly two weeks, and deleting `.wwebjs_auth` from the volume ends it immediately. Both are expected and fine; the property existed to de-risk the cutover, which is over.
 
-Within about two weeks of the last whatsapp-web.js connection, rolling back is repointing Railway at `main`: no QR, no data change. After that, add one QR re-scan.
+Since the migration merged to `main` on 2026-08-15, rolling back means reverting the merge or redeploying an older image, and it costs a QR re-scan. There is still no data migration in either direction.
 
 There is no schema change either way — the migration adds no tables and no columns, so there is nothing to apply going forward and nothing to undo coming back.
 
