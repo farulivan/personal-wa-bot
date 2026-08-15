@@ -204,7 +204,7 @@ pnpm install
 
 # 2. Configure environment
 cp .env.example .env
-# Edit .env — fill DATABASE_URL and ALLOWED_NUMBERS at minimum
+# Edit .env — fill DATABASE_URL and ALLOWED_WA_IDS at minimum
 
 # 3. Build and start
 pnpm build
@@ -288,7 +288,7 @@ See [`.env.example`](.env.example) for the full template.
 | Variable | Default | Description |
 |---|---|---|
 | `DATABASE_URL` | — | PostgreSQL connection URL |
-| `ALLOWED_NUMBERS` | `""` | Comma-separated phone allowlist (digits only, e.g. `6281234567890`) |
+| `ALLOWED_WA_IDS` | `""` | Comma-separated WhatsApp user IDs allowed to run commands. **IDs, not phone numbers** — see [Identity](#identity) |
 | `DIGEST_GROUP_IDS` | `""` | Comma-separated target groups for scheduled digests (disabled if empty); also the groups that can enable `#sholat` reminders. |
 | `DEBUG` | `false` | Enable debug logs (`true`/`1`) |
 
@@ -408,8 +408,8 @@ pnpm format           # Format with Prettier
 ## Internal Behavior
 
 - **Group chats:** bot responds only when mentioned or message starts with `#`.
-- **Auth:** only phone numbers in `ALLOWED_NUMBERS` can execute commands.
-- **Identity:** user IDs are normalized before persistence to handle WA ID format variations.
+- **Auth:** only WhatsApp user IDs listed in `ALLOWED_WA_IDS` can execute commands.
+- **Identity:** rows are keyed by the ID WhatsApp addresses a person with — a LID in most chats, not their phone number. See [Identity](#identity).
 - **Remind scheduler:** runs independently after WA client is ready, polls every 30s.
 - **Sholat reminders:** a 30s ticker reads the cached schedule (warming it on a miss, so a restart at any time of day recovers) and posts at each fardhu time to chats that opted in via `#sholat reminder on`. DMs are self-serve; in groups only those listed in `DIGEST_GROUP_IDS` may opt in.
 - **Digest/Quran scheduler:** runs only when `DIGEST_GROUP_IDS` is configured.
@@ -421,7 +421,7 @@ pnpm format           # Format with Prettier
 ## Security
 
 - Keep `.env` out of version control (already in `.gitignore`).
-- Restrict access via `ALLOWED_NUMBERS` — no allowlist means no one can use the bot.
+- Restrict access via `ALLOWED_WA_IDS` — no allowlist means no one can use the bot.
 - Persist `baileys_auth/` and `data/` in production environments.
 - Do not share terminal logs publicly (may contain operational details).
 
@@ -432,7 +432,7 @@ pnpm format           # Format with Prettier
 <details>
 <summary><strong>Bot does not respond</strong></summary>
 
-- Check sender number is in `ALLOWED_NUMBERS`
+- Check sender number is in `ALLOWED_WA_IDS`
 - In groups, ensure message starts with `#` or bot is mentioned
 - Set `DEBUG=true` and inspect logs
 

@@ -31,7 +31,10 @@ export function parseGroupIds(idsRaw: string): string[] {
   return [...new Set(ids)];
 }
 
-const allowedNumbersEnv = process.env.ALLOWED_NUMBERS || '';
+// Renamed from ALLOWED_NUMBERS, which asserted something false: these are
+// WhatsApp user ids, and in our chats those are LIDs rather than phone numbers.
+// The old name is still read so an existing deploy keeps working.
+const allowedWaIdsEnv = process.env.ALLOWED_WA_IDS || process.env.ALLOWED_NUMBERS || '';
 
 export const appConfig = {
   databaseUrl: process.env.DATABASE_URL || '',
@@ -65,8 +68,8 @@ export const appConfig = {
   digestGroupIds: parseGroupIds(process.env.DIGEST_GROUP_IDS || ''),
   sholatDefaultLocation: process.env.SHOLAT_DEFAULT_LOCATION || 'KAB. BOGOR',
   sholatTimezone: process.env.SHOLAT_TIMEZONE || 'Asia/Jakarta',
-  allowedNumbers: new Set(
-    allowedNumbersEnv
+  allowedWaIds: new Set(
+    allowedWaIdsEnv
       .split(',')
       .map((n) => n.trim())
       .filter((n) => n.length > 0)
@@ -127,8 +130,8 @@ export function validateConfig(config: AppConfig): void {
     }
   }
 
-  if (config.allowedNumbers.size === 0) {
-    console.warn('⚠️  ALLOWED_NUMBERS is empty — bot will reject all commands');
+  if (config.allowedWaIds.size === 0) {
+    console.warn('⚠️  ALLOWED_WA_IDS is empty — bot will reject all commands');
   }
 
   if (errors.length > 0) {

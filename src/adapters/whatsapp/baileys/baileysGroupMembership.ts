@@ -15,7 +15,7 @@ export type BotContactLike = {
 
 /**
  * Both identity forms for one group member, with the phone form preferred as
- * primary — that is the id our db rows and ALLOWED_NUMBERS hold.
+ * primary — that is the id our db rows and ALLOWED_WA_IDS hold.
  */
 export function toGroupMemberIdentity(participant: ParticipantLike): GroupMemberIdentity | null {
   const { pnJid, lidJid } = participantJids(participant);

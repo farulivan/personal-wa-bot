@@ -47,7 +47,7 @@ export function resolveSenderIdentity(key: WAMessageKey, isGroup: boolean): Send
  * sender by, which in a lid-addressed chat is their LID, not their phone number.
  *
  * This is compatibility, not preference. whatsapp-web.js passed `msg.author`
- * through verbatim, so that raw form is what `users.id` and `ALLOWED_NUMBERS`
+ * through verbatim, so that raw form is what `users.id` and `ALLOWED_WA_IDS`
  * already hold — which is why stripping `@lid` has always been necessary.
  * Deriving the id any other way orphans every existing row and makes the
  * allowlist reject people it used to admit.
