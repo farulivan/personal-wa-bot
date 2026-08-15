@@ -56,21 +56,22 @@ The ban risk is unchanged: Baileys is as unofficial as whatsapp-web.js. That is 
 
 ## Runbook notes
 
-Scanning the Baileys QR links a **new** device; it does not unlink the whatsapp-web.js one. That is what makes rollback nearly free, and it depends on two things:
+**Never call `sock.logout()`.** It unlinks the Baileys device and forces a QR re-scan, and it is exactly the kind of call that ends up in a cleanup script. Ending the socket (`sock.end`) is the correct way to disconnect.
 
-- **Do not delete `.wwebjs_auth`** from the Railway volume.
-- **Do not call `sock.logout()`** — it unlinks the Baileys device, and it is exactly the kind of call that ends up in a cleanup script.
+**On rollback.** Scanning the Baileys QR linked a *new* device rather than unlinking the whatsapp-web.js one, so during the migration a rollback cost nothing: the old session was still on the volume and still valid. That property expires in two ways — WhatsApp drops idle linked devices after roughly two weeks, and deleting `.wwebjs_auth` from the volume ends it immediately. Both are expected and fine; the property existed to de-risk the cutover, which is over.
 
-Within about two weeks of the last whatsapp-web.js connection, rolling back is repointing Railway at `main`: no QR, no data change. After that, add one QR re-scan.
+Since the migration merged to `main` on 2026-08-15, rolling back means reverting the merge or redeploying an older image, and it costs a QR re-scan. There is still no data migration in either direction.
 
 There is no schema change either way — the migration adds no tables and no columns, so there is nothing to apply going forward and nothing to undo coming back.
 
-### One thing to avoid while the soak is running
+### A soak-window restriction, now lifted
 
-**Keep `#remind` and `#sholat reminder on` to group chats until this merges to `main`.**
+**Resolved 2026-08-15**, when the migration merged to `main`. Recorded because the reasoning explains a real asymmetry in the stored data, not because the rule still applies.
+
+During the soak we kept `#remind` and `#sholat reminder on` to group chats.
 
 The two columns that persist a chat id — `reminders.target_chat_id` and `sholat_reminder_settings.chat_id` — hold whatever the transport calls the chat. Groups are `@g.us` under both libraries, so they are byte-identical and safe. Direct messages are not: whatsapp-web.js writes `@c.us`, Baileys writes `@s.whatsapp.net`.
 
-That difference only bites in one direction. Baileys reads the old `@c.us` rows fine, because `toSendJid` coerces them. whatsapp-web.js cannot read `@s.whatsapp.net`, so a DM row written during the soak would fail to send if we rolled back. Nothing else is affected — no tracking history is keyed by chat id — and re-running the command fixes it. Avoiding DM scheduling for the soak is simply cheaper than carrying code to paper over it.
+That difference only bites in one direction. Baileys reads the old `@c.us` rows fine, because `toSendJid` coerces them; whatsapp-web.js cannot read `@s.whatsapp.net`. So a DM row written during the soak would have failed to send **if we had rolled back** — and avoiding DM scheduling for a few days was cheaper than carrying a compatibility shim for a window we expected to close.
 
-Once `main` has the migration and rollback is no longer a consideration, the restriction goes away.
+Rollback is no longer a consideration, so DM scheduling is unrestricted. The asymmetry itself still stands and is worth remembering: any future transport that changes how a DM chat id is spelled has the same problem, and `toSendJid` is where it gets handled.

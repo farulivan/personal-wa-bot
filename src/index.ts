@@ -9,6 +9,7 @@ import { createDrizzleDb } from './db/drizzle.js';
 import { CommandRouter } from './app/commandRouter.js';
 import { createMessageHandler } from './app/messageHandler.js';
 import { startScheduler } from './app/scheduler.js';
+import { evaluateReadiness } from './app/readiness.js';
 import { createMessageGateway } from './adapters/whatsapp/messageGateway.js';
 import { createBaileysTransport } from './adapters/whatsapp/baileys/createBaileysTransport.js';
 import type { IncomingMessage } from './adapters/whatsapp/ports.js';
@@ -144,15 +145,22 @@ async function main() {
 
   handleMessage = createMessageHandler(router, appContext);
 
-  let isReady = false;
+  // Startup finished. Liveness of the socket is asked of the transport, so a
+  // reconnect or a wedge is visible to /ready rather than remembered as "fine".
+  let hasStarted = false;
+  let isShuttingDown = false;
 
   // --- Health check server ---
   const healthPort = Number(process.env.PORT ?? 3000);
   const healthServer = http.createServer((req, res) => {
     if (req.url === '/ready') {
-      const status = isReady ? 200 : 503;
+      const { status, body } = evaluateReadiness({
+        hasStarted,
+        isConnected: transport.isConnected(),
+        isShuttingDown,
+      });
       res.writeHead(status, { 'Content-Type': 'text/plain' });
-      res.end(isReady ? 'READY' : 'NOT_READY');
+      res.end(body);
       return;
     }
 
@@ -174,7 +182,7 @@ async function main() {
 
   async function shutdown(signal: string): Promise<void> {
     log({ signal }, 'received signal, shutting down gracefully');
-    isReady = false;
+    isShuttingDown = true;
     reminderHandle?.stop();
     digestHandle?.stop();
     sholatReminderHandle?.stop();
@@ -196,7 +204,7 @@ async function main() {
 
   onSocketReady = () => {
     log('whatsapp bot ready');
-    isReady = true;
+    hasStarted = true;
 
     if (!reminderSchedulerStarted) {
       reminderHandle = remind.startScheduler();
