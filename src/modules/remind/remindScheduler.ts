@@ -75,13 +75,13 @@ export function startReminderScheduler(deps: StartReminderSchedulerDeps): Remind
           debug(`⏰ Reminder sent: id=${reminder.id}, chat=${reminder.targetChatId}`);
         } catch (err) {
           error(
-            `⏰ Failed to send reminder id=${reminder.id} (already claimed; will not retry):`,
-            err
+            { err, reminderId: reminder.id, chatId: reminder.targetChatId },
+            '⏰ Failed to send reminder (already claimed; will not retry)'
           );
         }
       }
     } catch (err) {
-      error('⏰ Reminder scheduler tick failed:', err);
+      error({ err }, '⏰ Reminder scheduler tick failed');
     } finally {
       isRunning = false;
     }

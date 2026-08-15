@@ -25,7 +25,7 @@ export function createDailyStreakDigestSender(deps: DigestDeps) {
       const { entries } = await deps.workoutService.getLeaderboard(deps.timezoneOffsetMinutes, now);
       ranked = rankLeaderboardEntries(entries);
     } catch (err) {
-      error(`⏰ Failed to load leaderboard for digest ${groupChatId}:`, err);
+      error({ err, groupChatId }, '⏰ Failed to load leaderboard for digest');
       return;
     }
 
@@ -45,7 +45,7 @@ export function createDailyStreakDigestSender(deps: DigestDeps) {
       await deps.senderPort.sendMessage(groupChatId, result.text, result.mentions);
       debug(`⏰ Digest sent to ${groupChatId}`);
     } catch (err) {
-      error('⏰ Failed to send digest:', err);
+      error({ err, groupChatId }, '⏰ Failed to send digest');
     }
   };
 }
@@ -64,7 +64,7 @@ export function createMonthlyWorkoutDigestSender(deps: DigestDeps) {
       ranked = rankLeaderboardEntries(result.entries);
       monthLabel = result.monthLabel;
     } catch (err) {
-      error(`📅 Failed to load monthly workout leaderboard for ${groupChatId}:`, err);
+      error({ err, groupChatId }, '📅 Failed to load monthly workout leaderboard');
       return;
     }
 
@@ -74,7 +74,7 @@ export function createMonthlyWorkoutDigestSender(deps: DigestDeps) {
       await deps.senderPort.sendMessage(groupChatId, message);
       debug(`📅 Monthly workout digest sent to ${groupChatId}`);
     } catch (err) {
-      error('📅 Failed to send monthly workout digest:', err);
+      error({ err, groupChatId }, '📅 Failed to send monthly workout digest');
     }
   };
 }

@@ -33,7 +33,7 @@ export async function resolveMentionablePhoneNumbers(
     const aliasSet = new Set<string>(identities.flatMap((m) => m.aliases));
     return new Set([...phones].filter((p) => aliasSet.has(p)));
   } catch (err) {
-    error(`🏷️ Failed to resolve mentionable phone numbers for ${groupChatId}:`, err);
+    error({ err, groupChatId }, '🏷️ Failed to resolve mentionable phone numbers');
     return new Set();
   }
 }
