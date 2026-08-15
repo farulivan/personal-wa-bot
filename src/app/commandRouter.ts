@@ -1,15 +1,16 @@
+import type { PhoneNumber, WaUserId } from '../shared/identity.js';
 import type { CommandInvocation } from './parseCommand.js';
 import type { TimeContext } from './timeContext.js';
 
 export type CommandContext = {
-  sender: string;
+  sender: WaUserId;
   replyChatId: string;
   isGroupChat: boolean;
   time: TimeContext;
 };
 
 /** `mentions` holds bare phone numbers; the transport adapter builds the JIDs. */
-export type RichReply = { text: string; mentions: string[] };
+export type RichReply = { text: string; mentions: PhoneNumber[] };
 
 export type NamespaceHandler = (
   ctx: CommandContext,

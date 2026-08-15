@@ -3,6 +3,8 @@ import { createMessageHandler } from './messageHandler.js';
 import type { CommandRouter } from './commandRouter.js';
 import type { CommandInvocation } from './parseCommand.js';
 import type { RichReply } from './commandRouter.js';
+import { toPhoneNumber, toWaUserId } from '../shared/identity.js';
+import type { WaUserId } from '../shared/identity.js';
 
 // Minimal stub for a transport-neutral IncomingMessage
 function makeMsg(overrides: {
@@ -14,8 +16,8 @@ function makeMsg(overrides: {
 }): {
   chatId: string;
   isGroup: boolean;
-  senderId: string;
-  senderCandidates: string[];
+  senderId: WaUserId;
+  senderCandidates: WaUserId[];
   text: string;
   getContact: ReturnType<typeof vi.fn>;
   isBotMentioned: ReturnType<typeof vi.fn>;
@@ -25,8 +27,8 @@ function makeMsg(overrides: {
   return {
     chatId,
     isGroup: chatId.endsWith('@g.us'),
-    senderId,
-    senderCandidates: overrides.senderCandidates ?? [senderId],
+    senderId: toWaUserId(senderId),
+    senderCandidates: (overrides.senderCandidates ?? [senderId]).map(toWaUserId),
     text: overrides.body,
     getContact: vi.fn().mockResolvedValue({
       phoneNumber: '628111',
@@ -263,7 +265,10 @@ describe('createMessageHandler', () => {
     it('calls reply(msg, text, mentions) when result is RichReply', async () => {
       const appContext = makeAppContext(true);
       const router = makeRouter();
-      const rich: RichReply = { text: 'Heads up @628111', mentions: ['628111@c.us'] };
+      const rich: RichReply = {
+        text: 'Heads up @628111',
+        mentions: [toPhoneNumber('628111')],
+      };
       router.route.mockResolvedValue(rich);
       const handle = createMessageHandler(router as unknown as CommandRouter, appContext as never);
       const msg = makeMsg({
@@ -276,7 +281,7 @@ describe('createMessageHandler', () => {
 
       expect(appContext.messageGateway.reply).toHaveBeenCalledOnce();
       expect(appContext.messageGateway.reply).toHaveBeenCalledWith(msg, 'Heads up @628111', [
-        '628111@c.us',
+        '628111',
       ]);
     });
   });

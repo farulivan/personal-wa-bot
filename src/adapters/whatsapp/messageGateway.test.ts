@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMessageGateway } from './messageGateway.js';
 import type { IncomingMessage } from './ports.js';
+import { toPhoneNumber, toWaUserId } from '../../shared/identity.js';
 
 function makeGateway(sendMessage = vi.fn().mockResolvedValue(undefined)) {
   return { gateway: createMessageGateway({ sendMessage }), sendMessage };
@@ -10,8 +11,8 @@ function makeFakeMessage(chatId: string): IncomingMessage {
   return {
     chatId,
     isGroup: chatId.endsWith('@g.us'),
-    senderId: '628111',
-    senderCandidates: ['628111'],
+    senderId: toWaUserId('628111'),
+    senderCandidates: [toWaUserId('628111')],
     text: 'irrelevant',
     getContact: vi.fn().mockResolvedValue({}),
     isBotMentioned: vi.fn().mockResolvedValue(false),
@@ -22,7 +23,7 @@ describe('MessageGateway.sendMessage', () => {
   it('passes the chat id, text and mention numbers straight through', async () => {
     const { gateway, sendMessage } = makeGateway();
 
-    await gateway.sendMessage('120-1@g.us', 'hi', ['628111']);
+    await gateway.sendMessage('120-1@g.us', 'hi', [toPhoneNumber('628111')]);
 
     expect(sendMessage).toHaveBeenCalledWith('120-1@g.us', 'hi', ['628111']);
   });
@@ -46,7 +47,7 @@ describe('MessageGateway.reply', () => {
   it('sends to the chat the message arrived in', async () => {
     const { gateway, sendMessage } = makeGateway();
 
-    await gateway.reply(makeFakeMessage('120-1@g.us'), 'hi', ['628111']);
+    await gateway.reply(makeFakeMessage('120-1@g.us'), 'hi', [toPhoneNumber('628111')]);
 
     expect(sendMessage).toHaveBeenCalledWith('120-1@g.us', 'hi', ['628111']);
   });

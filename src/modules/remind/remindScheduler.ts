@@ -1,10 +1,11 @@
+import type { PhoneNumber } from '../../shared/identity.js';
 import { debug, error } from '../../logger.js';
 import type { RemindRepository } from './infra/remindRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 import { toLocalDateTimeLabel, formatSchedulerReminderMessage } from './remindPresenter.js';
 
 type ReminderClientLike = {
-  sendMessage: (chatId: string, text: string, mentionNumbers?: string[]) => Promise<unknown>;
+  sendMessage: (chatId: string, text: string, mentionNumbers?: PhoneNumber[]) => Promise<unknown>;
 };
 
 type StartReminderSchedulerDeps = {

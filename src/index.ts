@@ -72,7 +72,7 @@ async function main() {
 
   const userService = new UserService(userRepository);
 
-  const isAllowedUser = createAuthGuard(appConfig.allowedNumbers);
+  const isAllowedUser = createAuthGuard(appConfig.allowedWaIds);
 
   // --- Register modules ---
   const workout = registerWorkoutModule({

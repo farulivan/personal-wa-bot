@@ -1,4 +1,4 @@
-import { normalizeUserId } from '../../../app/normalizeUserId.js';
+import { stripJidServer, toPhoneNumber } from '../../../shared/identity.js';
 import type { MessageSenderPort } from '../ports.js';
 import { isLidAddressed, participantJids } from './groupMetadata.js';
 import type { FetchGroupMetadata } from './groupMetadata.js';
@@ -56,7 +56,7 @@ export async function resolveGroupMentions(
   for (const participant of metadata.participants) {
     const jids = participantJids(participant);
     if (jids.pnJid) {
-      byPhoneNumber.set(normalizeUserId(jids.pnJid), jids);
+      byPhoneNumber.set(toPhoneNumber(jids.pnJid), jids);
     }
   }
 
@@ -64,7 +64,7 @@ export async function resolveGroupMentions(
   const textRewrites = new Map<string, string>();
 
   for (const phoneNumber of mentionNumbers) {
-    const member = byPhoneNumber.get(normalizeUserId(phoneNumber));
+    const member = byPhoneNumber.get(toPhoneNumber(phoneNumber));
     let jid = useLid ? member?.lidJid : member?.pnJid;
 
     // A lid-addressed group does not always carry the lid on the participant
@@ -84,7 +84,7 @@ export async function resolveGroupMentions(
 
     jids.push(jid);
     if (useLid) {
-      textRewrites.set(phoneNumber, normalizeUserId(jid));
+      textRewrites.set(phoneNumber, stripJidServer(jid));
     }
   }
 

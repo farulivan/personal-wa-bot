@@ -1,3 +1,4 @@
+import { toPhoneNumber } from '../../shared/identity.js';
 import type { NamespaceHandler, CommandContext, RichReply } from '../../app/commandRouter.js';
 import type { CommandInvocation } from '../../app/parseCommand.js';
 import { debug } from '../../logger.js';
@@ -80,7 +81,7 @@ export function createWorkoutController(
     const mentionablePhoneNumbers = await resolveMentionablePhoneNumbers(
       membershipPort,
       groupChatId,
-      ranked.map((e) => e.phoneNumber)
+      ranked.map((e) => (e.phoneNumber === null ? null : toPhoneNumber(e.phoneNumber)))
     );
     return formatLeaderboardMessage(ranked, mentionablePhoneNumbers);
   }

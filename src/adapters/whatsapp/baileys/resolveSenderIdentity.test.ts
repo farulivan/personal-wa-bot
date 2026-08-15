@@ -115,7 +115,7 @@ describe('resolveSenderIdentity — group messages', () => {
 
 describe('toDbUserId', () => {
   it('uses the addressed form, not the phone number, in a lid chat', () => {
-    // ALLOWED_NUMBERS and users.id hold the WA ID, so the lid is the match.
+    // ALLOWED_WA_IDS and users.id hold the WA ID, so the lid is the match.
     expect(toDbUserId({ pnJid: PN, lidJid: LID, rawJid: LID })).toBe('199887766554433');
   });
 

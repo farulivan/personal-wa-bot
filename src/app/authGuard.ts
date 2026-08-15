@@ -1,19 +1,19 @@
 import { debug } from '../logger.js';
-import { normalizeUserId } from './normalizeUserId.js';
+import type { WaUserId } from '../shared/identity.js';
 
-export function createAuthGuard(allowedNumbers: ReadonlySet<string>) {
-  return function isAllowedUser(phoneNumber: string): boolean {
-    const number = normalizeUserId(phoneNumber);
-
-    debug({ raw: phoneNumber, normalized: number }, 'checking sender');
-
-    if (allowedNumbers.size === 0) {
-      debug('no ALLOWED_NUMBERS configured, rejecting all');
+/**
+ * The allowlist holds **WhatsApp user ids**, not phone numbers — in our chats
+ * those are LIDs. See `src/shared/identity.ts` for why the distinction matters.
+ */
+export function createAuthGuard(allowedWaIds: ReadonlySet<string>) {
+  return function isAllowedUser(userId: WaUserId): boolean {
+    if (allowedWaIds.size === 0) {
+      debug('no allowlist configured, rejecting all');
       return false;
     }
 
-    const isAllowed = allowedNumbers.has(number);
-    debug({ isAllowed, number }, 'auth check result');
+    const isAllowed = allowedWaIds.has(userId);
+    debug({ userId, isAllowed }, 'auth check result');
     return isAllowed;
   };
 }

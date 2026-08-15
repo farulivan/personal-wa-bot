@@ -1,6 +1,7 @@
+import { toPhoneNumber, toWaUserId } from '../../../shared/identity.js';
 import { normalizeMessageContent } from '@whiskeysockets/baileys';
 import type { WAMessage } from '@whiskeysockets/baileys';
-import { normalizeUserId } from '../../../app/normalizeUserId.js';
+
 import type { IncomingMessage } from '../ports.js';
 import {
   resolveSenderIdentity,
@@ -55,7 +56,7 @@ export function toIncomingMessage(
   const botIds = new Set(
     [botIdentity.pnJid, botIdentity.lidJid]
       .filter((jid): jid is string => Boolean(jid))
-      .map(normalizeUserId)
+      .map(toWaUserId)
   );
 
   return {
@@ -65,13 +66,13 @@ export function toIncomingMessage(
     senderCandidates: toDbUserIdCandidates(identity),
     text,
     getContact: async () => ({
-      phoneNumber: identity.pnJid ? normalizeUserId(identity.pnJid) : undefined,
+      phoneNumber: identity.pnJid ? toPhoneNumber(identity.pnJid) : undefined,
       // Baileys has no address book — the only name available is the one the
       // sender set on their own profile.
       contactName: undefined,
       pushname: message.pushName ?? undefined,
     }),
     isBotMentioned: async () =>
-      extractMentionedJids(message).some((jid) => botIds.has(normalizeUserId(jid))),
+      extractMentionedJids(message).some((jid) => botIds.has(toWaUserId(jid))),
   };
 }

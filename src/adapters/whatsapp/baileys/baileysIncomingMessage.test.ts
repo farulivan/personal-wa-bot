@@ -121,7 +121,7 @@ describe('toIncomingMessage — group messages', () => {
       BOT
     );
 
-    // users.id and ALLOWED_NUMBERS hold the WA ID that whatsapp-web.js wrote
+    // users.id and ALLOWED_WA_IDS hold the WA ID that whatsapp-web.js wrote
     // through from msg.author. Using the phone number here would orphan every
     // existing row and make the allowlist reject the whole family.
     expect(msg?.senderId).toBe('199887766554433');
