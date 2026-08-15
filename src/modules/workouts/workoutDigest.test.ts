@@ -1,3 +1,5 @@
+import { toWaUserId } from '../../shared/identity.js';
+import type { WaUserId } from '../../shared/identity.js';
 import { describe, it, expect, vi } from 'vitest';
 import {
   createDailyStreakDigestSender,
@@ -23,7 +25,7 @@ function stubSenderPort() {
 
 function stubMembershipPort(
   identities: GroupMemberIdentity[],
-  botUserId: string | null = null
+  botUserId: WaUserId | null = null
 ): GroupMembershipPort {
   return {
     listMemberIdentities: async () => identities,
@@ -49,7 +51,10 @@ function entry(phoneNumber: string | null, user: string, atRisk: boolean): Worko
   return { phoneNumber, user, sessionsInMonth: 10, currentStreak: 5, bestStreak: 5, atRisk };
 }
 
-const inGroup = (phone: string): GroupMemberIdentity => ({ primaryId: phone, aliases: [phone] });
+const inGroup = (phone: string): GroupMemberIdentity => ({
+  primaryId: toWaUserId(phone),
+  aliases: [toWaUserId(phone)],
+});
 
 describe('createDailyStreakDigestSender', () => {
   it('sends the leaderboard and @mentions at-risk members who are in the group', async () => {

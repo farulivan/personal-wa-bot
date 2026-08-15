@@ -1,5 +1,7 @@
+import type { WaUserId } from '../../../shared/identity.js';
+import { toWaUserId } from '../../../shared/identity.js';
 import { isLidUser } from '@whiskeysockets/baileys';
-import { normalizeUserId } from '../../../app/normalizeUserId.js';
+
 import type { GroupMemberIdentity, GroupMembershipPort } from '../ports.js';
 import { participantJids } from './groupMetadata.js';
 import type { FetchGroupMetadata, ParticipantLike } from './groupMetadata.js';
@@ -19,7 +21,7 @@ export function toGroupMemberIdentity(participant: ParticipantLike): GroupMember
   const { pnJid, lidJid } = participantJids(participant);
 
   const aliases = Array.from(
-    new Set([pnJid, lidJid].filter((jid): jid is string => Boolean(jid)).map(normalizeUserId))
+    new Set([pnJid, lidJid].filter((jid): jid is string => Boolean(jid)).map(toWaUserId))
   );
   if (aliases.length === 0) {
     return null;
@@ -29,18 +31,18 @@ export function toGroupMemberIdentity(participant: ParticipantLike): GroupMember
     // participant.id is the form this group addresses members by, which is the
     // same form our db rows are keyed on. Matching is done on aliases, but
     // keeping primaryId consistent with toDbUserId avoids a trap later.
-    primaryId: normalizeUserId(participant.id) || aliases[0],
+    primaryId: toWaUserId(participant.id) || aliases[0],
     aliases,
   };
 }
 
-export function resolveBotUserIdFrom(user: BotContactLike | undefined): string | null {
+export function resolveBotUserIdFrom(user: BotContactLike | undefined): WaUserId | null {
   if (!user?.id) {
     return null;
   }
 
   const pnJid = isLidUser(user.id) ? user.phoneNumber : user.id;
-  return normalizeUserId(pnJid || user.id);
+  return toWaUserId(pnJid || user.id);
 }
 
 export class BaileysGroupMembershipAdapter implements GroupMembershipPort {
@@ -56,7 +58,7 @@ export class BaileysGroupMembershipAdapter implements GroupMembershipPort {
       .filter((identity): identity is GroupMemberIdentity => identity !== null);
   }
 
-  async resolveBotUserId(): Promise<string | null> {
+  async resolveBotUserId(): Promise<WaUserId | null> {
     return resolveBotUserIdFrom(this.getBotContact());
   }
 }

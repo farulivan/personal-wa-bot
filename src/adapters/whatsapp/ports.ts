@@ -1,3 +1,5 @@
+import type { PhoneNumber, WaUserId } from '../../shared/identity.js';
+
 /**
  * One group member, in every id form we might match them by. WhatsApp
  * addresses people by phone number or by LID depending on the chat, so
@@ -8,8 +10,8 @@
  * row keyed under the older form would otherwise stop resolving.
  */
 export type GroupMemberIdentity = {
-  primaryId: string;
-  aliases: string[];
+  primaryId: WaUserId;
+  aliases: WaUserId[];
 };
 
 /**
@@ -18,7 +20,7 @@ export type GroupMemberIdentity = {
  * the address book, Baileys only sees the name the sender set on their own.
  */
 export type IncomingContact = {
-  phoneNumber?: string;
+  phoneNumber?: PhoneNumber;
   contactName?: string;
   pushname?: string;
 };
@@ -38,14 +40,14 @@ export type IncomingMessage = {
   /** Decided by the adapter — the app layer must not sniff JID suffixes. */
   isGroup: boolean;
   /** Already normalized to the bare id used as our db user id. */
-  senderId: string;
+  senderId: WaUserId;
   /**
    * Every id this sender could be known by, `senderId` first. WhatsApp is
    * migrating chats from phone-number to LID addressing, and a chat that flips
    * changes which form arrives — so identity checks match on any of these
    * rather than going deaf to someone we already know.
    */
-  senderCandidates: string[];
+  senderCandidates: WaUserId[];
   text: string;
   getContact: () => Promise<IncomingContact>;
   isBotMentioned: () => Promise<boolean>;
@@ -53,7 +55,7 @@ export type IncomingMessage = {
 
 export interface GroupMembershipPort {
   listMemberIdentities(groupId: string): Promise<GroupMemberIdentity[]>;
-  resolveBotUserId(): Promise<string | null>;
+  resolveBotUserId(): Promise<WaUserId | null>;
 }
 
 export interface MessageSenderPort {
@@ -62,5 +64,5 @@ export interface MessageSenderPort {
    * whatever form its transport needs. Mentions only apply to group chats and
    * are ignored elsewhere.
    */
-  sendMessage(chatId: string, text: string, mentionNumbers?: string[]): Promise<unknown>;
+  sendMessage(chatId: string, text: string, mentionNumbers?: PhoneNumber[]): Promise<unknown>;
 }

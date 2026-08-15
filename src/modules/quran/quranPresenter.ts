@@ -1,3 +1,5 @@
+import { toPhoneNumber } from '../../shared/identity.js';
+import type { PhoneNumber } from '../../shared/identity.js';
 import { toUserDate } from '../../shared/dateRange.js';
 import type { QuranDailyReadRow, QuranHistoryRow } from './infra/quranRepository.js';
 import type { QuranLeaderboardEntry, QuranLeaderboardMode } from './quranService.js';
@@ -280,7 +282,7 @@ export function formatUndoTooLate(entry: QuranDailyReadRow, timezoneOffsetMinute
 
 export function formatReminderMessage(reminders: UserReminder[]): {
   text: string;
-  mentions: string[];
+  mentions: PhoneNumber[];
 } {
   if (reminders.length === 0) {
     return {
@@ -320,8 +322,12 @@ export function formatReminderMessage(reminders: UserReminder[]): {
   }
 
   const mentions = [
-    ...notReadWithStreak.filter((u) => u.phoneNumber !== null).map((u) => u.phoneNumber!),
-    ...notReadNoStreak.filter((u) => u.phoneNumber !== null).map((u) => u.phoneNumber!),
+    ...notReadWithStreak
+      .filter((u) => u.phoneNumber !== null)
+      .map((u) => toPhoneNumber(u.phoneNumber!)),
+    ...notReadNoStreak
+      .filter((u) => u.phoneNumber !== null)
+      .map((u) => toPhoneNumber(u.phoneNumber!)),
   ];
 
   if (notReadYet.length === 0) {

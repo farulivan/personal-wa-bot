@@ -1,10 +1,11 @@
+import type { PhoneNumber } from '../../shared/identity.js';
 import { error } from '../../logger.js';
 import type { IncomingMessage, MessageSenderPort } from './ports.js';
 
 export type MessageGateway = {
   /** `mentionNumbers` are bare phone numbers; the sender turns them into JIDs. */
-  reply: (msg: IncomingMessage, text: string, mentionNumbers?: string[]) => Promise<void>;
-  sendMessage: (chatId: string, text: string, mentionNumbers?: string[]) => Promise<unknown>;
+  reply: (msg: IncomingMessage, text: string, mentionNumbers?: PhoneNumber[]) => Promise<void>;
+  sendMessage: (chatId: string, text: string, mentionNumbers?: PhoneNumber[]) => Promise<unknown>;
 };
 
 /**

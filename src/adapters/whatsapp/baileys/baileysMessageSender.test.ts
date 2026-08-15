@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { toPhoneNumber } from '../../../shared/identity.js';
 import {
   applyMentionRewrites,
   createBaileysMessageSender,
@@ -52,21 +53,21 @@ describe('applyMentionRewrites', () => {
 
 describe('resolveGroupMentions', () => {
   it('uses phone JIDs and leaves the text alone in a pn-addressed group', async () => {
-    const result = await resolveGroupMentions(pnGroup(), GROUP, ['628111111111']);
+    const result = await resolveGroupMentions(pnGroup(), GROUP, [toPhoneNumber('628111111111')]);
 
     expect(result.jids).toEqual([PN]);
     expect(result.textRewrites.size).toBe(0);
   });
 
   it('uses lid JIDs and rewrites the text token in a lid-addressed group', async () => {
-    const result = await resolveGroupMentions(lidGroup(), GROUP, ['628111111111']);
+    const result = await resolveGroupMentions(lidGroup(), GROUP, [toPhoneNumber('628111111111')]);
 
     expect(result.jids).toEqual([LID]);
     expect(result.textRewrites.get('628111111111')).toBe('199887766554433');
   });
 
   it('drops a mention for someone who is not in the group', async () => {
-    const result = await resolveGroupMentions(pnGroup(), GROUP, ['628999999999']);
+    const result = await resolveGroupMentions(pnGroup(), GROUP, [toPhoneNumber('628999999999')]);
 
     expect(result.jids).toEqual([]);
   });
@@ -78,7 +79,12 @@ describe('resolveGroupMentions', () => {
     });
     const resolveLid = vi.fn().mockResolvedValue(LID);
 
-    const result = await resolveGroupMentions(fetch, GROUP, ['628111111111'], resolveLid);
+    const result = await resolveGroupMentions(
+      fetch,
+      GROUP,
+      [toPhoneNumber('628111111111')],
+      resolveLid
+    );
 
     expect(resolveLid).toHaveBeenCalledWith(PN);
     expect(result.jids).toEqual([LID]);
@@ -94,7 +100,7 @@ describe('resolveGroupMentions', () => {
     const result = await resolveGroupMentions(
       fetch,
       GROUP,
-      ['628111111111'],
+      [toPhoneNumber('628111111111')],
       vi.fn().mockResolvedValue(null)
     );
 
@@ -110,7 +116,7 @@ describe('resolveGroupMentions', () => {
     const result = await resolveGroupMentions(
       fetch,
       GROUP,
-      ['628111111111'],
+      [toPhoneNumber('628111111111')],
       vi.fn().mockRejectedValue(new Error('mapping store down'))
     );
 
@@ -120,7 +126,7 @@ describe('resolveGroupMentions', () => {
   it('does not consult the lid mapping store in a pn-addressed group', async () => {
     const resolveLid = vi.fn();
 
-    await resolveGroupMentions(pnGroup(), GROUP, ['628111111111'], resolveLid);
+    await resolveGroupMentions(pnGroup(), GROUP, [toPhoneNumber('628111111111')], resolveLid);
 
     expect(resolveLid).not.toHaveBeenCalled();
   });
@@ -132,7 +138,7 @@ describe('createBaileysMessageSender', () => {
     const fetch = pnGroup();
     const sender = createBaileysMessageSender(send, fetch);
 
-    await sender.sendMessage('628111111111@c.us', 'hi', ['628111111111']);
+    await sender.sendMessage('628111111111@c.us', 'hi', [toPhoneNumber('628111111111')]);
 
     expect(fetch).not.toHaveBeenCalled();
     expect(send).toHaveBeenCalledWith(PN, { text: 'hi' });
@@ -153,7 +159,7 @@ describe('createBaileysMessageSender', () => {
     const send = vi.fn().mockResolvedValue(undefined);
     const sender = createBaileysMessageSender(send, pnGroup());
 
-    await sender.sendMessage(GROUP, 'Heads up @628111111111', ['628111111111']);
+    await sender.sendMessage(GROUP, 'Heads up @628111111111', [toPhoneNumber('628111111111')]);
 
     expect(send).toHaveBeenCalledWith(GROUP, {
       text: 'Heads up @628111111111',
@@ -165,7 +171,7 @@ describe('createBaileysMessageSender', () => {
     const send = vi.fn().mockResolvedValue(undefined);
     const sender = createBaileysMessageSender(send, lidGroup());
 
-    await sender.sendMessage(GROUP, 'Heads up @628111111111', ['628111111111']);
+    await sender.sendMessage(GROUP, 'Heads up @628111111111', [toPhoneNumber('628111111111')]);
 
     expect(send).toHaveBeenCalledWith(GROUP, {
       text: 'Heads up @199887766554433',
@@ -177,7 +183,7 @@ describe('createBaileysMessageSender', () => {
     const send = vi.fn().mockResolvedValue(undefined);
     const sender = createBaileysMessageSender(send, pnGroup());
 
-    await sender.sendMessage(GROUP, 'Heads up @628999999999', ['628999999999']);
+    await sender.sendMessage(GROUP, 'Heads up @628999999999', [toPhoneNumber('628999999999')]);
 
     expect(send).toHaveBeenCalledWith(GROUP, { text: 'Heads up @628999999999' });
   });
@@ -187,7 +193,7 @@ describe('createBaileysMessageSender', () => {
     const fetch = vi.fn().mockRejectedValue(new Error('metadata unavailable'));
     const sender = createBaileysMessageSender(send, fetch);
 
-    await sender.sendMessage(GROUP, 'Heads up @628111111111', ['628111111111']);
+    await sender.sendMessage(GROUP, 'Heads up @628111111111', [toPhoneNumber('628111111111')]);
 
     expect(send).toHaveBeenCalledWith(GROUP, { text: 'Heads up @628111111111' });
   });

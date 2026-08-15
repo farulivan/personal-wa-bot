@@ -1,3 +1,5 @@
+import { toWaUserId } from '../../shared/identity.js';
+import type { WaUserId } from '../../shared/identity.js';
 import { describe, it, expect, vi } from 'vitest';
 import { createQuranReminderSender } from './quranDigest.js';
 import type { QuranService } from './quranService.js';
@@ -11,7 +13,7 @@ type ReminderData = Awaited<ReturnType<QuranService['getReminderDataForUser']>>;
 
 function stubMembershipPort(
   identities: GroupMemberIdentity[],
-  botUserId: string | null = null
+  botUserId: WaUserId | null = null
 ): GroupMembershipPort {
   return {
     listMemberIdentities: async () => identities,
@@ -49,8 +51,8 @@ describe('createQuranReminderSender', () => {
     const { senderPort, sendMessage } = stubSenderPort();
 
     const membershipPort = stubMembershipPort([
-      { primaryId: '628111111111', aliases: ['628111111111'] }, // has data
-      { primaryId: '628999999999', aliases: ['628999999999'] }, // no data, in group
+      { primaryId: toWaUserId('628111111111'), aliases: [toWaUserId('628111111111')] }, // has data
+      { primaryId: toWaUserId('628999999999'), aliases: [toWaUserId('628999999999')] }, // no data, in group
     ]);
 
     const { service, getReminderDataForUser } = stubQuranService(['628111111111'], {
@@ -88,7 +90,7 @@ describe('createQuranReminderSender', () => {
 
     // A data-user exists globally, but is not a member of this group.
     const membershipPort = stubMembershipPort([
-      { primaryId: '628999999999', aliases: ['628999999999'] },
+      { primaryId: toWaUserId('628999999999'), aliases: [toWaUserId('628999999999')] },
     ]);
     const { service, getReminderDataForUser } = stubQuranService(['628111111111'], {});
 
@@ -109,7 +111,7 @@ describe('createQuranReminderSender', () => {
     const { senderPort, sendMessage } = stubSenderPort();
 
     const membershipPort = stubMembershipPort([
-      { primaryId: '628111111111', aliases: ['628111111111'] },
+      { primaryId: toWaUserId('628111111111'), aliases: [toWaUserId('628111111111')] },
     ]);
     const { service } = stubQuranService(['628111111111'], {
       '628111111111': {

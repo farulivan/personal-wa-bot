@@ -1,3 +1,4 @@
+import { toWaUserId } from '../../shared/identity.js';
 import { debug, error } from '../../logger.js';
 import { formatReminderMessage, formatMonthlyQuranDigestMessage } from './quranPresenter.js';
 import type { UserReminder } from './quranPresenter.js';
@@ -65,7 +66,11 @@ export function createQuranReminderSender(deps: QuranReminderDeps) {
     let reminders: UserReminder[];
     try {
       const dbUsers = await deps.quranService.listDistinctUsers();
-      const targets = await resolveKnownGroupDbUserIds(deps.membershipPort, groupChatId, dbUsers);
+      const targets = await resolveKnownGroupDbUserIds(
+        deps.membershipPort,
+        groupChatId,
+        dbUsers.map(toWaUserId)
+      );
 
       debug(`📖 Found ${targets.length} reminder targets from group participants`);
 

@@ -1,3 +1,5 @@
+import { toPhoneNumber } from '../../shared/identity.js';
+import type { PhoneNumber } from '../../shared/identity.js';
 import { describe, it, expect } from 'vitest';
 import {
   formatUndoSuccess,
@@ -21,8 +23,13 @@ import type { WorkoutEntry } from './infra/workoutRepository.js';
 import type { WorkoutLeaderboardEntry } from './workoutService.js';
 import type { StreakInfo } from '../../shared/streaks.js';
 
-function allMentionablePhones(entries: WorkoutLeaderboardEntry[]): Set<string> {
-  return new Set(entries.map((e) => e.phoneNumber).filter((p): p is string => p !== null));
+function allMentionablePhones(entries: WorkoutLeaderboardEntry[]): Set<PhoneNumber> {
+  return new Set(
+    entries
+      .map((e) => e.phoneNumber)
+      .filter((p): p is string => p !== null)
+      .map(toPhoneNumber)
+  );
 }
 
 describe('formatUndoSuccess', () => {
@@ -203,7 +210,7 @@ describe('formatDigestMessage', () => {
       makeEntry('628111111111', 'Alice', 10, 5, 5, true),
       makeEntry('628222222222', 'Bob', 8, 3, 3, true),
     ];
-    const onlyAlice = new Set([entries[0].phoneNumber!]);
+    const onlyAlice = new Set([toPhoneNumber(entries[0].phoneNumber!)]);
     const result = formatDigestMessage(entries, onlyAlice);
     expect(result.text).toContain('@628111111111');
     expect(result.text).toContain('Bob');
@@ -462,7 +469,7 @@ describe('formatLeaderboardMessage', () => {
       makeEntry('628111111111', 'Alice', 10, 5, 5, true),
       makeEntry('628222222222', 'Bob', 8, 3, 3, true),
     ];
-    const onlyAlice = new Set([entries[0].phoneNumber!]);
+    const onlyAlice = new Set([toPhoneNumber(entries[0].phoneNumber!)]);
     const result = formatLeaderboardMessage(entries, onlyAlice);
     expect(result.text).toContain('@628111111111');
     expect(result.text).toContain('Bob');

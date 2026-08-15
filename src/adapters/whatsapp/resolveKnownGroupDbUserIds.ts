@@ -1,3 +1,4 @@
+import type { WaUserId } from '../../shared/identity.js';
 import type { GroupMembershipPort } from './ports.js';
 import { listGroupMemberIdentitiesExcludingBot } from './listGroupMemberIdentitiesExcludingBot.js';
 
@@ -14,15 +15,15 @@ import { listGroupMemberIdentitiesExcludingBot } from './listGroupMemberIdentiti
 export async function resolveKnownGroupDbUserIds(
   port: GroupMembershipPort,
   groupChatId: string,
-  knownDbUserIds: string[]
-): Promise<string[]> {
+  knownDbUserIds: WaUserId[]
+): Promise<WaUserId[]> {
   const groupMemberIdentities = await listGroupMemberIdentitiesExcludingBot(port, groupChatId);
 
   const knownUsers = new Set(knownDbUserIds);
-  const targetUserIdSet = new Set<string>();
+  const targetUserIdSet = new Set<WaUserId>();
 
   for (const member of groupMemberIdentities) {
-    const matchedDbId = member.aliases.find((alias: string) => knownUsers.has(alias));
+    const matchedDbId = member.aliases.find((alias) => knownUsers.has(alias));
     if (matchedDbId !== undefined) {
       targetUserIdSet.add(matchedDbId);
     }

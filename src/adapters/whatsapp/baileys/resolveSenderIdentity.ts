@@ -1,6 +1,7 @@
+import type { WaUserId } from '../../../shared/identity.js';
+import { toWaUserId } from '../../../shared/identity.js';
 import { isLidUser, jidNormalizedUser, WAMessageAddressingMode } from '@whiskeysockets/baileys';
 import type { WAMessageKey } from '@whiskeysockets/baileys';
-import { normalizeUserId } from '../../../app/normalizeUserId.js';
 
 export type SenderIdentity = {
   /** Phone-number form (@s.whatsapp.net), when WhatsApp supplied one. */
@@ -47,12 +48,12 @@ export function resolveSenderIdentity(key: WAMessageKey, isGroup: boolean): Send
  *
  * This is compatibility, not preference. whatsapp-web.js passed `msg.author`
  * through verbatim, so that raw form is what `users.id` and `ALLOWED_NUMBERS`
- * already hold — which is why `normalizeUserId` has always had to strip `@lid`.
+ * already hold — which is why stripping `@lid` has always been necessary.
  * Deriving the id any other way orphans every existing row and makes the
  * allowlist reject people it used to admit.
  */
-export function toDbUserId(identity: SenderIdentity): string {
-  return normalizeUserId(identity.rawJid || identity.pnJid || identity.lidJid || '');
+export function toDbUserId(identity: SenderIdentity): WaUserId {
+  return toWaUserId(identity.rawJid || identity.pnJid || identity.lidJid || '');
 }
 
 /**
@@ -60,10 +61,10 @@ export function toDbUserId(identity: SenderIdentity): string {
  * find an existing row even if WhatsApp has since switched the chat between
  * phone-number and LID addressing.
  */
-export function toDbUserIdCandidates(identity: SenderIdentity): string[] {
+export function toDbUserIdCandidates(identity: SenderIdentity): WaUserId[] {
   const candidates = [identity.rawJid, identity.pnJid, identity.lidJid]
     .filter((jid): jid is string => Boolean(jid))
-    .map(normalizeUserId)
+    .map(toWaUserId)
     .filter((id) => id !== '');
 
   return Array.from(new Set(candidates));
