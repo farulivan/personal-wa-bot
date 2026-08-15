@@ -3,6 +3,7 @@ import makeWASocket, {
   Browsers,
   DisconnectReason,
   makeCacheableSignalKeyStore,
+  proto,
   useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
 import type { WASocket } from '@whiskeysockets/baileys';
@@ -112,7 +113,13 @@ export function createBaileysTransport(deps: BaileysTransportDeps): BaileysTrans
       // The bot only ever reads live traffic, and a history sync is the one
       // thing that would spike memory on a box sized for a WebSocket.
       syncFullHistory: false,
-      shouldSyncHistoryMessage: () => false,
+      // Denying every history type also denies INITIAL_BOOTSTRAP, which is what
+      // carries the PN<->LID mappings — Baileys warns this causes session
+      // instability, and it leaves the mapping store we fall back on for group
+      // mentions permanently empty. Match Baileys' own default and refuse only
+      // the full archive; syncFullHistory: false keeps the rest bounded.
+      shouldSyncHistoryMessage: ({ syncType }) =>
+        syncType !== proto.HistorySync.HistorySyncType.FULL,
       // Staying invisible keeps push notifications flowing to the real phone.
       markOnlineOnConnect: false,
       emitOwnEvents: false,
