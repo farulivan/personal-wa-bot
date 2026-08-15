@@ -1,3 +1,4 @@
+import type { WaUserId } from '../shared/identity.js';
 import type { AppContext } from './appContext.js';
 
 const GREETINGS = ['halo', 'hello', 'hi'];
@@ -41,7 +42,7 @@ export function isGreeting(text: string): boolean {
 }
 
 export async function handleGreeting(
-  sender: string,
+  sender: WaUserId,
   replyFn: (text: string) => Promise<void>,
   appContext: AppContext
 ): Promise<void> {

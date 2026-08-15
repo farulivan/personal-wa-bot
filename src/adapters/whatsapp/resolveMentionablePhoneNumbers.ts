@@ -1,3 +1,4 @@
+import type { PhoneNumber } from '../../shared/identity.js';
 import { error } from '../../logger.js';
 import type { GroupMembershipPort } from './ports.js';
 import { listGroupMemberIdentitiesExcludingBot } from './listGroupMemberIdentitiesExcludingBot.js';
@@ -18,16 +19,18 @@ import { listGroupMemberIdentitiesExcludingBot } from './listGroupMemberIdentiti
 export async function resolveMentionablePhoneNumbers(
   membershipPort: GroupMembershipPort,
   groupChatId: string | null,
-  candidatePhoneNumbers: Array<string | null>
-): Promise<Set<string>> {
+  candidatePhoneNumbers: Array<PhoneNumber | null>
+): Promise<Set<PhoneNumber>> {
   if (groupChatId === null) return new Set();
 
-  const phones = new Set(candidatePhoneNumbers.filter((p): p is string => p !== null && p !== ''));
+  const phones = new Set(
+    candidatePhoneNumbers.filter((p): p is PhoneNumber => p !== null && String(p) !== '')
+  );
   if (phones.size === 0) return new Set();
 
   try {
     const identities = await listGroupMemberIdentitiesExcludingBot(membershipPort, groupChatId);
-    const aliasSet = new Set(identities.flatMap((m) => m.aliases));
+    const aliasSet = new Set<string>(identities.flatMap((m) => m.aliases));
     return new Set([...phones].filter((p) => aliasSet.has(p)));
   } catch (err) {
     error(`🏷️ Failed to resolve mentionable phone numbers for ${groupChatId}:`, err);

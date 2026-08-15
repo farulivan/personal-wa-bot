@@ -1,3 +1,4 @@
+import { toPhoneNumber } from '../../shared/identity.js';
 import { debug, error } from '../../logger.js';
 import {
   formatDigestMessage,
@@ -36,7 +37,7 @@ export function createDailyStreakDigestSender(deps: DigestDeps) {
     const mentionablePhoneNumbers = await resolveMentionablePhoneNumbers(
       deps.membershipPort,
       groupChatId,
-      ranked.map((e) => e.phoneNumber)
+      ranked.map((e) => (e.phoneNumber === null ? null : toPhoneNumber(e.phoneNumber)))
     );
 
     const result = formatDigestMessage(ranked, mentionablePhoneNumbers);

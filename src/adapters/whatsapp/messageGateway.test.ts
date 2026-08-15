@@ -1,107 +1,60 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMessageGateway } from './messageGateway.js';
+import type { IncomingMessage } from './ports.js';
+import { toPhoneNumber, toWaUserId } from '../../shared/identity.js';
 
-type FakeMessage = {
-  from: string;
-  getChat: () => Promise<{ sendMessage: ReturnType<typeof vi.fn> }>;
-  reply: ReturnType<typeof vi.fn>;
-};
-
-function makeGateway() {
-  const sendMessageFn = vi.fn().mockResolvedValue(undefined);
-  const client = { sendMessage: sendMessageFn };
-  const gateway = createMessageGateway(client);
-  return { gateway, sendMessageFn };
+function makeGateway(sendMessage = vi.fn().mockResolvedValue(undefined)) {
+  return { gateway: createMessageGateway({ sendMessage }), sendMessage };
 }
 
-function makeFakeMessage(from: string): FakeMessage {
+function makeFakeMessage(chatId: string): IncomingMessage {
   return {
-    from,
-    getChat: vi.fn().mockResolvedValue({ sendMessage: vi.fn() }),
-    reply: vi.fn(),
+    chatId,
+    isGroup: chatId.endsWith('@g.us'),
+    senderId: toWaUserId('628111'),
+    senderCandidates: [toWaUserId('628111')],
+    text: 'irrelevant',
+    getContact: vi.fn().mockResolvedValue({}),
+    isBotMentioned: vi.fn().mockResolvedValue(false),
   };
 }
 
-describe('MessageGateway.sendMessage — group-chat guard', () => {
-  it('strips mentions for direct chat (non-@g.us)', async () => {
-    const { gateway, sendMessageFn } = makeGateway();
+describe('MessageGateway.sendMessage', () => {
+  it('passes the chat id, text and mention numbers straight through', async () => {
+    const { gateway, sendMessage } = makeGateway();
 
-    await gateway.sendMessage('123@c.us', 'hi', ['456@c.us']);
+    await gateway.sendMessage('120-1@g.us', 'hi', [toPhoneNumber('628111')]);
 
-    expect(sendMessageFn).toHaveBeenCalledWith('123@c.us', 'hi', { sendSeen: false });
-    expect(sendMessageFn.mock.calls[0][2]).not.toHaveProperty('mentions');
+    expect(sendMessage).toHaveBeenCalledWith('120-1@g.us', 'hi', ['628111']);
   });
 
-  it('passes mentions for group chat (@g.us)', async () => {
-    const { gateway, sendMessageFn } = makeGateway();
-
-    await gateway.sendMessage('120-1@g.us', 'hi', ['456@c.us']);
-
-    expect(sendMessageFn).toHaveBeenCalledWith('120-1@g.us', 'hi', {
-      sendSeen: false,
-      mentions: ['456@c.us'],
-    });
-  });
-
-  it('omits mentions for group chat when mentions array is empty', async () => {
-    const { gateway, sendMessageFn } = makeGateway();
-
-    await gateway.sendMessage('120-1@g.us', 'hi', []);
-
-    expect(sendMessageFn).toHaveBeenCalledWith('120-1@g.us', 'hi', { sendSeen: false });
-    expect(sendMessageFn.mock.calls[0][2]).not.toHaveProperty('mentions');
-  });
-
-  it('omits mentions for group chat when no mentions arg passed', async () => {
-    const { gateway, sendMessageFn } = makeGateway();
+  it('passes undefined when there are no mentions', async () => {
+    const { gateway, sendMessage } = makeGateway();
 
     await gateway.sendMessage('120-1@g.us', 'hi');
 
-    expect(sendMessageFn).toHaveBeenCalledWith('120-1@g.us', 'hi', { sendSeen: false });
-    expect(sendMessageFn.mock.calls[0][2]).not.toHaveProperty('mentions');
+    expect(sendMessage).toHaveBeenCalledWith('120-1@g.us', 'hi', undefined);
+  });
+
+  it('propagates a send failure to the caller', async () => {
+    const { gateway } = makeGateway(vi.fn().mockRejectedValue(new Error('socket down')));
+
+    await expect(gateway.sendMessage('120-1@g.us', 'hi')).rejects.toThrow('socket down');
   });
 });
 
-describe('MessageGateway.reply — group-chat guard', () => {
-  it('strips mentions for direct chat (non-@g.us)', async () => {
-    const { gateway, sendMessageFn } = makeGateway();
-    const msg = makeFakeMessage('123@c.us');
+describe('MessageGateway.reply', () => {
+  it('sends to the chat the message arrived in', async () => {
+    const { gateway, sendMessage } = makeGateway();
 
-    await gateway.reply(msg as never, 'hi', ['456@c.us']);
+    await gateway.reply(makeFakeMessage('120-1@g.us'), 'hi', [toPhoneNumber('628111')]);
 
-    expect(sendMessageFn).toHaveBeenCalledWith('123@c.us', 'hi', { sendSeen: false });
-    expect(sendMessageFn.mock.calls[0][2]).not.toHaveProperty('mentions');
+    expect(sendMessage).toHaveBeenCalledWith('120-1@g.us', 'hi', ['628111']);
   });
 
-  it('passes mentions for group chat (@g.us)', async () => {
-    const { gateway, sendMessageFn } = makeGateway();
-    const msg = makeFakeMessage('120-1@g.us');
+  it('swallows a send failure, so one bad reply cannot stop the message loop', async () => {
+    const { gateway } = makeGateway(vi.fn().mockRejectedValue(new Error('socket down')));
 
-    await gateway.reply(msg as never, 'hi', ['456@c.us']);
-
-    expect(sendMessageFn).toHaveBeenCalledWith('120-1@g.us', 'hi', {
-      sendSeen: false,
-      mentions: ['456@c.us'],
-    });
-  });
-
-  it('omits mentions for group chat when mentions array is empty', async () => {
-    const { gateway, sendMessageFn } = makeGateway();
-    const msg = makeFakeMessage('120-1@g.us');
-
-    await gateway.reply(msg as never, 'hi', []);
-
-    expect(sendMessageFn).toHaveBeenCalledWith('120-1@g.us', 'hi', { sendSeen: false });
-    expect(sendMessageFn.mock.calls[0][2]).not.toHaveProperty('mentions');
-  });
-
-  it('omits mentions for group chat when no mentions arg passed', async () => {
-    const { gateway, sendMessageFn } = makeGateway();
-    const msg = makeFakeMessage('120-1@g.us');
-
-    await gateway.reply(msg as never, 'hi');
-
-    expect(sendMessageFn).toHaveBeenCalledWith('120-1@g.us', 'hi', { sendSeen: false });
-    expect(sendMessageFn.mock.calls[0][2]).not.toHaveProperty('mentions');
+    await expect(gateway.reply(makeFakeMessage('123@c.us'), 'hi')).resolves.toBeUndefined();
   });
 });

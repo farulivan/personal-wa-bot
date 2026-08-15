@@ -5,6 +5,7 @@ dist
 *.md
 .wwebjs_auth
 .wwebjs_cache
+baileys_auth
 .windsurf
 data
 scripts

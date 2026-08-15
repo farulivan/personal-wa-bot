@@ -1,8 +1,10 @@
+import { toPhoneNumber } from '../../shared/identity.js';
+import type { PhoneNumber } from '../../shared/identity.js';
 import type { WorkoutEntry } from './infra/workoutRepository.js';
 import type { StreakInfo } from '../../shared/streaks.js';
 import { UNDO_WINDOW_MS } from './workoutService.js';
 import type { WorkoutLeaderboardEntry } from './workoutService.js';
-import { formatMentionTag, phoneToMentionJid } from '../../shared/mentions.js';
+import { formatMentionTag } from '../../shared/mentions.js';
 
 const WORKOUT_LEADERBOARD_LIMIT = 10;
 
@@ -196,8 +198,8 @@ const STREAK_RULE_NOTE =
 
 function formatStreakAtRiskWarning(
   entries: WorkoutLeaderboardEntry[],
-  mentionablePhoneNumbers: Set<string>
-): { text: string; mentions: string[] } | null {
+  mentionablePhoneNumbers: Set<PhoneNumber>
+): { text: string; mentions: PhoneNumber[] } | null {
   const atRisk = entries.filter((e) => e.atRisk);
   if (atRisk.length === 0) return null;
 
@@ -205,12 +207,12 @@ function formatStreakAtRiskWarning(
     e: WorkoutLeaderboardEntry
   ): e is WorkoutLeaderboardEntry & {
     phoneNumber: string;
-  } => e.phoneNumber !== null && mentionablePhoneNumbers.has(e.phoneNumber);
+  } => e.phoneNumber !== null && mentionablePhoneNumbers.has(toPhoneNumber(e.phoneNumber));
 
   const tagged = atRisk
     .map((e) => (isMentionable(e) ? formatMentionTag(e.phoneNumber) : e.user))
     .join(', ');
-  const mentions = atRisk.filter(isMentionable).map((e) => phoneToMentionJid(e.phoneNumber));
+  const mentions = atRisk.filter(isMentionable).map((e) => toPhoneNumber(e.phoneNumber));
 
   return {
     text: `Heads up ${tagged}: workout today or your streak ends tomorrow.`,
@@ -251,10 +253,10 @@ function renderLeaderboardBody(entries: WorkoutLeaderboardEntry[]): string {
 
 export function formatLeaderboardMessage(
   entries: WorkoutLeaderboardEntry[],
-  mentionablePhoneNumbers: Set<string>
+  mentionablePhoneNumbers: Set<PhoneNumber>
 ): {
   text: string;
-  mentions: string[];
+  mentions: PhoneNumber[];
 } {
   if (entries.length === 0) {
     return {
@@ -300,10 +302,10 @@ export function formatMonthlyDigestMessage(
 
 export function formatDigestMessage(
   entries: WorkoutLeaderboardEntry[],
-  mentionablePhoneNumbers: Set<string>
+  mentionablePhoneNumbers: Set<PhoneNumber>
 ): {
   text: string;
-  mentions: string[];
+  mentions: PhoneNumber[];
 } {
   if (entries.length === 0) {
     return {

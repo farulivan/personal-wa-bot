@@ -1,6 +1,5 @@
 import http from 'http';
-import { createWhatsAppClient } from './bot.js';
-import { debug, log, error } from './logger.js';
+import { log, error } from './logger.js';
 import { installProcessGuards } from './processGuards.js';
 import { appConfig, validateConfig } from './config/env.js';
 import { runMigrations } from './db/migrate.js';
@@ -11,7 +10,8 @@ import { CommandRouter } from './app/commandRouter.js';
 import { createMessageHandler } from './app/messageHandler.js';
 import { startScheduler } from './app/scheduler.js';
 import { createMessageGateway } from './adapters/whatsapp/messageGateway.js';
-import { WhatsAppGroupMembershipAdapter } from './adapters/whatsapp/whatsAppGroupMembershipAdapter.js';
+import { createBaileysTransport } from './adapters/whatsapp/baileys/createBaileysTransport.js';
+import type { IncomingMessage } from './adapters/whatsapp/ports.js';
 
 // --- Infra ---
 import { DrizzleWorkoutRepository } from './modules/workouts/infra/drizzleWorkoutRepository.js';
@@ -32,9 +32,9 @@ import { UserService } from './modules/users/userService.js';
 import { createAuthGuard } from './app/authGuard.js';
 
 async function main() {
-  // A WhatsApp logout makes whatsapp-web.js throw from an un-awaited handler
-  // (see docs/incidents/2026-07-25-whatsapp-logout-inject-crash.md). Catch it
-  // at the process level and exit cleanly so the platform restarts us.
+  // Last line of defence for anything that escapes a handler: log it and exit
+  // non-zero so the platform restarts us, rather than leaving a dead process.
+  // See docs/incidents/2026-07-25-whatsapp-logout-inject-crash.md.
   installProcessGuards();
 
   validateConfig(appConfig);
@@ -43,10 +43,24 @@ async function main() {
   await runMigrations(appConfig.databaseUrl);
 
   const { db: drizzleDb, close: closeDb } = createDrizzleDb(appConfig.databaseUrl);
-  const client = createWhatsAppClient();
 
-  const messageGateway = createMessageGateway(client);
-  const senderPort = messageGateway;
+  // The handler and the ready hook are wired further down, once the router and
+  // modules exist — the transport only calls them after the socket opens.
+  let handleMessage: ((msg: IncomingMessage) => Promise<void>) | null = null;
+  let onSocketReady: () => void = () => {};
+
+  const transport = createBaileysTransport({
+    authDir: appConfig.waAuthDir,
+    logLevel: appConfig.waLogLevel,
+    onMessage: async (msg) => {
+      await handleMessage?.(msg);
+    },
+    onReady: () => onSocketReady(),
+  });
+
+  const senderPort = transport.senderPort;
+  const membershipPort = transport.membershipPort;
+  const messageGateway = createMessageGateway(senderPort);
 
   // --- Repositories ---
   const workoutRepository = new DrizzleWorkoutRepository(drizzleDb, appConfig.minWorkoutsForStreak);
@@ -58,11 +72,9 @@ async function main() {
 
   const userService = new UserService(userRepository);
 
-  const isAllowedUser = createAuthGuard(appConfig.allowedNumbers);
+  const isAllowedUser = createAuthGuard(appConfig.allowedWaIds);
 
   // --- Register modules ---
-  const membershipPort = new WhatsAppGroupMembershipAdapter(client);
-
   const workout = registerWorkoutModule({
     workoutRepository,
     userRepository,
@@ -103,6 +115,7 @@ async function main() {
     digestGroupIds: appConfig.digestGroupIds,
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
     senderPort,
+    isConnected: transport.isConnected,
   });
 
   const remind = registerRemindModule({
@@ -112,6 +125,7 @@ async function main() {
     timezoneOffsetMinutes: appConfig.userTimezoneOffsetMinutes,
     remindListLimit: appConfig.remindListLimit,
     remindActiveLimit: appConfig.remindActiveLimit,
+    isConnected: transport.isConnected,
   });
 
   // --- Wire router ---
@@ -122,14 +136,13 @@ async function main() {
   router.registerNamespace('remind', remind.controller);
 
   const appContext = {
-    client,
     config: appConfig,
     messageGateway,
     userService,
     isAllowedUser,
   };
 
-  const handleMessage = createMessageHandler(router, appContext);
+  handleMessage = createMessageHandler(router, appContext);
 
   let isReady = false;
 
@@ -151,10 +164,6 @@ async function main() {
   // --- Start bot ---
   log('starting bot initialization');
 
-  client.on('message', async (msg) => {
-    await handleMessage(msg);
-  });
-
   let reminderHandle: { stop: () => void } | null = null;
   let digestHandle: { stop: () => void } | null = null;
   let sholatReminderHandle: { stop: () => void } | null = null;
@@ -171,12 +180,8 @@ async function main() {
     sholatReminderHandle?.stop();
     restartHandle?.stop();
     healthServer.close();
-    try {
-      await client.destroy();
-      log('whatsapp client destroyed');
-    } catch (err) {
-      error({ err }, 'error destroying whatsapp client');
-    }
+    transport.stop();
+    log('whatsapp socket closed');
     try {
       await closeDb();
       log('database connection closed');
@@ -189,7 +194,7 @@ async function main() {
   process.once('SIGTERM', () => void shutdown('SIGTERM'));
   process.once('SIGINT', () => void shutdown('SIGINT'));
 
-  client.on('ready', () => {
+  onSocketReady = () => {
     log('whatsapp bot ready');
     isReady = true;
 
@@ -214,19 +219,16 @@ async function main() {
       }
       digestSchedulerStarted = true;
     }
+  };
+
+  await transport.start().catch((err) => {
+    error({ err }, 'failed to start the whatsapp transport');
+    throw err;
   });
 
-  client
-    .initialize()
-    .then(() => {
-      debug('client.initialize() completed');
-    })
-    .catch((err) => {
-      error({ err }, 'client.initialize() failed');
-    });
-
-  // Nightly restart caps Chromium's memory creep. Scheduled outside the
-  // 'ready' handler on purpose: a bot stuck at QR/auth burns RAM too.
+  // The nightly restart is the coarse self-healing backstop: it recovers from a
+  // socket wedged in a way the reconnect ladder cannot see. Scheduled outside
+  // the ready hook on purpose, so a bot stuck at the QR screen still recycles.
   if (appConfig.scheduledRestartEnabled) {
     restartHandle = startScheduler([
       {

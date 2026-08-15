@@ -1,10 +1,11 @@
+import type { PhoneNumber } from '../../shared/identity.js';
 import { debug, error } from '../../logger.js';
 import type { RemindRepository } from './infra/remindRepository.js';
 import type { UserRepository } from '../users/infra/userRepository.js';
 import { toLocalDateTimeLabel, formatSchedulerReminderMessage } from './remindPresenter.js';
 
 type ReminderClientLike = {
-  sendMessage: (chatId: string, text: string, mentions?: string[]) => Promise<unknown>;
+  sendMessage: (chatId: string, text: string, mentionNumbers?: PhoneNumber[]) => Promise<unknown>;
 };
 
 type StartReminderSchedulerDeps = {
@@ -13,6 +14,8 @@ type StartReminderSchedulerDeps = {
   userRepository: UserRepository;
   timezoneOffsetMinutes: number;
   intervalMs?: number;
+  /** Defaults to always-connected so tests and callers can leave it out. */
+  isConnected?: () => boolean;
 };
 
 export type ReminderSchedulerHandle = { stop: () => void };
@@ -23,6 +26,13 @@ export function startReminderScheduler(deps: StartReminderSchedulerDeps): Remind
 
   const runTick = async (): Promise<void> => {
     if (isRunning) {
+      return;
+    }
+
+    // Claiming stamps sent_at before the send and we never retry (ADR 0001),
+    // so claiming while the socket is down silently destroys the reminder.
+    if (deps.isConnected && !deps.isConnected()) {
+      debug('⏰ Reminder scheduler: skipping tick, whatsapp is not connected');
       return;
     }
 

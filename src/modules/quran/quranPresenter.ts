@@ -1,9 +1,11 @@
+import { toPhoneNumber } from '../../shared/identity.js';
+import type { PhoneNumber } from '../../shared/identity.js';
 import { toUserDate } from '../../shared/dateRange.js';
 import type { QuranDailyReadRow, QuranHistoryRow } from './infra/quranRepository.js';
 import type { QuranLeaderboardEntry, QuranLeaderboardMode } from './quranService.js';
 import { QURAN_UNDO_WINDOW_MS } from './quranService.js';
 import type { StreakInfo } from '../../shared/streaks.js';
-import { formatMentionTag, phoneToMentionJid } from '../../shared/mentions.js';
+import { formatMentionTag } from '../../shared/mentions.js';
 
 const QURAN_LEADERBOARD_LIMIT = 10;
 
@@ -280,7 +282,7 @@ export function formatUndoTooLate(entry: QuranDailyReadRow, timezoneOffsetMinute
 
 export function formatReminderMessage(reminders: UserReminder[]): {
   text: string;
-  mentions: string[];
+  mentions: PhoneNumber[];
 } {
   if (reminders.length === 0) {
     return {
@@ -322,10 +324,10 @@ export function formatReminderMessage(reminders: UserReminder[]): {
   const mentions = [
     ...notReadWithStreak
       .filter((u) => u.phoneNumber !== null)
-      .map((u) => phoneToMentionJid(u.phoneNumber!)),
+      .map((u) => toPhoneNumber(u.phoneNumber!)),
     ...notReadNoStreak
       .filter((u) => u.phoneNumber !== null)
-      .map((u) => phoneToMentionJid(u.phoneNumber!)),
+      .map((u) => toPhoneNumber(u.phoneNumber!)),
   ];
 
   if (notReadYet.length === 0) {

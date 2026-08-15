@@ -1,4 +1,4 @@
-import type { GroupMemberIdentity } from './waId.js';
+import type { GroupMemberIdentity } from './ports.js';
 import type { GroupMembershipPort } from './ports.js';
 
 /**

@@ -2,7 +2,6 @@ packages: []
 
 ignoredBuiltDependencies:
   - esbuild
-  - puppeteer
 
 onlyBuiltDependencies:
   - better-sqlite3

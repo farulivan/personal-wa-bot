@@ -1,3 +1,5 @@
+import { toPhoneNumber } from '../../shared/identity.js';
+import type { PhoneNumber } from '../../shared/identity.js';
 import { describe, it, expect } from 'vitest';
 import {
   formatUndoSuccess,
@@ -21,8 +23,13 @@ import type { WorkoutEntry } from './infra/workoutRepository.js';
 import type { WorkoutLeaderboardEntry } from './workoutService.js';
 import type { StreakInfo } from '../../shared/streaks.js';
 
-function allMentionablePhones(entries: WorkoutLeaderboardEntry[]): Set<string> {
-  return new Set(entries.map((e) => e.phoneNumber).filter((p): p is string => p !== null));
+function allMentionablePhones(entries: WorkoutLeaderboardEntry[]): Set<PhoneNumber> {
+  return new Set(
+    entries
+      .map((e) => e.phoneNumber)
+      .filter((p): p is string => p !== null)
+      .map(toPhoneNumber)
+  );
 }
 
 describe('formatUndoSuccess', () => {
@@ -158,14 +165,14 @@ describe('formatDigestMessage', () => {
     expect(result.text).not.toContain('@Alice');
   });
 
-  it('mentions array contains exactly the at-risk users JIDs in input order', () => {
+  it('mentions array contains exactly the at-risk phone numbers in input order', () => {
     const entries = [
       makeEntry('628111111111', 'Alice', 10, 5, 5, true),
       makeEntry('628222222222', 'Bob', 8, 3, 3, true),
       makeEntry('628333333333', 'Carol', 6, 0, 0, false),
     ];
     const result = formatDigestMessage(entries, allMentionablePhones(entries));
-    expect(result.mentions).toEqual(['628111111111@c.us', '628222222222@c.us']);
+    expect(result.mentions).toEqual(['628111111111', '628222222222']);
   });
 
   it('mentions is empty when no at-risk users', () => {
@@ -195,7 +202,7 @@ describe('formatDigestMessage', () => {
     expect(result.text).toContain('@628111111111');
     expect(result.text).toContain('Bob');
     expect(result.text).not.toContain('@Bob');
-    expect(result.mentions).toEqual(['628111111111@c.us']);
+    expect(result.mentions).toEqual(['628111111111']);
   });
 
   it('omits @mentions for at-risk users whose phone is not in mentionablePhoneNumbers; keeps them in text by display name', () => {
@@ -203,12 +210,12 @@ describe('formatDigestMessage', () => {
       makeEntry('628111111111', 'Alice', 10, 5, 5, true),
       makeEntry('628222222222', 'Bob', 8, 3, 3, true),
     ];
-    const onlyAlice = new Set([entries[0].phoneNumber!]);
+    const onlyAlice = new Set([toPhoneNumber(entries[0].phoneNumber!)]);
     const result = formatDigestMessage(entries, onlyAlice);
     expect(result.text).toContain('@628111111111');
     expect(result.text).toContain('Bob');
     expect(result.text).not.toContain('@628222222222');
-    expect(result.mentions).toEqual(['628111111111@c.us']);
+    expect(result.mentions).toEqual(['628111111111']);
   });
 
   it('produces no @mentions when mentionablePhoneNumbers is empty (e.g. membership lookup failed); names still appear', () => {
@@ -417,14 +424,14 @@ describe('formatLeaderboardMessage', () => {
     expect(result.text).toContain('@628111111111, @628222222222');
   });
 
-  it('mentions array contains exactly the at-risk users JIDs in input order', () => {
+  it('mentions array contains exactly the at-risk phone numbers in input order', () => {
     const entries = [
       makeEntry('628111111111', 'Alice', 10, 5, 5, true),
       makeEntry('628222222222', 'Bob', 8, 3, 3, true),
       makeEntry('628333333333', 'Carol', 6, 0, 0, false),
     ];
     const result = formatLeaderboardMessage(entries, allMentionablePhones(entries));
-    expect(result.mentions).toEqual(['628111111111@c.us', '628222222222@c.us']);
+    expect(result.mentions).toEqual(['628111111111', '628222222222']);
   });
 
   it('omits warning when no entries are at risk', () => {
@@ -454,7 +461,7 @@ describe('formatLeaderboardMessage', () => {
     expect(result.text).toContain('@628111111111');
     expect(result.text).toContain('Bob');
     expect(result.text).not.toContain('@Bob');
-    expect(result.mentions).toEqual(['628111111111@c.us']);
+    expect(result.mentions).toEqual(['628111111111']);
   });
 
   it('only @mentions at-risk users whose phone is in mentionablePhoneNumbers (group with non-member at-risk)', () => {
@@ -462,12 +469,12 @@ describe('formatLeaderboardMessage', () => {
       makeEntry('628111111111', 'Alice', 10, 5, 5, true),
       makeEntry('628222222222', 'Bob', 8, 3, 3, true),
     ];
-    const onlyAlice = new Set([entries[0].phoneNumber!]);
+    const onlyAlice = new Set([toPhoneNumber(entries[0].phoneNumber!)]);
     const result = formatLeaderboardMessage(entries, onlyAlice);
     expect(result.text).toContain('@628111111111');
     expect(result.text).toContain('Bob');
     expect(result.text).not.toContain('@628222222222');
-    expect(result.mentions).toEqual(['628111111111@c.us']);
+    expect(result.mentions).toEqual(['628111111111']);
   });
 
   it('produces no @mentions when mentionablePhoneNumbers is empty (DM equivalent); names still appear', () => {

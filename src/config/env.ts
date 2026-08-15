@@ -31,7 +31,10 @@ export function parseGroupIds(idsRaw: string): string[] {
   return [...new Set(ids)];
 }
 
-const allowedNumbersEnv = process.env.ALLOWED_NUMBERS || '';
+// Renamed from ALLOWED_NUMBERS, which asserted something false: these are
+// WhatsApp user ids, and in our chats those are LIDs rather than phone numbers.
+// The old name is still read so an existing deploy keeps working.
+const allowedWaIdsEnv = process.env.ALLOWED_WA_IDS || process.env.ALLOWED_NUMBERS || '';
 
 export const appConfig = {
   databaseUrl: process.env.DATABASE_URL || '',
@@ -53,11 +56,20 @@ export const appConfig = {
   scheduledRestartEnabled: parseBooleanEnv('SCHEDULED_RESTART_ENABLED', true),
   scheduledRestartHour: parseIntegerEnv('SCHEDULED_RESTART_HOUR', 3),
   scheduledRestartMinute: parseIntegerEnv('SCHEDULED_RESTART_MINUTE', 0),
+
+  // Sits beside the old .wwebjs_auth rather than replacing it, so rolling back
+  // to the previous deploy still finds its session intact.
+  waAuthDir:
+    process.env.WA_AUTH_DIR || `${process.env.RAILWAY_VOLUME_MOUNT_PATH || '.'}/baileys_auth`,
+
+  // Baileys is chatty at info and below; its protocol noise is rarely what we
+  // want in the same stream as the bot's own logs.
+  waLogLevel: process.env.WA_LOG_LEVEL || 'warn',
   digestGroupIds: parseGroupIds(process.env.DIGEST_GROUP_IDS || ''),
   sholatDefaultLocation: process.env.SHOLAT_DEFAULT_LOCATION || 'KAB. BOGOR',
   sholatTimezone: process.env.SHOLAT_TIMEZONE || 'Asia/Jakarta',
-  allowedNumbers: new Set(
-    allowedNumbersEnv
+  allowedWaIds: new Set(
+    allowedWaIdsEnv
       .split(',')
       .map((n) => n.trim())
       .filter((n) => n.length > 0)
@@ -118,8 +130,8 @@ export function validateConfig(config: AppConfig): void {
     }
   }
 
-  if (config.allowedNumbers.size === 0) {
-    console.warn('⚠️  ALLOWED_NUMBERS is empty — bot will reject all commands');
+  if (config.allowedWaIds.size === 0) {
+    console.warn('⚠️  ALLOWED_WA_IDS is empty — bot will reject all commands');
   }
 
   if (errors.length > 0) {

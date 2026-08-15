@@ -180,11 +180,31 @@ Set reminders with natural date/time input, delivered back to the source chat.
 | Layer | Technology |
 |---|---|
 | **Runtime** | Node.js 20+ · TypeScript 5.x |
-| **WhatsApp** | whatsapp-web.js |
+| **WhatsApp** | Baileys (`@whiskeysockets/baileys`) |
 | **Database** | PostgreSQL · Drizzle ORM |
 | **Testing** | Vitest |
 | **Linting** | ESLint · Prettier |
 | **Package Manager** | pnpm |
+
+The bot originally ran on whatsapp-web.js, which drives a headless Chromium. It moved to Baileys in August 2026 — see [How this got here](#how-this-got-here).
+
+---
+
+## Identity
+
+Worth knowing before you configure anything, because the intuitive assumption is wrong.
+
+WhatsApp addresses people by one of two things depending on the chat: their **phone number**, or a **LID** — a long number with no relationship to their phone number. This bot keys every row on whichever form WhatsApp hands it, and for most chats now that is the LID.
+
+So:
+
+- `users.id` holds a WhatsApp user ID, usually a LID
+- `ALLOWED_WA_IDS` holds the same form — **IDs, not phone numbers**
+- `users.phone_number` is separate metadata and does *not* match `users.id`
+
+Putting phone numbers in the allowlist locks everyone out, and deriving a user ID from a phone number orphans all existing history. Both fail silently, which is why `src/shared/identity.ts` makes `WaUserId` and `PhoneNumber` distinct types that the compiler refuses to interchange.
+
+To find someone's ID: set `DEBUG=true`, have them send a message, and read the `sender` field from the `message received` log line.
 
 ---
 
@@ -195,7 +215,6 @@ Set reminders with natural date/time input, delivered back to the source chat.
 - **Node.js** 20+
 - **pnpm**
 - **PostgreSQL** instance (local or remote)
-- Chromium dependencies (OS-dependent, only if running outside Docker)
 
 ### Install and run
 
@@ -205,7 +224,7 @@ pnpm install
 
 # 2. Configure environment
 cp .env.example .env
-# Edit .env — fill DATABASE_URL and ALLOWED_NUMBERS at minimum
+# Edit .env — fill DATABASE_URL and ALLOWED_WA_IDS at minimum
 
 # 3. Build and start
 pnpm build
@@ -220,7 +239,7 @@ On first run, scan the QR code shown in terminal to authenticate your WhatsApp s
 docker compose up --build
 ```
 
-`docker-compose.yml` mounts `.wwebjs_auth/` for session persistence and `data/` for local storage.
+`docker-compose.yml` mounts `baileys_auth/` for session persistence and `data/` for local storage.
 
 ---
 
@@ -289,7 +308,7 @@ See [`.env.example`](.env.example) for the full template.
 | Variable | Default | Description |
 |---|---|---|
 | `DATABASE_URL` | — | PostgreSQL connection URL |
-| `ALLOWED_NUMBERS` | `""` | Comma-separated phone allowlist (digits only, e.g. `6281234567890`) |
+| `ALLOWED_WA_IDS` | `""` | Comma-separated WhatsApp user IDs allowed to run commands. **IDs, not phone numbers** — see [Identity](#identity) |
 | `DIGEST_GROUP_IDS` | `""` | Comma-separated target groups for scheduled digests (disabled if empty); also the groups that can enable `#sholat` reminders. |
 | `DEBUG` | `false` | Enable debug logs (`true`/`1`) |
 
@@ -307,7 +326,7 @@ See [`.env.example`](.env.example) for the full template.
 | `QURAN_REMINDER_MINUTE` | `0` | Quran reminder minute |
 | `MONTHLY_DIGEST_HOUR` | `8` | Monthly recap hour (day 1, 24h, user timezone) |
 | `MONTHLY_DIGEST_MINUTE` | `0` | Monthly recap minute |
-| `SCHEDULED_RESTART_ENABLED` | `true` | Nightly restart to cap Chromium memory creep |
+| `SCHEDULED_RESTART_ENABLED` | `true` | Nightly restart as a self-healing backstop |
 | `SCHEDULED_RESTART_HOUR` | `3` | Restart hour (24h, user timezone) |
 | `SCHEDULED_RESTART_MINUTE` | `0` | Restart minute |
 
@@ -335,8 +354,9 @@ See [`.env.example`](.env.example) for the full template.
 
 | Variable | Default | Description |
 |---|---|---|
-| `PUPPETEER_EXECUTABLE_PATH` | — | Override Chromium binary path |
-| `RAILWAY_VOLUME_MOUNT_PATH` | — | Override WA auth storage path |
+| `RAILWAY_VOLUME_MOUNT_PATH` | — | Parent directory for the WhatsApp session |
+| `WA_AUTH_DIR` | `<volume>/baileys_auth` | Override the session directory outright |
+| `WA_LOG_LEVEL` | `warn` | Log level for the WhatsApp transport itself |
 
 </details>
 
@@ -408,20 +428,21 @@ pnpm format           # Format with Prettier
 ## Internal Behavior
 
 - **Group chats:** bot responds only when mentioned or message starts with `#`.
-- **Auth:** only phone numbers in `ALLOWED_NUMBERS` can execute commands.
-- **Identity:** user IDs are normalized before persistence to handle WA ID format variations.
+- **Auth:** only WhatsApp user IDs listed in `ALLOWED_WA_IDS` can execute commands.
+- **Identity:** rows are keyed by the ID WhatsApp addresses a person with — a LID in most chats, not their phone number. See [Identity](#identity).
 - **Remind scheduler:** runs independently after WA client is ready, polls every 30s.
 - **Sholat reminders:** a 30s ticker reads the cached schedule (warming it on a miss, so a restart at any time of day recovers) and posts at each fardhu time to chats that opted in via `#sholat reminder on`. DMs are self-serve; in groups only those listed in `DIGEST_GROUP_IDS` may opt in.
 - **Digest/Quran scheduler:** runs only when `DIGEST_GROUP_IDS` is configured.
-- **Nightly restart:** the WhatsApp Web page leaks memory over days, so the bot exits cleanly at 03:00 (user timezone) and lets the platform bring it back with a fresh Chromium. It is scheduled even when the client is stuck at the QR screen. The deploy config must relaunch on clean exits — `railway.json` uses `restartPolicyType: ALWAYS`, docker-compose uses `unless-stopped`.
+- **Reconnects:** an ordinary disconnect is retried in-process on a bounded backoff. Only a logout, a restricted account, or a run of failures that exhausts the budget takes the process down for the platform to restart. While the socket is down both tickers stop, so a reminder is never claimed and dropped.
+- **Nightly restart:** the coarse backstop for a socket wedged in a way the reconnect ladder cannot see. The bot exits cleanly at 03:00 (user timezone) and the platform brings it back. It is scheduled even when the client is stuck at the QR screen. The deploy config must relaunch on clean exits — `railway.json` uses `restartPolicyType: ALWAYS`, docker-compose uses `unless-stopped`.
 
 ---
 
 ## Security
 
 - Keep `.env` out of version control (already in `.gitignore`).
-- Restrict access via `ALLOWED_NUMBERS` — no allowlist means no one can use the bot.
-- Persist `.wwebjs_auth/` and `data/` in production environments.
+- Restrict access via `ALLOWED_WA_IDS` — no allowlist means no one can use the bot.
+- Persist `baileys_auth/` and `data/` in production environments.
 - Do not share terminal logs publicly (may contain operational details).
 
 ---
@@ -431,7 +452,7 @@ pnpm format           # Format with Prettier
 <details>
 <summary><strong>Bot does not respond</strong></summary>
 
-- Check sender number is in `ALLOWED_NUMBERS`
+- Check sender number is in `ALLOWED_WA_IDS`
 - In groups, ensure message starts with `#` or bot is mentioned
 - Set `DEBUG=true` and inspect logs
 
@@ -448,10 +469,39 @@ pnpm format           # Format with Prettier
 <details>
 <summary><strong>Authentication issues</strong></summary>
 
-- Ensure auth path is writable (`.wwebjs_auth/` or `RAILWAY_VOLUME_MOUNT_PATH`)
+- Ensure auth path is writable (`baileys_auth/`, or `WA_AUTH_DIR` / `RAILWAY_VOLUME_MOUNT_PATH`)
 - Delete auth folder and rescan QR if session is corrupted
 
 </details>
+
+---
+
+## How this got here
+
+The bot started on [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js), which automates the real WhatsApp Web client inside a headless Chromium. That works, and it was the fastest way to get something running. The cost only became clear later.
+
+**The browser was most of the bill.** The bot idled at 0.75–0.85 GB of RAM, roughly three quarters of it Chromium. That was steady state, not a leak — memory returned to the same level within hours of every restart. Leaner launch flags and a nightly restart bought 15–25% and then stopped helping, because the footprint *was* the browser.
+
+**The browser was also every outage.** Both incidents this project has had trace to it:
+
+- [July 8](docs/incidents/2026-07-08-chromium-launch-failure.md) — an image rebuild pulled a Chromium seven major versions past what puppeteer supported. A partial start then upgraded the browser profile stored on the persistent volume to a format the pinned build could no longer read, so pinning the version alone didn't fix it.
+- [July 25](docs/incidents/2026-07-25-whatsapp-logout-inject-crash.md) — WhatsApp logged the device out, which is routine. whatsapp-web.js responded by re-running its page injection, which threw from an un-awaited handler. Node exited and nothing brought it back. Down most of a day.
+
+In August 2026 the transport moved to [Baileys](https://github.com/WhiskeySockets/Baileys), which speaks the WhatsApp multi-device protocol over a plain WebSocket. Reasoning and trade-offs: [ADR 0005](docs/adr/0005-whatsapp-transport.md).
+
+What changed:
+
+| | Before | After |
+|---|---|---|
+| Memory | ~1.2 GB | under 100 MB |
+| Image | ~1.2 GB | ~250 MB |
+| Runtime deps | 5 (incl. puppeteer tree) | 5, no browser |
+| Chromium version pinning | required | gone |
+| Browser profile on the volume | required | gone |
+
+Two things worth recording honestly. A long-running bug where the nightly Quran reminder silently stopped firing turned out not to be in the Quran module at all — it was the group-participant lookup underneath it, and it disappeared with the migration after three rounds of fixes aimed at the wrong layer. And the migration itself nearly shipped a silent data bug by assuming user IDs were phone numbers; checking the actual table before cutover is what caught it, which is why [Identity](#identity) now leads the docs.
+
+Baileys is unofficial too, so the account-ban risk is unchanged. That was accepted rather than solved.
 
 ---
 
@@ -461,7 +511,8 @@ pnpm format           # Format with Prettier
 |---|---|
 | [Context & Glossary](CONTEXT.md) | What the project is, the modules, and the domain words it uses |
 | [Architecture Guide](docs/architecture.md) | How the codebase is structured, key patterns, and step-by-step guide for adding new features |
-| [Architecture Decisions](docs/adr/) | The non-obvious calls — reminder delivery semantics, the hexagonal split — and why |
+| [Architecture Decisions](docs/adr/) | The non-obvious calls — reminder delivery, the hexagonal split, the Baileys transport — and why |
+| [Incident Postmortems](docs/incidents/) | What broke in production, why, and what changed as a result |
 
 ---
 
