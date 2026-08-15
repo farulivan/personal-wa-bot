@@ -67,5 +67,5 @@ On restart, LocalAuth reconnects automatically if the session is still valid (no
 - [x] Process-level `unhandledRejection` and `uncaughtException` handlers that log and exit non-zero, so a library throw becomes a controlled restart instead of a silent death — shipped in [#61](https://github.com/farulivan/personal-wa-bot/pull/61).
 - [x] `disconnected` handler forces a clean restart instead of only logging — shipped in [#61](https://github.com/farulivan/personal-wa-bot/pull/61).
 - [x] Confirmed the disconnect reason from Railway logs — `reason: "LOGOUT"` at 02:33:38Z, matching the `post_logout` path above.
-- [ ] (Optional) Add an external uptime check against the existing `/ready` endpoint so the next outage pages someone instead of waiting to be noticed.
+- [x] Add an external uptime check against the `/ready` endpoint so the next outage pages someone instead of waiting to be noticed — done 2026-08-15. UptimeRobot polls `/ready` every 5 minutes and emails on failure; down and recovery notifications both verified end to end. Tracked in [#69](https://github.com/farulivan/personal-wa-bot/issues/69).
 - [x] Decided against bumping whatsapp-web.js or pinning `webVersionCache` — verified neither fixes this, and likely superseded by a Baileys migration.
