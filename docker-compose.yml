@@ -6,10 +6,8 @@ services:
     depends_on:
       - postgres
     volumes:
-      # Persist the WhatsApp session. The old .wwebjs_auth mount is kept so a
-      # rollback to the previous image still finds its session intact.
+      # Persist the WhatsApp session.
       - ./baileys_auth:/app/baileys_auth
-      - ./.wwebjs_auth:/app/.wwebjs_auth
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://wabot:wabot@postgres:5432/wabot

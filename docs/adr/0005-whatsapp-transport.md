@@ -21,7 +21,7 @@ Choosing a release candidate deserves its own justification. The alternative was
 
 Supporting decisions:
 
-- **Session storage** stays on the Railway volume via `useMultiFileAuthState`, in `baileys_auth` — a *sibling* of the old `.wwebjs_auth`, never replacing it. This is load-bearing, not just convenient: v7 requires the auth state to support three new key types (`lid-mapping`, `device-list`, `tctoken`), and the built-in store handles them. **Any future move to a Postgres-backed key store must implement all three**, or LID resolution breaks in ways that are quiet rather than loud.
+- **Session storage** stays on the Railway volume via `useMultiFileAuthState`, in `baileys_auth` — a *sibling* of the old whatsapp-web.js profile, never replacing it. (On Railway that profile lived at `<volume>/session`; `.wwebjs_auth` is the local-development path only.) This is load-bearing, not just convenient: v7 requires the auth state to support three new key types (`lid-mapping`, `device-list`, `tctoken`), and the built-in store handles them. **Any future move to a Postgres-backed key store must implement all three**, or LID resolution breaks in ways that are quiet rather than loud.
 - **No transport feature flag.** A flag would keep both libraries in the image, so none of the memory win would be realised until it was removed. Rollback is repointing Railway at `main` instead.
 - **Reconnects are handled in-process**, on a bounded ladder, rather than by exiting on every disconnect.
 
@@ -58,7 +58,7 @@ The ban risk is unchanged: Baileys is as unofficial as whatsapp-web.js. That is 
 
 **Never call `sock.logout()`.** It unlinks the Baileys device and forces a QR re-scan, and it is exactly the kind of call that ends up in a cleanup script. Ending the socket (`sock.end`) is the correct way to disconnect.
 
-**On rollback.** Scanning the Baileys QR linked a *new* device rather than unlinking the whatsapp-web.js one, so during the migration a rollback cost nothing: the old session was still on the volume and still valid. That property expires in two ways — WhatsApp drops idle linked devices after roughly two weeks, and deleting `.wwebjs_auth` from the volume ends it immediately. Both are expected and fine; the property existed to de-risk the cutover, which is over.
+**On rollback.** Scanning the Baileys QR linked a *new* device rather than unlinking the whatsapp-web.js one, so during the migration a rollback cost nothing: the old session was still on the volume and still valid. That property expired on 2026-08-16, when `<volume>/session` and `<volume>/session.bak` were deleted — which is expected and fine, since it existed to de-risk a cutover that is over. A rollback now costs a QR re-scan.
 
 Since the migration merged to `main` on 2026-08-15, rolling back means reverting the merge or redeploying an older image, and it costs a QR re-scan. There is still no data migration in either direction.
 
