@@ -46,8 +46,8 @@ My family already lives in WhatsApp all day, so I put the tracker where we alrea
 
 The interesting part of this project isn't the WhatsApp commands — it's what holds them up.
 
-- **Cut steady-state memory by ~93%.** The bot drove a headless Chromium and idled at
-  0.75–0.85 GB around the clock. Swapping the transport for a plain WebSocket protocol client took it under 100 MB and removed the one component that had caused every outage this project has had. → [ADR 0005](docs/adr/0005-whatsapp-transport.md)
+- **Cut steady-state memory by more than 85%.** The bot drove a headless Chromium and
+  idled at 0.75–0.85 GB around the clock. Swapping the transport for a plain WebSocket protocol client took it under 100 MB and removed the one component that had caused every outage this project has had. → [ADR 0005](docs/adr/0005-whatsapp-transport.md)
 - **A job scheduler that survives restarts.** Reminders are claimed with a single
   `UPDATE … FOR UPDATE SKIP LOCKED` statement, so a restart never skips a due reminder and overlapping ticks never send one twice. → [`drizzleRemindRepository.ts`](src/modules/remind/infra/drizzleRemindRepository.ts)
 - **Hexagonal architecture, applied the same way every time.** Each feature is the
@@ -534,7 +534,7 @@ What changed:
 
 | | Before | After |
 |---|---|---|
-| Memory | ~1.2 GB | under 100 MB |
+| Memory (steady state) | 0.75–0.85 GB | under 100 MB |
 | Image | ~1.2 GB | ~250 MB |
 | Runtime deps | 5 (incl. puppeteer tree) | 5, no browser |
 | Chromium version pinning | required | gone |
