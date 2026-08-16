@@ -171,8 +171,11 @@ describe('formatScheduleResponse — resolution notes', () => {
     expect(out).toContain('--location kab. bogor');
   });
 
-  it('says so when a bare name resolved to a regency', () => {
-    const out = formatScheduleResponse('KAB. PIDIE', schedule, { kind: 'resolved_to_regency' });
-    expect(out).toContain('kabupatennya');
+  it('adds nothing when a bare name resolved to a regency', () => {
+    // The location is already shown in bold and there is no alternative to
+    // offer, so a note would only restate what the user can see.
+    expect(formatScheduleResponse('KAB. PIDIE', schedule)).toBe(
+      formatScheduleResponse('KAB. PIDIE', schedule, undefined)
+    );
   });
 });
