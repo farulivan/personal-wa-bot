@@ -26,12 +26,22 @@ export function extractFlagValue(firstLine: string, flag: string): string {
 }
 
 /**
- * ⚠️ Frozen. The output of this feeds `normalizeForMatch`, whose result is
- * **persisted** in `sholat_locations.normalized_location_name` at catalogue-sync
- * time. `ensureLocationCatalog` only syncs when the table is empty, so a
- * deployed database never re-normalises. Changing this desynchronises stored
- * keys from computed ones and silently breaks every location lookup, with no
- * migration to catch it. See ADR 0006.
+ * ⚠️ DO NOT CHANGE without re-syncing the location catalogue in the same deploy.
+ *
+ * This feeds `normalizeForMatch`, whose output is written into
+ * `sholat_locations.normalized_location_name` when the catalogue is first
+ * synced — and `ensureLocationCatalog` returns early once that table is
+ * non-empty, so a deployed database never recomputes those keys.
+ *
+ * Change the rule and the two sides stop agreeing: lookups compute new keys
+ * while the database still holds old ones, so **every location stops
+ * resolving** — including `SHOLAT_DEFAULT_LOCATION`, which silently stops
+ * prayer reminders. Nothing errors, and the tests stay green because they
+ * build both sides in memory.
+ *
+ * If you must change it, call `syncLocationCatalog()` unconditionally once in
+ * the same release. That is safe: `upsertLocations` never deletes, so the
+ * cached schedules survive. See ADR 0006.
  */
 export function normalizeText(raw: string): string {
   return raw
@@ -41,7 +51,11 @@ export function normalizeText(raw: string): string {
     .trim();
 }
 
-/** ⚠️ Frozen — its output is persisted. See the note on `normalizeText`. */
+/**
+ * ⚠️ DO NOT CHANGE without re-syncing the location catalogue — this is the
+ * function whose output is stored in the database. See the note on
+ * `normalizeText` for what breaks and how to change it safely.
+ */
 export function normalizeForMatch(raw: string): string {
   const normalized = normalizeText(raw)
     .replace(/^KABUPATEN\s+/, 'KAB ')

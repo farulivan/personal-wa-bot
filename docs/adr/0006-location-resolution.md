@@ -56,7 +56,11 @@ Correctly-typed names resolve. `pidie`, `aceh barat` and every other name that i
 
 The ambiguous message is still reachable, so partial input like `aceh` keeps its candidate list.
 
-**`normalizeText` and `normalizeForMatch` are frozen.** Their output is persisted in `sholat_locations.normalized_location_name` at catalogue-sync time, and `ensureLocationCatalog` only syncs when the table is empty — a deployed database never re-normalises. Changing either silently desynchronises stored keys from computed ones and breaks every lookup, with no migration to catch it. Both carry a comment saying so. Anything that must change them has to force a catalogue re-sync in the same deploy.
+**`normalizeText` and `normalizeForMatch` must not change without a catalogue re-sync in the same deploy.** Their output is written into `sholat_locations.normalized_location_name` when the catalogue is first synced, and `ensureLocationCatalog` returns early once that table is non-empty — so a deployed database never recomputes those keys.
+
+Change the rule and the two sides stop agreeing: lookups compute new keys while the database still holds old ones, and every location stops resolving. That includes `SHOLAT_DEFAULT_LOCATION`, so prayer reminders stop too. Nothing errors, and the tests stay green, because they build both sides in memory and never see a database populated by an earlier version. Both functions carry a comment saying exactly this.
+
+The safe way to change them is to call `syncLocationCatalog()` unconditionally once in the same release. `upsertLocations` is an upsert keyed on `id` and never deletes, so the cached schedules survive — a delete-and-reinsert would take them with it, since `sholat_daily_cache.location_id` cascades.
 
 The resolver builds a `Map` keyed on the normalized name. Safe because the catalogue has **zero duplicate keys** across 517 rows — checked, not assumed. A future catalogue with duplicates would silently drop rows, which is worth re-checking if the upstream source ever changes.
 
