@@ -13,12 +13,18 @@ import { normalizeForMatch, parseLocationQuery } from './sholatParser.js';
 import { ok, err } from '../../shared/result.js';
 import type { Result } from '../../shared/result.js';
 
-/** Why the resolved location differs from what the user typed. Wording lives in the presenter. */
-export type LocationResolutionNote =
-  /** Bare input matched a city, and a regency of the same name also exists. */
-  | { kind: 'city_with_regency_twin'; regencyName: string }
-  /** Bare input matched only a regency — there is no city of that name. */
-  | { kind: 'resolved_to_regency' };
+/**
+ * Why the resolved location differs from what the user typed. Wording lives in
+ * the presenter.
+ *
+ * Only raised when there is something to act on. A bare name that matches only a
+ * regency needs no note: the reply already shows the resolved name in bold, and
+ * there is no city of that name to offer instead.
+ */
+export type LocationResolutionNote = {
+  kind: 'city_with_regency_twin';
+  regencyName: string;
+};
 
 export type ResolvedLocation = { row: SholatLocationRow; note?: LocationResolutionNote };
 
@@ -114,7 +120,7 @@ export class SholatService {
       }
 
       const regency = byKey.get(query.regencyKey);
-      if (regency) return ok({ row: regency, note: { kind: 'resolved_to_regency' } });
+      if (regency) return ok({ row: regency });
     }
 
     const fuzzyMatches = allLocations.filter((row) =>

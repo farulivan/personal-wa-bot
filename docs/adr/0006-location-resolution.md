@@ -48,7 +48,7 @@ Three parts of this are load-bearing and easy to get wrong:
 
 **No edit distance.** Suggestions are deterministic — an exact separated form, or nothing. Nothing to tune, and no chance of confidently proposing the wrong city.
 
-Bare input that resolves to a city with a same-named regency, or to a regency with no city, carries a note so the reply can say which it chose. The service returns a discriminated value; the wording lives in the presenter.
+Bare input that resolves to a city **while a same-named regency also exists** carries a note, so the reply can offer the other one. That is the only case worth a note: a bare name resolving to a regency needs none, because the reply already shows the resolved name and there is no city of that name to offer instead. The service returns a discriminated value; the wording lives in the presenter.
 
 ## Consequences
 

@@ -325,7 +325,9 @@ describe('SholatService', () => {
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.row.locationName).toBe('KAB. PIDIE');
-        expect(result.value.note).toEqual({ kind: 'resolved_to_regency' });
+        // No note: the reply already shows KAB. PIDIE, and there is no city of
+        // that name to offer as an alternative.
+        expect(result.value.note).toBeUndefined();
       }
     });
 
