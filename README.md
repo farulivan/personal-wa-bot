@@ -435,6 +435,7 @@ pnpm format           # Format with Prettier
 - **Digest/Quran scheduler:** runs only when `DIGEST_GROUP_IDS` is configured.
 - **Reconnects:** an ordinary disconnect is retried in-process on a bounded backoff. Only a logout, a restricted account, or a run of failures that exhausts the budget takes the process down for the platform to restart. While the socket is down both tickers stop, so a reminder is never claimed and dropped.
 - **Nightly restart:** the coarse backstop for a socket wedged in a way the reconnect ladder cannot see. The bot exits cleanly at 03:00 (user timezone) and the platform brings it back. It is scheduled even when the client is stuck at the QR screen. The deploy config must relaunch on clean exits — `railway.json` uses `restartPolicyType: ALWAYS`, docker-compose uses `unless-stopped`.
+- **Health endpoint:** the bot serves `GET /ready` on `PORT` — `200 READY` when the WhatsApp socket is open, `503 NOT_READY` otherwise. An external uptime monitor polls it every 5 minutes and emails on failure, so an outage surfaces in minutes rather than whenever someone notices. Monitor `/ready` specifically: any other path returns `200 OK` while the process is merely alive, which stays true when the socket is dead — the exact shape of the [2026-07-25 outage](docs/incidents/2026-07-25-whatsapp-logout-inject-crash.md).
 
 ---
 
