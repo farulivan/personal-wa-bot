@@ -25,7 +25,7 @@
 <div align="center">
   
 ![GitHub Actions](https://img.shields.io/github/actions/workflow/status/farulivan/personal-wa-bot/ci.yml?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-386%20passing-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-614%20passing-brightgreen?style=flat-square)
 ![License](https://img.shields.io/github/license/farulivan/personal-wa-bot?style=flat-square)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/typescript-5.x-blue?style=flat-square)
@@ -46,18 +46,22 @@ My family already lives in WhatsApp all day, so I put the tracker where we alrea
 
 The interesting part of this project isn't the WhatsApp commands — it's what holds them up.
 
+- **Cut steady-state memory by ~93%.** The bot drove a headless Chromium and idled at
+  0.75–0.85 GB around the clock. Swapping the transport for a plain WebSocket protocol client took it under 100 MB and removed the one component that had caused every outage this project has had. → [ADR 0005](docs/adr/0005-whatsapp-transport.md)
 - **A job scheduler that survives restarts.** Reminders are claimed with a single
   `UPDATE … FOR UPDATE SKIP LOCKED` statement, so a restart never skips a due reminder and overlapping ticks never send one twice. → [`drizzleRemindRepository.ts`](src/modules/remind/infra/drizzleRemindRepository.ts)
 - **Hexagonal architecture, applied the same way every time.** Each feature is the
   same shape — parser → service → presenter → repository — and the domain has no idea WhatsApp or PostgreSQL exist. → [`docs/architecture.md`](docs/architecture.md)
-- **Wired for real deployment.** Migrations run on boot, a `/ready` endpoint reports
-  health, and `SIGTERM` triggers a graceful shutdown that stops the schedulers and closes the DB pool. → [`index.ts`](src/index.ts)
-- **366 tests, deterministic on purpose.** Time is injected as `now: () => Date`, so
+- **A repeated bug made uncompilable.** A user ID and a phone number are both strings,
+  and mixing them up silently orphans every row a person owns. They're now distinct branded types the compiler refuses to interchange. → [`identity.ts`](src/shared/identity.ts)
+- **Wired for real deployment.** Migrations run on boot, `SIGTERM` drains the schedulers
+  and closes the pool, and `/ready` reports the state of the *WhatsApp socket* rather than merely that the process is alive — so an external monitor catches an outage in minutes instead of whenever someone notices. → [`index.ts`](src/index.ts)
+- **614 tests, deterministic on purpose.** Time is injected as `now: () => Date`, so
   the streak math and timezone boundaries are tested against a frozen clock instead of `Date.now()` luck.
 - **Errors are typed, not thrown.** A small `Result<T>` carries expected failures
   (bad input, broken rules) back to the caller; exceptions stay reserved for actual bugs. → [`Result<T>`](src/shared/result.ts)
 
-Two of the problems I enjoyed solving:
+Three of the problems I enjoyed solving:
 
 <details>
 <summary><strong>Surviving restarts without dropping reminders</strong></summary>
@@ -97,6 +101,37 @@ on repository *interfaces* and a `now()` function, so streak rules and timezone 
 run as plain unit tests. The Drizzle and WhatsApp specifics live at the edges, wired
 together in the [composition root](src/index.ts) — swapping the database would touch
 that file and the `infra/` folders and nothing in the domain.
+
+</details>
+
+<details>
+<summary><strong>Turning a mistake I kept making into a compile error</strong></summary>
+
+<br>
+
+WhatsApp identifies a person by one of two numbers — their phone number, or a **LID**,
+which is unrelated to it. This bot keys every row on whichever one WhatsApp hands it,
+and that turns out to be the LID.
+
+Both are strings of digits. Nothing distinguishes them at a glance, so twice I wrote
+code that derived a user ID from a phone number. Neither time did anything throw: the
+bot simply started writing rows under a second identity for the same person, and the
+allowlist stopped recognising anyone. The kind of bug you find days later by wondering
+why the history looks empty.
+
+I'd already written the warning in a comment. It didn't work, because the comment isn't
+there at the moment you make the mistake. So the fix was to give the compiler the
+distinction I couldn't reliably hold in my head — `WaUserId` and `PhoneNumber` as
+branded types with no implicit conversion between them:
+
+```typescript
+declare const WA_USER_ID: unique symbol;
+export type WaUserId = string & { readonly [WA_USER_ID]: true };
+```
+
+Passing a `PhoneNumber` where a `WaUserId` belongs is now a type error, and the only
+way to get either is through a constructor named for what you meant. The lesson stopped
+depending on me remembering it. Details in [Identity](#identity) and [ADR 0005](docs/adr/0005-whatsapp-transport.md).
 
 </details>
 
@@ -157,6 +192,7 @@ Fetch daily prayer times with location-aware caching, and opt a chat in to praye
 - Self-healing location catalog refresh on stale data
 - Opt-in reminders at each of the five fardhu times — `#sholat reminder on` / `off`
 - Works in DMs for anyone allowed; in groups, only the configured main group can enable them
+- Forgiving location input across 517 Indonesian regencies and cities: `kab. bogor`, `kab-bogor` and bare `bogor` all resolve, a partial name comes back with candidates, and a glued prefix like `kabbogor` gets a correction. → [ADR 0006](docs/adr/0006-location-resolution.md)
 
 ### Personal Reminders — `#remind`
 
@@ -279,11 +315,15 @@ docker compose up --build
 | Command | Description |
 |---|---|
 | `#sholat` / `#sholat --today` | Today's schedule (default location) |
-| `#sholat --today --location bandung` | Specify location |
+| `#sholat --today --location kab. bogor` | Full name, with the administrative prefix |
+| `#sholat --today --location bandung` | Bare name — resolves to Kota Bandung, and offers the regency |
+| `#sholat --today --location deli` | Partial name — resolves if only one place matches |
 | `#sholat reminder on` | Turn on prayer-time reminders for this chat |
 | `#sholat reminder off` | Turn them off |
 | `#sholat reminder` | Show whether reminders are on for this chat |
 | `#sholat help` | Show command help |
+
+**Location rules:** `.`, `-`, `_` and spaces all separate the prefix, so `kab. bogor` and `kab-bogor` are the same. An exact name always wins over a longer one that contains it — `pidie` resolves to KAB. PIDIE, not KAB. PIDIE JAYA. A partial name that matches several places returns the list to choose from.
 
 ### Remind
 
@@ -390,7 +430,7 @@ src/
 │   ├── remind/           # Reminder module
 │   └── users/            # User identity management
 ├── db/                   # Drizzle connection, migrations, schema aggregator
-└── shared/               # Shared utilities (Result type)
+└── shared/               # Result type, identity types, and small pure helpers
 ```
 
 Each module follows a consistent internal structure:
@@ -453,7 +493,7 @@ pnpm format           # Format with Prettier
 <details>
 <summary><strong>Bot does not respond</strong></summary>
 
-- Check sender number is in `ALLOWED_WA_IDS`
+- Check the sender's WhatsApp **ID** is in `ALLOWED_WA_IDS` — not their phone number, see [Identity](#identity)
 - In groups, ensure message starts with `#` or bot is mentioned
 - Set `DEBUG=true` and inspect logs
 
@@ -512,7 +552,7 @@ Baileys is unofficial too, so the account-ban risk is unchanged. That was accept
 |---|---|
 | [Context & Glossary](CONTEXT.md) | What the project is, the modules, and the domain words it uses |
 | [Architecture Guide](docs/architecture.md) | How the codebase is structured, key patterns, and step-by-step guide for adding new features |
-| [Architecture Decisions](docs/adr/) | The non-obvious calls — reminder delivery, the hexagonal split, the Baileys transport — and why |
+| [Architecture Decisions](docs/adr/) | The non-obvious calls — reminder delivery, the hexagonal split, the Baileys transport, location matching — and why |
 | [Incident Postmortems](docs/incidents/) | What broke in production, why, and what changed as a result |
 
 ---
