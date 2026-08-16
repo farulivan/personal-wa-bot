@@ -20,10 +20,6 @@ export function extractFlagValue(firstLine: string, flag: string): string {
       }
       return values.join(' ').trim();
     }
-
-    if (tokenLower.startsWith(`${lowerFlag}=`)) {
-      return token.slice(lowerFlag.length + 1).trim();
-    }
   }
 
   return '';

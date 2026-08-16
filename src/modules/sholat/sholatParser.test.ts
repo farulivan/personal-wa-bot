@@ -29,10 +29,10 @@ describe('sholatParser', () => {
       expect(hasFlag('#sholat --todays', 'today')).toBe(false);
     });
 
-    it('does not recognise the --flag=value form (only extractFlagValue does)', () => {
-      // Sharp edge (see issue #59): the controller gates on hasFlag, so
-      // "#sholat --location=bandung" is NOT seen as a location query even
-      // though extractFlagValue can read it. Flip to `true` once #59 is fixed.
+    it('treats --flag=value as an unknown token', () => {
+      // Settled grammar, not a gap: ADR 0003 documents only the space form, and
+      // parseCommand and quranParser agree. "#sholat --location=bandung" is
+      // therefore not a location query and falls through to the help message.
       expect(hasFlag('#sholat --location=bandung', 'location')).toBe(false);
     });
   });
@@ -58,10 +58,6 @@ describe('sholatParser', () => {
       expect(extractFlagValue('#sholat --location Kab. Bogor', 'location')).toBe('Kab. Bogor');
     });
 
-    it('reads the --flag=value form', () => {
-      expect(extractFlagValue('#sholat --location=bandung', 'location')).toBe('bandung');
-    });
-
     it('returns empty string when the flag has no value', () => {
       expect(extractFlagValue('#sholat --today --location', 'location')).toBe('');
       expect(extractFlagValue('#sholat --location --today', 'location')).toBe('');
@@ -71,10 +67,12 @@ describe('sholatParser', () => {
       expect(extractFlagValue('#sholat --today', 'location')).toBe('');
     });
 
-    it('reads only the first token after --flag= (the = form does not span spaces)', () => {
-      // Characterisation: unlike the space form, "--location=kab. bogor" stops at the
-      // first space, yielding just "kab.". Use the space form for multi-word values.
-      expect(extractFlagValue('#sholat --location=kab. bogor', 'location')).toBe('kab.');
+    it('ignores the --flag=value form, matching hasFlag and the other parsers', () => {
+      // The = form is not part of the command grammar (ADR 0003). extractFlagValue
+      // used to be the only place in the codebase that accepted it, which read as
+      // though it were supported.
+      expect(extractFlagValue('#sholat --location=bandung', 'location')).toBe('');
+      expect(extractFlagValue('#sholat --location=kab. bogor', 'location')).toBe('');
     });
   });
 
