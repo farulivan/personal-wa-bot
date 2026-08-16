@@ -5,6 +5,7 @@ import {
   normalizeText,
   normalizeForMatch,
   normalizeUserLocationInput,
+  parseLocationQuery,
 } from './sholatParser.js';
 
 describe('sholatParser', () => {
@@ -166,6 +167,122 @@ describe('sholatParser', () => {
     it('matches a bare city name against its "KOTA" DB name', () => {
       expect(userKey('bandung')).toBe(matchKey('KOTA BANDUNG'));
       expect(userKey('kota bandung')).toBe(matchKey('KOTA BANDUNG'));
+    });
+  });
+});
+
+describe('parseLocationQuery', () => {
+  describe('explicit — a prefix separated from the name', () => {
+    it.each([
+      ['kab. bogor', 'KAB BOGOR'],
+      ['kabupaten bogor', 'KAB BOGOR'],
+      ['kab bogor', 'KAB BOGOR'],
+      ['  kab   bogor  ', 'KAB BOGOR'],
+      ['kab-bandung', 'KAB BANDUNG'],
+      ['kota_bandung', 'KOTA BANDUNG'],
+      ['kota bandung', 'KOTA BANDUNG'],
+    ])('%s -> explicit %s', (input, exactKey) => {
+      expect(parseLocationQuery(input)).toEqual({ form: 'explicit', exactKey });
+    });
+
+    it('treats a dot as a separator, so kab.bandung is explicit', () => {
+      // The help text already advertises `kab-bandung`; refusing the dot form
+      // would contradict our own documentation.
+      expect(parseLocationQuery('kab.bandung')).toEqual({
+        form: 'explicit',
+        exactKey: 'KAB BANDUNG',
+      });
+    });
+
+    it('classifies the shipped SHOLAT_DEFAULT_LOCATION', () => {
+      // The reminder ticker and prefetch job both resolve through this value.
+      // If it stops classifying as explicit, reminders die silently.
+      expect(parseLocationQuery('KAB. BOGOR')).toEqual({
+        form: 'explicit',
+        exactKey: 'KAB BOGOR',
+      });
+    });
+  });
+
+  describe('bare — no administrative prefix', () => {
+    it('offers both a city and a regency candidate', () => {
+      expect(parseLocationQuery('bandung')).toEqual({
+        form: 'bare',
+        exactKey: 'BANDUNG',
+        cityKey: 'KOTA BANDUNG',
+        regencyKey: 'KAB BANDUNG',
+      });
+    });
+
+    it('works for a multi-word name', () => {
+      expect(parseLocationQuery('aceh barat')).toMatchObject({
+        form: 'bare',
+        regencyKey: 'KAB ACEH BARAT',
+      });
+    });
+
+    it('handles a catalogue row that carries no prefix at all', () => {
+      expect(parseLocationQuery('pulau tambelan kab. bintan')).toMatchObject({
+        form: 'bare',
+        exactKey: 'PULAU TAMBELAN KAB BINTAN',
+      });
+    });
+  });
+
+  describe('glued — prefix letters running into the name', () => {
+    it('offers a split key for a genuine typo', () => {
+      expect(parseLocationQuery('kabbandung')).toMatchObject({
+        form: 'glued',
+        splitKey: 'KAB BANDUNG',
+      });
+      expect(parseLocationQuery('kotabandung')).toMatchObject({
+        form: 'glued',
+        splitKey: 'KOTA BANDUNG',
+      });
+    });
+
+    it('splits on the longest prefix, not the shortest', () => {
+      expect(parseLocationQuery('kabupatenbogor')).toMatchObject({
+        form: 'glued',
+        splitKey: 'KAB BOGOR',
+      });
+    });
+
+    it('still offers city and regency keys, because real names look glued', () => {
+      // KAB. KOTABARU and KOTA KOTAMOBAGU are real entries. If the caller
+      // treated `glued` as terminal, both would become unreachable.
+      expect(parseLocationQuery('kotabaru')).toMatchObject({
+        form: 'glued',
+        regencyKey: 'KAB KOTABARU',
+      });
+      expect(parseLocationQuery('kotamobagu')).toMatchObject({
+        form: 'glued',
+        cityKey: 'KOTA KOTAMOBAGU',
+      });
+    });
+
+    it('offers a split for a name that only looks prefixed', () => {
+      // Kabanjahe is a real town, but the catalogue lists KAB. KARO instead, so
+      // this correctly ends as not-found once the caller tries every key.
+      expect(parseLocationQuery('kabanjahe')).toMatchObject({
+        form: 'glued',
+        splitKey: 'KAB ANJAHE',
+      });
+    });
+  });
+
+  describe('lookup key invariant: query keys match stored normalized names', () => {
+    it('builds keys in the same shape the catalogue stores', () => {
+      expect(parseLocationQuery('bandung').form).toBe('bare');
+      const bandung = parseLocationQuery('bandung');
+      if (bandung.form === 'bare') {
+        expect(bandung.cityKey).toBe(normalizeForMatch('KOTA BANDUNG'));
+        expect(bandung.regencyKey).toBe(normalizeForMatch('KAB. BANDUNG'));
+      }
+      expect(parseLocationQuery('kab bogor').exactKey).toBe(normalizeForMatch('KABUPATEN BOGOR'));
+      expect(parseLocationQuery('kota bandung').exactKey).toBe(
+        normalizeForMatch('Kotamadya Bandung')
+      );
     });
   });
 });
