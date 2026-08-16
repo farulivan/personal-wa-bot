@@ -53,26 +53,6 @@ export function normalizeForMatch(raw: string): string {
 }
 
 /**
- * @deprecated Superseded by `parseLocationQuery`; removed once the service stops
- * calling it. Guesses an administrative prefix from glued text, which is the
- * premise issue #58 removes.
- */
-export function normalizeUserLocationInput(raw: string): string {
-  const compact = raw.trim().replace(/\s+/g, ' ');
-  const kabMatch = compact.match(/^kab(?:upaten)?[.\s_-]*(.+)$/i);
-  if (kabMatch && kabMatch[1]) {
-    return `KAB. ${kabMatch[1].trim().toUpperCase()}`;
-  }
-
-  const kotaMatch = compact.match(/^kota[.\s_-]*(.+)$/i);
-  if (kotaMatch && kotaMatch[1]) {
-    return `KOTA ${kotaMatch[1].trim().toUpperCase()}`;
-  }
-
-  return `KOTA ${compact.toUpperCase()}`;
-}
-
-/**
  * How the user wrote a location, plus the exact keys to look it up by. Keys are
  * built in the same shape as `sholat_locations.normalized_location_name`, so
  * every lookup is an equality check.

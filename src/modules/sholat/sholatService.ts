@@ -9,18 +9,34 @@ import {
   type MyQuranLocation,
   type MyQuranSholatClient,
 } from './infra/myQuranSholatClient.js';
-import { normalizeForMatch, normalizeUserLocationInput } from './sholatParser.js';
+import { normalizeForMatch, parseLocationQuery } from './sholatParser.js';
 import { ok, err } from '../../shared/result.js';
 import type { Result } from '../../shared/result.js';
 
-export type TodaySchedule = { locationName: string; schedule: SholatDailyScheduleRow };
+/** Why the resolved location differs from what the user typed. Wording lives in the presenter. */
+export type LocationResolutionNote =
+  /** Bare input matched a city, and a regency of the same name also exists. */
+  | { kind: 'city_with_regency_twin'; regencyName: string }
+  /** Bare input matched only a regency — there is no city of that name. */
+  | { kind: 'resolved_to_regency' };
+
+export type ResolvedLocation = { row: SholatLocationRow; note?: LocationResolutionNote };
+
+export type TodaySchedule = {
+  locationName: string;
+  schedule: SholatDailyScheduleRow;
+  /** Present only when the resolved location differs from what the user typed. */
+  note?: LocationResolutionNote;
+};
 
 export type SholatError =
   | { type: 'ambiguous'; input: string; samples: string[] }
+  /** Nothing matched, but a near-miss is worth offering back. */
+  | { type: 'suggestion'; input: string; suggestion: string }
   | { type: 'notfound'; input: string }
   | { type: 'persist_error'; locationName: string };
 
-export type LocationLookupResult = Result<SholatLocationRow, SholatError>;
+export type LocationLookupResult = Result<ResolvedLocation, SholatError>;
 export type TodayScheduleResult = Result<TodaySchedule, SholatError>;
 
 export type SetReminderOutcome = 'enabled' | 'disabled' | 'group_not_allowed';
@@ -65,30 +81,60 @@ export class SholatService {
     await this.syncLocationCatalog();
   }
 
+  /**
+   * Resolves a user's location input against the catalogue, exact matches first.
+   *
+   * Order matters more than it looks. Substring matching used to run before the
+   * obvious candidates, so a correctly-typed "pidie" lost to KAB. PIDIE JAYA and
+   * came back as ambiguous. Trying KOTA/KAB. candidates first settles those, and
+   * demoting substring matching to a last resort keeps partial names like "deli"
+   * working. See ADR 0006.
+   */
   resolveLocation(allLocations: SholatLocationRow[], locationInput: string): LocationLookupResult {
-    const requested = locationInput.trim()
-      ? normalizeUserLocationInput(locationInput)
-      : normalizeUserLocationInput(this.defaultLocation);
-    const requestedNormalized = normalizeForMatch(requested);
+    const input = locationInput.trim();
+    const query = parseLocationQuery(input || this.defaultLocation);
+    const byKey = new Map(allLocations.map((row) => [row.normalizedLocationName, row]));
 
-    const exact = allLocations.find((row) => row.normalizedLocationName === requestedNormalized);
-    if (exact) return ok(exact);
+    const exact = byKey.get(query.exactKey);
+    if (exact) return ok({ row: exact });
 
-    const fuzzyQuery = normalizeForMatch(locationInput.trim() || this.defaultLocation);
+    // A typed prefix is taken at face value; only bare or glued input gets guesses.
+    if (query.form !== 'explicit') {
+      const city = byKey.get(query.cityKey);
+      if (city) {
+        const twin = byKey.get(query.regencyKey);
+        return ok(
+          twin
+            ? {
+                row: city,
+                note: { kind: 'city_with_regency_twin', regencyName: twin.locationName },
+              }
+            : { row: city }
+        );
+      }
+
+      const regency = byKey.get(query.regencyKey);
+      if (regency) return ok({ row: regency, note: { kind: 'resolved_to_regency' } });
+    }
+
     const fuzzyMatches = allLocations.filter((row) =>
-      row.normalizedLocationName.includes(fuzzyQuery)
+      row.normalizedLocationName.includes(query.exactKey)
     );
 
-    if (fuzzyMatches.length === 1) {
-      return ok(fuzzyMatches[0]);
-    }
+    if (fuzzyMatches.length === 1) return ok({ row: fuzzyMatches[0] });
 
     if (fuzzyMatches.length > 1) {
       const samples = fuzzyMatches.slice(0, 5).map((row) => row.locationName);
-      return err({ type: 'ambiguous', input: locationInput, samples });
+      return err({ type: 'ambiguous', input, samples });
     }
 
-    return err({ type: 'notfound', input: locationInput });
+    // Last: the input looked like a glued prefix and separating it names a real place.
+    if (query.form === 'glued') {
+      const split = byKey.get(query.splitKey);
+      if (split) return err({ type: 'suggestion', input, suggestion: split.locationName });
+    }
+
+    return err({ type: 'notfound', input });
   }
 
   private toDateInTimezone(now: Date): string {
@@ -112,25 +158,28 @@ export class SholatService {
       return err(resolved.error);
     }
 
-    const location = resolved.value;
+    let selected = resolved.value;
     const todayDate = this.toDateInTimezone(now);
 
-    const cached = await this.sholatRepository.findDailySchedule(location.id, todayDate, timezone);
+    const cached = await this.sholatRepository.findDailySchedule(
+      selected.row.id,
+      todayDate,
+      timezone
+    );
     if (cached) {
-      debug(`🕌 Sholat cache hit for ${location.locationName} on ${todayDate}`);
-      return ok({ locationName: location.locationName, schedule: cached });
+      debug(`🕌 Sholat cache hit for ${selected.row.locationName} on ${todayDate}`);
+      return ok({ locationName: selected.row.locationName, schedule: cached, note: selected.note });
     }
 
-    let selectedLocation = location;
     let apiSchedule: Awaited<ReturnType<MyQuranSholatClient['fetchScheduleForDate']>>;
 
     try {
-      apiSchedule = await this.sholatClient.fetchScheduleForDate(selectedLocation.id, todayDate);
+      apiSchedule = await this.sholatClient.fetchScheduleForDate(selected.row.id, todayDate);
     } catch (fetchErr) {
       if (!(fetchErr instanceof LocationNotFoundError)) throw fetchErr;
 
       debug(
-        `🕌 Suspected stale location id for ${selectedLocation.locationName}; force-refreshing locations`
+        `🕌 Suspected stale location id for ${selected.row.locationName}; force-refreshing locations`
       );
 
       const refreshedLocations = await this.syncLocationCatalog();
@@ -139,25 +188,29 @@ export class SholatService {
         return err(refreshedResolved.error);
       }
 
-      selectedLocation = refreshedResolved.value;
+      selected = refreshedResolved.value;
 
       const refreshedCached = await this.sholatRepository.findDailySchedule(
-        selectedLocation.id,
+        selected.row.id,
         todayDate,
         timezone
       );
       if (refreshedCached) {
         debug(
-          `🕌 Sholat cache hit after location refresh for ${selectedLocation.locationName} on ${todayDate}`
+          `🕌 Sholat cache hit after location refresh for ${selected.row.locationName} on ${todayDate}`
         );
-        return ok({ locationName: selectedLocation.locationName, schedule: refreshedCached });
+        return ok({
+          locationName: selected.row.locationName,
+          schedule: refreshedCached,
+          note: selected.note,
+        });
       }
 
-      apiSchedule = await this.sholatClient.fetchScheduleForDate(selectedLocation.id, todayDate);
+      apiSchedule = await this.sholatClient.fetchScheduleForDate(selected.row.id, todayDate);
     }
 
     await this.sholatRepository.upsertDailySchedule({
-      locationId: selectedLocation.id,
+      locationId: selected.row.id,
       scheduleDate: apiSchedule.scheduleDate,
       timezone,
       displayDate: apiSchedule.displayDate,
@@ -173,20 +226,24 @@ export class SholatService {
     });
 
     debug(
-      `🕌 Sholat cache miss; fetched API for ${selectedLocation.locationName} on ${apiSchedule.scheduleDate}`
+      `🕌 Sholat cache miss; fetched API for ${selected.row.locationName} on ${apiSchedule.scheduleDate}`
     );
 
     const persisted = await this.sholatRepository.findDailySchedule(
-      selectedLocation.id,
+      selected.row.id,
       apiSchedule.scheduleDate,
       timezone
     );
 
     if (persisted) {
-      return ok({ locationName: selectedLocation.locationName, schedule: persisted });
+      return ok({
+        locationName: selected.row.locationName,
+        schedule: persisted,
+        note: selected.note,
+      });
     }
 
-    return err({ type: 'persist_error', locationName: selectedLocation.locationName });
+    return err({ type: 'persist_error', locationName: selected.row.locationName });
   }
 
   /**
@@ -202,13 +259,13 @@ export class SholatService {
 
     const todayDate = this.toDateInTimezone(now);
     const schedule = await this.sholatRepository.findDailySchedule(
-      resolved.value.id,
+      resolved.value.row.id,
       todayDate,
       timezone
     );
     if (!schedule) return null;
 
-    return { locationName: resolved.value.locationName, schedule };
+    return { locationName: resolved.value.row.locationName, schedule };
   }
 
   async setReminder(params: {

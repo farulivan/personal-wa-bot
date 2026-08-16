@@ -1,8 +1,21 @@
 import type { SholatDailyScheduleRow } from './infra/sholatRepository.js';
+import type { LocationResolutionNote } from './sholatService.js';
+
+/** One extra line when the resolved location is not literally what the user typed. */
+function formatResolutionNote(note: LocationResolutionNote): string {
+  if (note.kind === 'city_with_regency_twin') {
+    return (
+      `\n\n_Ada juga ${note.regencyName} — kalau itu yang kamu maksud:_\n` +
+      `_#sholat --today --location ${note.regencyName.toLowerCase()}_`
+    );
+  }
+  return `\n\n_Ini kabupatennya ya_`;
+}
 
 export function formatScheduleResponse(
   locationName: string,
-  schedule: SholatDailyScheduleRow
+  schedule: SholatDailyScheduleRow,
+  note?: LocationResolutionNote
 ): string {
   return (
     `Siap ✨\n` +
@@ -16,7 +29,8 @@ export function formatScheduleResponse(
     `• Ashar: ${schedule.ashar}\n` +
     `• Maghrib: ${schedule.maghrib}\n` +
     `• Isya: ${schedule.isya}\n\n` +
-    `Semoga dimudahkan ibadahnya hari ini 🤲`
+    `Semoga dimudahkan ibadahnya hari ini 🤲` +
+    (note ? formatResolutionNote(note) : '')
   );
 }
 
@@ -30,6 +44,13 @@ export function formatHelpMessage(defaultLocation: string): string {
     `• #sholat --today --location bandung\n` +
     `• #sholat reminder on / off\n\n` +
     `Default lokasi saat ini: ${defaultLocation}`
+  );
+}
+
+export function formatLocationSuggestionMessage(locationInput: string, suggestion: string): string {
+  return (
+    `Maksudmu *${suggestion}*? 🤔\n\n` +
+    `Coba: #sholat --today --location ${suggestion.toLowerCase()}`
   );
 }
 

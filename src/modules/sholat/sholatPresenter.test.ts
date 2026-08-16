@@ -3,6 +3,7 @@ import {
   formatScheduleResponse,
   formatHelpMessage,
   formatAmbiguousLocationMessage,
+  formatLocationSuggestionMessage,
   formatLocationNotFoundMessage,
   formatPersistErrorMessage,
   formatFetchErrorMessage,
@@ -132,5 +133,46 @@ describe('sholatPresenter', () => {
       expect(text).toContain('*KAB. BOGOR*');
       expect(text).toContain('11:55');
     });
+  });
+});
+
+describe('formatLocationSuggestionMessage', () => {
+  it('names the suggestion and gives a command that works', () => {
+    const out = formatLocationSuggestionMessage('kabbandung', 'KAB. BANDUNG');
+    expect(out).toContain('KAB. BANDUNG');
+    expect(out).toContain('--location kab. bandung');
+  });
+});
+
+describe('formatScheduleResponse — resolution notes', () => {
+  const schedule = {
+    imsak: '04:20',
+    subuh: '04:30',
+    terbit: '05:45',
+    dhuha: '06:10',
+    dzuhur: '11:55',
+    ashar: '15:15',
+    maghrib: '18:00',
+    isya: '19:10',
+  } as Parameters<typeof formatScheduleResponse>[1];
+
+  it('is byte-identical to today when there is no note', () => {
+    expect(formatScheduleResponse('KOTA BANDUNG', schedule)).toBe(
+      formatScheduleResponse('KOTA BANDUNG', schedule, undefined)
+    );
+  });
+
+  it('points at the regency twin when the city was chosen', () => {
+    const out = formatScheduleResponse('KOTA BOGOR', schedule, {
+      kind: 'city_with_regency_twin',
+      regencyName: 'KAB. BOGOR',
+    });
+    expect(out).toContain('KAB. BOGOR');
+    expect(out).toContain('--location kab. bogor');
+  });
+
+  it('says so when a bare name resolved to a regency', () => {
+    const out = formatScheduleResponse('KAB. PIDIE', schedule, { kind: 'resolved_to_regency' });
+    expect(out).toContain('kabupatennya');
   });
 });

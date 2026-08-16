@@ -4,7 +4,6 @@ import {
   extractFlagValue,
   normalizeText,
   normalizeForMatch,
-  normalizeUserLocationInput,
   parseLocationQuery,
 } from './sholatParser.js';
 
@@ -115,58 +114,6 @@ describe('sholatParser', () => {
 
     it('leaves a name without an administrative prefix untouched (beyond normalising)', () => {
       expect(normalizeForMatch('Bogor')).toBe('BOGOR');
-    });
-  });
-
-  describe('normalizeUserLocationInput', () => {
-    it('defaults a bare place name to the "KOTA" form', () => {
-      expect(normalizeUserLocationInput('bandung')).toBe('KOTA BANDUNG');
-    });
-
-    it('canonicalises an explicit "kota" prefix', () => {
-      expect(normalizeUserLocationInput('kota bandung')).toBe('KOTA BANDUNG');
-      expect(normalizeUserLocationInput('Kota Bandung')).toBe('KOTA BANDUNG');
-    });
-
-    it('canonicalises "kab" and "kabupaten" to "KAB."', () => {
-      expect(normalizeUserLocationInput('kab bogor')).toBe('KAB. BOGOR');
-      expect(normalizeUserLocationInput('kabupaten bogor')).toBe('KAB. BOGOR');
-    });
-
-    it('accepts dot, hyphen, underscore, or space as the prefix separator', () => {
-      expect(normalizeUserLocationInput('kab. bogor')).toBe('KAB. BOGOR');
-      expect(normalizeUserLocationInput('kab-bandung')).toBe('KAB. BANDUNG');
-      expect(normalizeUserLocationInput('kota_bandung')).toBe('KOTA BANDUNG');
-    });
-
-    it('collapses surrounding and internal whitespace', () => {
-      expect(normalizeUserLocationInput('  kab   bogor  ')).toBe('KAB. BOGOR');
-    });
-
-    it('mis-parses a name that merely starts with the prefix letters (known sharp edge)', () => {
-      // Characterisation, NOT desired behaviour (see issue #58): the greedy prefix
-      // match treats any input beginning with "kab"/"kota" as the administrative
-      // prefix, so real place names like "Kabanjahe" (a town, not "Kabupaten
-      // Anjahe") are mangled. Update this assertion once #58 is fixed.
-      expect(normalizeUserLocationInput('kabanjahe')).toBe('KAB. ANJAHE');
-    });
-  });
-
-  describe('normalization invariant: user input resolves to the same match key as DB names', () => {
-    // sholatService fuzzy-matches by comparing normalizeForMatch(normalizeUserLocationInput(input))
-    // against normalizeForMatch(dbLocationName). These must agree for lookups to succeed.
-    const matchKey = (raw: string) => normalizeForMatch(raw);
-    const userKey = (raw: string) => normalizeForMatch(normalizeUserLocationInput(raw));
-
-    it('matches a regency typed loosely against its official DB name', () => {
-      expect(userKey('kab bogor')).toBe(matchKey('KABUPATEN BOGOR'));
-      expect(userKey('kab. bogor')).toBe(matchKey('KABUPATEN BOGOR'));
-      expect(userKey('kabupaten bogor')).toBe(matchKey('KABUPATEN BOGOR'));
-    });
-
-    it('matches a bare city name against its "KOTA" DB name', () => {
-      expect(userKey('bandung')).toBe(matchKey('KOTA BANDUNG'));
-      expect(userKey('kota bandung')).toBe(matchKey('KOTA BANDUNG'));
     });
   });
 });
