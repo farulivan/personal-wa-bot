@@ -61,6 +61,8 @@ src/
 │   ├── parseCommand.ts         # Raw text → CommandInvocation
 │   ├── authGuard.ts            # WA user ID allowlist check
 │   ├── scheduler.ts            # Minute-tick scheduled job runner
+│   ├── timeContext.ts          # Offset, now(), and local-day conversion
+│   ├── readiness.ts            # Pure ready/not-ready decision for /ready
 │   ├── greetingHandler.ts      # Bot mention greeting response
 │   └── withErrorBoundary.ts    # Wraps handlers with try/catch
 │
@@ -93,7 +95,12 @@ src/
 │   └── users/                  # User identity and display name management
 │
 ├── shared/
-│   └── result.ts               # Result<T, E> type + ok/err constructors
+│   ├── result.ts               # Result<T, E> type + ok/err constructors
+│   ├── identity.ts             # WaUserId / PhoneNumber — distinct on purpose
+│   ├── streaks.ts              # Consecutive-day calculation
+│   ├── dateRange.ts            # Local-day range helpers
+│   ├── mentions.ts             # @-mention text building
+│   └── parsing.ts              # Tokenizer shared by the parsers
 │
 └── types/                      # Global type declarations
 ```
@@ -107,42 +114,50 @@ src/
 ```
 main()
  │
- ├── 1. runMigrations(databaseUrl)         — apply schema before anything else
- ├── 2. createDrizzleDb(databaseUrl)       — raw DB connection
- ├── 3. createBaileysTransport()          — socket, ports, reconnect ladder
+ ├── 1. installProcessGuards()             — unhandled throws become clean exits
+ ├── 2. runMigrations(databaseUrl)         — apply schema before anything else
+ ├── 3. createDrizzleDb(databaseUrl)       — raw DB connection
+ ├── 4. createBaileysTransport()           — socket, ports, reconnect ladder
+ │      onMessage / onReady are passed in here but assigned in step 9,
+ │      because the router they need doesn't exist yet
  │
- ├── 4. Construct repositories             — concrete Drizzle implementations
+ ├── 5. Construct repositories             — concrete Drizzle implementations
  │      DrizzleWorkoutRepository(db)
  │      DrizzleQuranRepository(db)
  │      DrizzleRemindRepository(db)
  │      DrizzleSholatRepository(db)
  │      DrizzleUserRepository(db)
  │
- ├── 5. Construct adapters
+ ├── 6. Construct adapters
  │      transport.senderPort               — MessageSenderPort
  │      transport.membershipPort           — GroupMembershipPort
  │      createMessageGateway(senderPort)   — reply/send wrapper
  │
- ├── 6. Register modules                   — each returns { controller, jobs }
+ ├── 7. Register modules                   — each returns { controller, jobs }
  │      registerWorkoutModule({ workoutRepository, ... })
  │      registerQuranModule({ quranRepository, ... })
  │      registerSholatModule({ ... })
  │      registerRemindModule({ ... })
  │
- ├── 7. Wire command router
+ ├── 8. Wire command router
  │      router.registerNamespace('workout', workout.controller)
  │      router.registerNamespace('quran', quran.controller)
  │      ...
  │
- ├── 8. Create message handler
- │      createMessageHandler(router, appContext)
+ ├── 9. Fill in the transport hooks
+ │      handleMessage = createMessageHandler(router, appContext)
+ │      onSocketReady = start the reminder, sholat and digest schedulers
  │
- └── 9. Start client + schedulers
-        client.on('message', handleMessage)
-        client.on('ready', startSchedulers)
+ ├── 10. Serve /ready                      — evaluateReadiness(transport.isConnected())
+ ├── 11. Register SIGTERM / SIGINT         — stop schedulers, close server + DB
+ ├── 12. await transport.start()           — connect, or print the QR
+ └── 13. Schedule the nightly restart      — outside the ready hook, so a bot
+                                             stuck at the QR screen still recycles
 ```
 
 **Why this matters:** swapping PostgreSQL for another database means changing only this file and the `infra/` implementations. The domain and application layers are untouched.
+
+**Why `/ready` asks the transport every time** rather than latching a boolean at startup: a socket that drops or wedges after boot has to be visible to the monitor. `hasStarted` only records that we got there once; `transport.isConnected()` is the live answer. Any other path returns a flat `200 OK`, which says nothing more than "the process is running" — which is exactly what was true throughout the [2026-07-25 outage](incidents/2026-07-25-whatsapp-logout-inject-crash.md).
 
 ---
 
@@ -155,10 +170,11 @@ WhatsApp message event
         │
         ▼
 ┌─ messageHandler.ts ──────────────────────────────┐
-│  1. Extract & normalize sender ID                 │
-│  2. Capture user contact info (if new)            │
+│  1. Read senderId — already resolved by the       │
+│     transport to the form WhatsApp addressed      │
+│  2. Auth check: any of msg.senderCandidates       │
 │  3. Group check: require bot mention OR # prefix  │
-│  4. Auth check: isAllowedUser(sender)             │
+│  4. Capture user contact info (if new)            │
 │  5. parseCommand(text) → CommandInvocation         │
 │  6. Build CommandContext { sender, replyChatId,    │
 │     isGroupChat, timezoneOffsetMinutes, now() }   │
@@ -337,6 +353,26 @@ function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleRegistrati
 ```
 
 The composition root doesn't know or care about a module's internals. It only calls the factory and uses the returned `controller` and `jobs`.
+
+### 7. Branded Identifiers
+
+Read this before touching anything that handles a user.
+
+WhatsApp addresses a person either by phone number or by **LID** — a long number with no relationship to their phone number — and which one you get depends on the chat. Rows are keyed on whichever form WhatsApp handed us, and in these chats that is the LID. `users.phone_number` is separate metadata that does **not** match `users.id`, and `ALLOWED_WA_IDS` holds IDs, not phone numbers.
+
+Deriving a user ID from a phone number therefore orphans every existing row and makes the allowlist reject people it used to admit — silently, because nothing throws. That has shipped twice. So the two are separate types with no implicit conversion:
+
+```typescript
+declare const WA_USER_ID: unique symbol;
+export type WaUserId = string & { readonly [WA_USER_ID]: true };
+
+export function toWaUserId(addressedJid: string): WaUserId;  // the addressed form
+export function toPhoneNumber(phoneJid: string): PhoneNumber; // separate metadata
+```
+
+Construct them through those functions; never cast a bare string. **If a type error says a `PhoneNumber` is not a `WaUserId`, that is the guard doing its job — fix the call rather than casting past it.** Background: [ADR 0005](adr/0005-whatsapp-transport.md).
+
+`resolveSenderIdentity.ts` is the one place that decides which form was used, and everything downstream receives the answer rather than re-deriving it.
 
 ---
 
