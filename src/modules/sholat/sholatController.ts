@@ -5,6 +5,7 @@ import {
   formatScheduleResponse,
   formatHelpMessage,
   formatAmbiguousLocationMessage,
+  formatLocationSuggestionMessage,
   formatLocationNotFoundMessage,
   formatPersistErrorMessage,
   formatFetchErrorMessage,
@@ -19,6 +20,7 @@ const SHOLAT_NAMESPACE = 'sholat';
 
 function formatSholatError(e: SholatError, defaultLocation: string): string {
   if (e.type === 'ambiguous') return formatAmbiguousLocationMessage(e.input, e.samples);
+  if (e.type === 'suggestion') return formatLocationSuggestionMessage(e.input, e.suggestion);
   if (e.type === 'notfound') return formatLocationNotFoundMessage(e.input || defaultLocation);
   return formatPersistErrorMessage(e.locationName);
 }
@@ -73,7 +75,11 @@ export function createSholatController(
         return formatSholatError(result.error, defaultLocation);
       }
 
-      return formatScheduleResponse(result.value.locationName, result.value.schedule);
+      return formatScheduleResponse(
+        result.value.locationName,
+        result.value.schedule,
+        result.value.note
+      );
     } catch (err) {
       error({ err }, '🕌 Failed handling #sholat command');
       return formatFetchErrorMessage();

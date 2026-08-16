@@ -25,7 +25,7 @@ If the MyQuran API is down, the sholat module just fails. A last-known-good cach
 
 ### 5. Per-Chat Sholat Reminder Location
 
-Prayer reminders use the single `SHOLAT_DEFAULT_LOCATION` for every chat. Let each chat choose its own city when enabling — e.g. `#sholat reminder on --location jakarta` — so members in different cities get the right times. Needs a `location_input` column on `sholat_reminder_settings`, validation at enable time (reusing the ambiguous/not-found messages), and the prefetch + ticker extended to handle several locations at once.
+Prayer reminders use the single `SHOLAT_DEFAULT_LOCATION` for every chat. Let each chat choose its own city when enabling — e.g. `#sholat reminder on --location jakarta` — so members in different cities get the right times. Needs a `location_input` column on `sholat_reminder_settings`, validation at enable time (reusing the suggestion/ambiguous/not-found messages, see [ADR 0006](adr/0006-location-resolution.md)), and the prefetch + ticker extended to handle several locations at once.
 
 ---
 

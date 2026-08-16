@@ -20,6 +20,13 @@ const LOCATIONS: MyQuranLocation[] = [
   { id: '1302', locationName: 'KAB. BOGOR' },
   { id: '1303', locationName: 'KOTA BOGOR' },
   { id: '1304', locationName: 'KOTA BANDUNG' },
+  // KAB. PIDIE JAYA is the sibling that used to win the substring match (#58).
+  { id: '1305', locationName: 'KAB. PIDIE' },
+  { id: '1306', locationName: 'KAB. PIDIE JAYA' },
+  // A real name whose bare form starts with prefix letters.
+  { id: '1307', locationName: 'KAB. KOTABARU' },
+  // A row carrying no administrative prefix at all.
+  { id: '1308', locationName: 'PULAU TAMBELAN KAB. BINTAN' },
 ];
 
 function makeSchedule(locationId: string): MyQuranTodaySchedule {
@@ -295,38 +302,93 @@ describe('SholatService', () => {
       const result = service.resolveLocation(repo.locations, 'KAB. BOGOR');
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.value.id).toBe('1302');
+        expect(result.value.row.id).toBe('1302');
       }
     });
 
-    it('finds fuzzy match when only one result', async () => {
+    it('resolves a bare name to its KOTA row', async () => {
       await service.ensureLocationCatalog();
       const result = service.resolveLocation(repo.locations, 'bandung');
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.value.id).toBe('1304');
+        expect(result.value.row.id).toBe('1304');
+        expect(result.value.note).toBeUndefined();
       }
     });
 
-    it('returns ambiguous error when multiple fuzzy matches', async () => {
-      // Add locations that share a common substring not matching any exact normalized form
-      repo.locations.push(
-        { id: '2001', locationName: 'KAB. TANGERANG', normalizedLocationName: 'KAB TANGERANG' },
-        {
-          id: '2002',
-          locationName: 'KOTA TANGERANG SELATAN',
-          normalizedLocationName: 'KOTA TANGERANG SELATAN',
-        }
-      );
-      // "tangerang" normalizes to "KOTA TANGERANG" via normalizeUserLocationInput,
-      // then normalizeForMatch gives "KOTA TANGERANG". Exact match on KOTA TANGERANG
-      // fails (only KOTA TANGERANG SELATAN exists). Fuzzy .includes("KOTA TANGERANG")
-      // matches both entries.
-      const result = service.resolveLocation(repo.locations, 'tangerang');
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error.type).toBe('ambiguous');
+    it('prefers an exact regency over its longer sibling', async () => {
+      // The regression this whole change exists for: "pidie" used to fall through
+      // to substring matching and tie with KAB. PIDIE JAYA, so a correctly-typed
+      // name came back as ambiguous.
+      await service.ensureLocationCatalog();
+      const result = service.resolveLocation(repo.locations, 'pidie');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.row.locationName).toBe('KAB. PIDIE');
+        expect(result.value.note).toEqual({ kind: 'resolved_to_regency' });
       }
+    });
+
+    it('prefers the city and flags the regency twin', async () => {
+      await service.ensureLocationCatalog();
+      const result = service.resolveLocation(repo.locations, 'bogor');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.row.locationName).toBe('KOTA BOGOR');
+        expect(result.value.note).toEqual({
+          kind: 'city_with_regency_twin',
+          regencyName: 'KAB. BOGOR',
+        });
+      }
+    });
+
+    it('resolves a real name that merely starts with the prefix letters', async () => {
+      // KAB. KOTABARU would be unreachable if "glued" short-circuited.
+      await service.ensureLocationCatalog();
+      const result = service.resolveLocation(repo.locations, 'kotabaru');
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.row.locationName).toBe('KAB. KOTABARU');
+    });
+
+    it('resolves a row that carries no administrative prefix', async () => {
+      await service.ensureLocationCatalog();
+      const result = service.resolveLocation(repo.locations, 'pulau tambelan kab. bintan');
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.row.id).toBe('1308');
+    });
+
+    it('suggests the separated form for a glued prefix', async () => {
+      await service.ensureLocationCatalog();
+      const result = service.resolveLocation(repo.locations, 'kabbogor');
+      expect(result.ok).toBe(false);
+      if (!result.ok && result.error.type === 'suggestion') {
+        expect(result.error.suggestion).toBe('KAB. BOGOR');
+      } else {
+        throw new Error('expected a suggestion');
+      }
+    });
+
+    it('does not split a name that only looks prefixed', async () => {
+      await service.ensureLocationCatalog();
+      const result = service.resolveLocation(repo.locations, 'kabanjahe');
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.type).toBe('notfound');
+    });
+
+    it('still resolves a unique partial name via the fuzzy fallback', async () => {
+      await service.ensureLocationCatalog();
+      const result = service.resolveLocation(repo.locations, 'tambelan');
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.row.id).toBe('1308');
+    });
+
+    it('returns ambiguous when a partial name matches several rows', async () => {
+      // "pidi" is not an exact city or regency, so it reaches the fuzzy fallback
+      // and hits both KAB. PIDIE and KAB. PIDIE JAYA.
+      await service.ensureLocationCatalog();
+      const result = service.resolveLocation(repo.locations, 'pidi');
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.type).toBe('ambiguous');
     });
 
     it('returns not found for unknown location', async () => {
@@ -343,7 +405,7 @@ describe('SholatService', () => {
       const result = service.resolveLocation(repo.locations, '');
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.value.id).toBe('1302'); // KAB. BOGOR
+        expect(result.value.row.id).toBe('1302'); // KAB. BOGOR
       }
     });
   });
