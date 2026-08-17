@@ -26,7 +26,7 @@ The full walkthrough, including a step-by-step for adding a module, is in [the a
 What this buys:
 
 - Adding a feature is mostly mechanical — copy the shape, fill it in. Less deciding, fewer novel mistakes.
-- Business logic is unit-tested with a fake repository and a frozen `now()`, no database or WhatsApp client in sight. That's where most of the 366 tests live.
+- Business logic is unit-tested with a fake repository and a frozen `now()`, no database or WhatsApp client in sight. That's where most of the test suite lives.
 - Swapping infrastructure stays an edge concern. A different database or chat platform would touch `index.ts` and the `infra/` adapters, not the domain.
 
 The cost:

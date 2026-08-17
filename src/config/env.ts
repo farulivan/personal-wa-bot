@@ -57,8 +57,9 @@ export const appConfig = {
   scheduledRestartHour: parseIntegerEnv('SCHEDULED_RESTART_HOUR', 3),
   scheduledRestartMinute: parseIntegerEnv('SCHEDULED_RESTART_MINUTE', 0),
 
-  // Sits beside the old .wwebjs_auth rather than replacing it, so rolling back
-  // to the previous deploy still finds its session intact.
+  // Deliberately a sibling of the old whatsapp-web.js session directory rather
+  // than a replacement, so the cutover was reversible. That session was deleted
+  // on 2026-08-16, so a rollback now costs a QR re-scan. See ADR 0005.
   waAuthDir:
     process.env.WA_AUTH_DIR || `${process.env.RAILWAY_VOLUME_MOUNT_PATH || '.'}/baileys_auth`,
 
