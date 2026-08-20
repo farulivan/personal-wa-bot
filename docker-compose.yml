@@ -15,11 +15,14 @@ services:
       - .env
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18
     container_name: personal-wa-bot-db
     restart: unless-stopped
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # Postgres 18 moved PGDATA to /var/lib/postgresql/<major>/docker and its VOLUME to the
+      # parent, so the named volume has to sit on the parent. Mounting the old .../data path
+      # would leave the cluster in an anonymous volume that disappears on `docker compose down`.
+      - pgdata:/var/lib/postgresql
     environment:
       - POSTGRES_USER=wabot
       - POSTGRES_PASSWORD=wabot
