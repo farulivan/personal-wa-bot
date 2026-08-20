@@ -44,6 +44,10 @@ export function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleReg
     createWorkoutController(workoutService, deps.membershipPort)
   );
 
+  // A digest that fails on its minute — a database blip, a dropped socket — is worth retrying
+  // for a while, but not all day: past this it is stale enough to be noise.
+  const CATCH_UP_MINUTES = 30;
+
   const jobs: ScheduledJob[] = [];
 
   if (deps.digestGroupIds.length > 0) {
@@ -63,6 +67,7 @@ export function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleReg
         hour: deps.dailyDigestHour,
         minute: deps.dailyDigestMinute,
         timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+        catchUpMinutes: CATCH_UP_MINUTES,
         run: () => sendDailyStreakDigest(groupId),
       });
 
@@ -71,6 +76,7 @@ export function registerWorkoutModule(deps: WorkoutModuleDeps): WorkoutModuleReg
         hour: deps.monthlyDigestHour,
         minute: deps.monthlyDigestMinute,
         timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+        catchUpMinutes: CATCH_UP_MINUTES,
         dayOfMonth: 1,
         run: () => sendMonthlyWorkoutDigest(groupId),
       });
