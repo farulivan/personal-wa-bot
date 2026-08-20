@@ -42,6 +42,10 @@ export function registerQuranModule(deps: QuranModuleDeps): QuranModuleRegistrat
 
   const controller = withErrorBoundary('quran', createQuranController(quranService));
 
+  // A digest that fails on its minute — a database blip, a dropped socket — is worth retrying
+  // for a while, but not all day: past this it is stale enough to be noise.
+  const CATCH_UP_MINUTES = 30;
+
   const jobs: ScheduledJob[] = [];
 
   if (deps.digestGroupIds.length > 0) {
@@ -64,6 +68,7 @@ export function registerQuranModule(deps: QuranModuleDeps): QuranModuleRegistrat
         hour: deps.quranReminderHour,
         minute: deps.quranReminderMinute,
         timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+        catchUpMinutes: CATCH_UP_MINUTES,
         run: () => sendNightlyQuranReminder(groupId),
       });
 
@@ -72,6 +77,7 @@ export function registerQuranModule(deps: QuranModuleDeps): QuranModuleRegistrat
         hour: deps.monthlyDigestHour,
         minute: deps.monthlyDigestMinute,
         timezoneOffsetMinutes: deps.timezoneOffsetMinutes,
+        catchUpMinutes: CATCH_UP_MINUTES,
         dayOfMonth: 1,
         run: () => sendMonthlyQuranDigest(groupId),
       });
