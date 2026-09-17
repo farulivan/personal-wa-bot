@@ -45,3 +45,19 @@ updates:
     groups:
       actions:
         patterns: ['*']
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '07:00'
+      timezone: Asia/Jakarta
+    commit-message:
+      prefix: chore(docker)
+    ignore:
+      # Moving to a new Node major is a deliberate step onto the next LTS, not
+      # something to take because a newer tag exists. Within the major, the
+      # pinned digest still moves whenever the image is rebuilt with patches.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
