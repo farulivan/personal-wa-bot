@@ -8,7 +8,7 @@ const user = 'test-user-1';
 
 describe('DrizzleWorkoutRepository', () => {
   let db: DrizzleDb;
-  let close: () => Promise<void>;
+  let close: (() => Promise<void>) | undefined;
   let repo: DrizzleWorkoutRepository;
 
   beforeAll(async () => {
@@ -17,7 +17,7 @@ describe('DrizzleWorkoutRepository', () => {
   });
 
   afterAll(async () => {
-    await close();
+    await close?.();
   });
 
   beforeEach(async () => {

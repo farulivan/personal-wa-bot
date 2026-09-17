@@ -5,7 +5,7 @@ import type { DrizzleDb } from '../../../db/drizzle.js';
 
 describe('DrizzleUserRepository.getDisplayNamesByIds', () => {
   let db: DrizzleDb;
-  let close: () => Promise<void>;
+  let close: (() => Promise<void>) | undefined;
   let repo: DrizzleUserRepository;
 
   beforeAll(async () => {
@@ -14,7 +14,7 @@ describe('DrizzleUserRepository.getDisplayNamesByIds', () => {
   });
 
   afterAll(async () => {
-    await close();
+    await close?.();
   });
 
   beforeEach(async () => {

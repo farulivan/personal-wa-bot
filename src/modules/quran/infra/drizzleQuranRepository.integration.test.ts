@@ -9,7 +9,7 @@ const userB = 'quran-batch-user-b';
 
 describe('DrizzleQuranRepository batch methods', () => {
   let db: DrizzleDb;
-  let close: () => Promise<void>;
+  let close: (() => Promise<void>) | undefined;
   let repo: DrizzleQuranRepository;
 
   beforeAll(async () => {
@@ -18,7 +18,7 @@ describe('DrizzleQuranRepository batch methods', () => {
   });
 
   afterAll(async () => {
-    await close();
+    await close?.();
   });
 
   beforeEach(async () => {
