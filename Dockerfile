@@ -1,4 +1,6 @@
-FROM node:20-slim
+# Node 24 is the LTS line CI already tests on. The digest makes every build use
+# the exact same image; Dependabot moves it when the tag is rebuilt with fixes.
+FROM node:24-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553
 
 WORKDIR /app
 

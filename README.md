@@ -27,7 +27,7 @@
 ![GitHub Actions](https://img.shields.io/github/actions/workflow/status/farulivan/personal-wa-bot/ci.yml?style=flat-square)
 ![Tests](https://img.shields.io/badge/tests-614%20passing-brightgreen?style=flat-square)
 ![License](https://img.shields.io/github/license/farulivan/personal-wa-bot?style=flat-square)
-![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square)
+![Node](https://img.shields.io/badge/node-24-brightgreen?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/typescript-5.x-blue?style=flat-square)
   
 </div>
@@ -215,7 +215,7 @@ Set reminders with natural date/time input, delivered back to the source chat.
 
 | Layer | Technology |
 |---|---|
-| **Runtime** | Node.js 20+ · TypeScript 5.x |
+| **Runtime** | Node.js 24 · TypeScript 5.x |
 | **WhatsApp** | Baileys (`@whiskeysockets/baileys`) |
 | **Database** | PostgreSQL · Drizzle ORM |
 | **Testing** | Vitest |
@@ -248,7 +248,7 @@ To find someone's ID: set `DEBUG=true`, have them send a message, and read the `
 
 ### Prerequisites
 
-- **Node.js** 20+
+- **Node.js** 24
 - **pnpm**
 - **PostgreSQL** instance (local or remote)
 - **Docker**, for the integration tests
