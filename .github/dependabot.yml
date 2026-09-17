@@ -1,0 +1,63 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '07:00'
+      timezone: Asia/Jakarta
+    # A hijacked npm release is usually spotted and pulled within days, so a week's
+    # wait keeps one from reaching us. Security updates skip this wait.
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      # Baileys is left out of every group so it always arrives in a PR of its own.
+      # Its release candidates have changed how senders are identified before
+      # (ADR 0005), so a bump needs checking in a real group chat, not only in CI.
+      production:
+        dependency-type: production
+        update-types: [minor, patch]
+        exclude-patterns: ['@whiskeysockets/baileys']
+      development:
+        dependency-type: development
+        update-types: [minor, patch]
+      security:
+        applies-to: security-updates
+        patterns: ['*']
+        exclude-patterns: ['@whiskeysockets/baileys']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '07:00'
+      timezone: Asia/Jakarta
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore(ci)
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '07:00'
+      timezone: Asia/Jakarta
+    commit-message:
+      prefix: chore(docker)
+    ignore:
+      # Moving to a new Node major is a deliberate step onto the next LTS, not
+      # something to take because a newer tag exists. Within the major, the
+      # pinned digest still moves whenever the image is rebuilt with patches.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']

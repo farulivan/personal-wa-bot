@@ -481,6 +481,8 @@ pnpm format           # Format with Prettier
 
 ## Security
 
+Found a vulnerability? Please report it privately rather than in an issue. [SECURITY.md](SECURITY.md) explains how.
+
 - Keep `.env` out of version control (already in `.gitignore`).
 - Restrict access via `ALLOWED_WA_IDS` — no allowlist means no one can use the bot.
 - Persist `baileys_auth/` and `data/` in production environments.
@@ -574,8 +576,9 @@ Follow [Quick Start](#quick-start) to run it locally. For the bigger picture, [C
 Before opening a PR, run the same checks CI does:
 
 ```bash
-pnpm verify   # type-check + lint
-pnpm test     # unit tests
+pnpm format:check   # formatting
+pnpm verify         # type-check + lint
+pnpm test           # unit tests
 ```
 
 Adding a new command? The [Architecture Guide](docs/architecture.md#adding-a-new-feature) has a step-by-step walkthrough and a checklist.

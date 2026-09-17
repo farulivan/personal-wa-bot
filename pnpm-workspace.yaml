@@ -5,3 +5,10 @@ ignoredBuiltDependencies:
 
 onlyBuiltDependencies:
   - better-sqlite3
+
+# Both of these are defaults from pnpm 11 onwards; set here so pnpm 10 enforces
+# them too. A version must be a day old before it resolves, since most hijacked
+# releases are caught within hours, and only a direct dependency may come from
+# git or a tarball URL.
+minimumReleaseAge: 1440
+blockExoticSubdeps: true
