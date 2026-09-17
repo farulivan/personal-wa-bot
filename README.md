@@ -576,8 +576,9 @@ Follow [Quick Start](#quick-start) to run it locally. For the bigger picture, [C
 Before opening a PR, run the same checks CI does:
 
 ```bash
-pnpm verify   # type-check + lint
-pnpm test     # unit tests
+pnpm format:check   # formatting
+pnpm verify         # type-check + lint
+pnpm test           # unit tests
 ```
 
 Adding a new command? The [Architecture Guide](docs/architecture.md#adding-a-new-feature) has a step-by-step walkthrough and a checklist.
