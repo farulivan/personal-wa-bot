@@ -34,7 +34,7 @@
     "@whiskeysockets/baileys": "7.0.0-rc14",
     "drizzle-orm": "^0.45.2",
     "pino": "^10.3.1",
-    "postgres": "^3.4.8",
+    "postgres": "^3.4.9",
     "qrcode-terminal": "^0.12.0"
   },
   "devDependencies": {
