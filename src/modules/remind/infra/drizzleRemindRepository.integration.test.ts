@@ -22,7 +22,7 @@ function makeReminder(
 
 describe('DrizzleRemindRepository', () => {
   let db: DrizzleDb;
-  let close: () => Promise<void>;
+  let close: (() => Promise<void>) | undefined;
   let repo: DrizzleRemindRepository;
 
   beforeAll(async () => {
@@ -31,7 +31,7 @@ describe('DrizzleRemindRepository', () => {
   });
 
   afterAll(async () => {
-    await close();
+    await close?.();
   });
 
   beforeEach(async () => {

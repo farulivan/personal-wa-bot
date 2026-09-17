@@ -1,7 +1,11 @@
 packages: []
 
 ignoredBuiltDependencies:
+  # Testcontainers brings these in through ssh2. Their build scripts only compile
+  # optional native crypto for reaching Docker over SSH, which the tests never do.
+  - cpu-features
   - esbuild
+  - ssh2
 
 onlyBuiltDependencies:
   - better-sqlite3
@@ -12,3 +16,8 @@ onlyBuiltDependencies:
 # git or a tarball URL.
 minimumReleaseAge: 1440
 blockExoticSubdeps: true
+
+# Also a pnpm 11 default. Before any script runs, pnpm compares node_modules with
+# the lockfile and installs first if they differ, so switching branches can't leave
+# a test run on the previous branch's packages.
+verifyDepsBeforeRun: install
