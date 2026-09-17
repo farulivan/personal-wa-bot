@@ -1,18 +1,13 @@
 import { sql } from 'drizzle-orm';
+import { inject } from 'vitest';
 import { createDrizzleDb } from './drizzle.js';
 import type { DrizzleDb } from './drizzle.js';
 import { runMigrations } from './migrate.js';
 import * as schema from './schema.js';
 
-const TEST_DB_URL = process.env.TEST_DATABASE_URL;
-
+// Which database this is gets decided once, in integrationGlobalSetup.ts.
 export function getTestDatabaseUrl(): string {
-  if (!TEST_DB_URL) {
-    throw new Error(
-      'TEST_DATABASE_URL is not set. Run: TEST_DATABASE_URL=postgresql://wabot:wabot@localhost:5432/wabot_test pnpm test:integration'
-    );
-  }
-  return TEST_DB_URL;
+  return inject('testDatabaseUrl');
 }
 
 export async function setupTestDb(): Promise<{ db: DrizzleDb; close: () => Promise<void> }> {

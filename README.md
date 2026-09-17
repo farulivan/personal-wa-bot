@@ -251,6 +251,7 @@ To find someone's ID: set `DEBUG=true`, have them send a message, and read the `
 - **Node.js** 20+
 - **pnpm**
 - **PostgreSQL** instance (local or remote)
+- **Docker**, for the integration tests
 
 ### Install and run
 
@@ -459,6 +460,7 @@ pnpm dev              # TypeScript watch mode
 pnpm build            # Compile + copy migrations
 pnpm verify           # Type-check + lint (tsc --noEmit && eslint)
 pnpm test             # Run unit tests
+pnpm test:integration # Run repository tests against a throwaway Postgres 18 (needs Docker)
 pnpm lint:fix         # Auto-fix lint issues
 pnpm format           # Format with Prettier
 ```
@@ -580,6 +582,8 @@ pnpm format:check   # formatting
 pnpm verify         # type-check + lint
 pnpm test           # unit tests
 ```
+
+If you touched a repository or a migration, also run `pnpm test:integration`. CI doesn't run it yet, and it needs Docker.
 
 Adding a new command? The [Architecture Guide](docs/architecture.md#adding-a-new-feature) has a step-by-step walkthrough and a checklist.
 

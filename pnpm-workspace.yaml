@@ -1,7 +1,11 @@
 packages: []
 
 ignoredBuiltDependencies:
+  # Testcontainers brings these in through ssh2. Their build scripts only compile
+  # optional native crypto for reaching Docker over SSH, which the tests never do.
+  - cpu-features
   - esbuild
+  - ssh2
 
 onlyBuiltDependencies:
   - better-sqlite3
