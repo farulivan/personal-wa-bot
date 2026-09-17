@@ -481,6 +481,8 @@ pnpm format           # Format with Prettier
 
 ## Security
 
+Found a vulnerability? Please report it privately rather than in an issue. [SECURITY.md](SECURITY.md) explains how.
+
 - Keep `.env` out of version control (already in `.gitignore`).
 - Restrict access via `ALLOWED_WA_IDS` — no allowlist means no one can use the bot.
 - Persist `baileys_auth/` and `data/` in production environments.
