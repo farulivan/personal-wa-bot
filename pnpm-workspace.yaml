@@ -16,3 +16,8 @@ onlyBuiltDependencies:
 # git or a tarball URL.
 minimumReleaseAge: 1440
 blockExoticSubdeps: true
+
+# Also a pnpm 11 default. Before any script runs, pnpm compares node_modules with
+# the lockfile and installs first if they differ, so switching branches can't leave
+# a test run on the previous branch's packages.
+verifyDepsBeforeRun: install
