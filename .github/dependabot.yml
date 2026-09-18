@@ -31,6 +31,13 @@ updates:
         patterns: ['*']
         exclude-patterns: ['@whiskeysockets/baileys']
 
+    ignore:
+      # @types/node describes the API surface of a Node major, so it moves when the
+      # runtime does and not on its own. Otherwise the compiler starts accepting
+      # calls that production doesn't have.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
