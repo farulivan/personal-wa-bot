@@ -7,9 +7,6 @@ ignoredBuiltDependencies:
   - esbuild
   - ssh2
 
-onlyBuiltDependencies:
-  - better-sqlite3
-
 # Both of these are defaults from pnpm 11 onwards; set here so pnpm 10 enforces
 # them too. A version must be a day old before it resolves, since most hijacked
 # releases are caught within hours, and only a direct dependency may come from
@@ -21,3 +18,9 @@ blockExoticSubdeps: true
 # the lockfile and installs first if they differ, so switching branches can't leave
 # a test run on the previous branch's packages.
 verifyDepsBeforeRun: install
+
+# Baileys lists sharp as a peer for its media features, which this bot never uses:
+# it only ever sends text. Auto-installing peers dragged in sharp and 19 MB of
+# libvips binaries, plus better-sqlite3 from drizzle's sqlite driver. Baileys loads
+# sharp as import('sharp').catch(...), so it copes with it being absent.
+autoInstallPeers: false
