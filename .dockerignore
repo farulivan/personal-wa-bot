@@ -14,3 +14,10 @@ vitest.config.ts
 vitest.integration.config.ts
 .env
 .env.*
+.agents
+.claude
+.devin
+.github
+.DS_Store
+coverage
+docs

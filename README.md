@@ -25,10 +25,10 @@
 <div align="center">
   
 ![GitHub Actions](https://img.shields.io/github/actions/workflow/status/farulivan/personal-wa-bot/ci.yml?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-614%20passing-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-632%20passing-brightgreen?style=flat-square)
 ![License](https://img.shields.io/github/license/farulivan/personal-wa-bot?style=flat-square)
-![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square)
-![TypeScript](https://img.shields.io/badge/typescript-5.x-blue?style=flat-square)
+![Node](https://img.shields.io/badge/node-24-brightgreen?style=flat-square)
+![TypeScript](https://img.shields.io/badge/typescript-6.x-blue?style=flat-square)
   
 </div>
 
@@ -56,7 +56,7 @@ The interesting part of this project isn't the WhatsApp commands — it's what h
   and mixing them up silently orphans every row a person owns. They're now distinct branded types the compiler refuses to interchange. → [`identity.ts`](src/shared/identity.ts)
 - **Wired for real deployment.** Migrations run on boot, `SIGTERM` drains the schedulers
   and closes the pool, and `/ready` reports the state of the *WhatsApp socket* rather than merely that the process is alive — so an external monitor catches an outage in minutes instead of whenever someone notices. → [`index.ts`](src/index.ts)
-- **614 tests, deterministic on purpose.** Time is injected as `now: () => Date`, so
+- **632 tests, deterministic on purpose.** Time is injected as `now: () => Date`, so
   the streak math and timezone boundaries are tested against a frozen clock instead of `Date.now()` luck.
 - **Errors are typed, not thrown.** A small `Result<T>` carries expected failures
   (bad input, broken rules) back to the caller; exceptions stay reserved for actual bugs. → [`Result<T>`](src/shared/result.ts)
@@ -215,7 +215,7 @@ Set reminders with natural date/time input, delivered back to the source chat.
 
 | Layer | Technology |
 |---|---|
-| **Runtime** | Node.js 20+ · TypeScript 5.x |
+| **Runtime** | Node.js 24 · TypeScript 6.x |
 | **WhatsApp** | Baileys (`@whiskeysockets/baileys`) |
 | **Database** | PostgreSQL · Drizzle ORM |
 | **Testing** | Vitest |
@@ -248,7 +248,7 @@ To find someone's ID: set `DEBUG=true`, have them send a message, and read the `
 
 ### Prerequisites
 
-- **Node.js** 20+
+- **Node.js** 24
 - **pnpm**
 - **PostgreSQL** instance (local or remote)
 - **Docker**, for the integration tests
