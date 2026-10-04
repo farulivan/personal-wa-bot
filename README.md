@@ -47,7 +47,7 @@ My family already lives in WhatsApp all day, so I put the tracker where we alrea
 The interesting part of this project isn't the WhatsApp commands — it's what holds them up.
 
 - **Cut steady-state memory by more than 85%.** The bot drove a headless Chromium and
-  idled at 0.75–0.85 GB around the clock. Swapping the transport for a plain WebSocket protocol client took it under 100 MB and removed the one component that had caused every outage this project has had. → [ADR 0005](docs/adr/0005-whatsapp-transport.md)
+  idled at 0.75–0.85 GB around the clock. Swapping the transport for a plain WebSocket protocol client took it under 100 MB and removed the component behind both outages the project had had up to then. → [ADR 0005](docs/adr/0005-whatsapp-transport.md)
 - **A job scheduler that survives restarts.** Reminders are claimed with a single
   `UPDATE … FOR UPDATE SKIP LOCKED` statement, so a restart never skips a due reminder and overlapping ticks never send one twice. → [`drizzleRemindRepository.ts`](src/modules/remind/infra/drizzleRemindRepository.ts)
 - **Hexagonal architecture, applied the same way every time.** Each feature is the
@@ -270,6 +270,13 @@ pnpm start
 
 On first run, scan the QR code shown in terminal to authenticate your WhatsApp session.
 
+That scan makes the bot a *linked device* on your WhatsApp account, the same as WhatsApp Web on a laptop. Two things follow from that:
+
+- WhatsApp logs out every linked device if the phone you scanned with goes 14 days without WhatsApp being used on it. Open WhatsApp on that phone at least once a week.
+- WhatsApp can also end the link on its own, with no warning. Point an uptime monitor at `/ready` so you hear about it.
+
+What a logout looks like, and how to get back: [Troubleshooting](#troubleshooting).
+
 ### Docker
 
 ```bash
@@ -476,6 +483,7 @@ pnpm format           # Format with Prettier
 - **Sholat reminders:** a 30s ticker reads the cached schedule (warming it on a miss, so a restart at any time of day recovers) and posts at each fardhu time to chats that opted in via `#sholat reminder on`. DMs are self-serve; in groups only those listed in `DIGEST_GROUP_IDS` may opt in.
 - **Digest/Quran scheduler:** runs only when `DIGEST_GROUP_IDS` is configured.
 - **Reconnects:** an ordinary disconnect is retried in-process on a bounded backoff. Only a logout, a restricted account, or a run of failures that exhausts the budget takes the process down for the platform to restart. While the socket is down both tickers stop, so a reminder is never claimed and dropped.
+- **Logout:** when WhatsApp ends the bot's link, the saved session is deleted and the process restarts at the QR screen. `/ready` answers `503` until someone scans the code. Digests and prayer reminders that fall in the gap are skipped; personal reminders wait and go out once the bot is back. See [Troubleshooting](#troubleshooting).
 - **Nightly restart:** the coarse backstop for a socket wedged in a way the reconnect ladder cannot see. The bot exits cleanly at 03:00 (user timezone) and the platform brings it back. It is scheduled even when the client is stuck at the QR screen. The deploy config must relaunch on clean exits — `railway.json` uses `restartPolicyType: ALWAYS`, docker-compose uses `unless-stopped`.
 - **Health endpoint:** the bot serves `GET /ready` on `PORT` — `200 READY` when the WhatsApp socket is open, `503 NOT_READY` otherwise. An external uptime monitor polls it every 5 minutes and emails on failure, so an outage surfaces in minutes rather than whenever someone notices. Monitor `/ready` specifically: any other path returns `200 OK` while the process is merely alive, which stays true when the socket is dead — the exact shape of the [2026-07-25 outage](docs/incidents/2026-07-25-whatsapp-logout-inject-crash.md).
 
@@ -500,6 +508,45 @@ Found a vulnerability? Please report it privately rather than in an issue. [SECU
 - Check the sender's WhatsApp **ID** is in `ALLOWED_WA_IDS` — not their phone number, see [Identity](#identity)
 - In groups, ensure message starts with `#` or bot is mentioned
 - Set `DEBUG=true` and inspect logs
+- If nobody gets a reply at all, check `GET /ready`. A `503` that does not clear usually means WhatsApp logged the bot out, which is the next entry
+
+</details>
+
+<details>
+<summary><strong>WhatsApp logged the bot out</strong></summary>
+
+The bot is a linked device on a WhatsApp account, the same as WhatsApp Web on a laptop, and WhatsApp can end that link. Expect it to happen sooner or later.
+
+**How to tell**
+
+- Nobody gets a reply, and `GET /ready` answers `503 NOT_READY`.
+- The logs show `stream errored out` with code `401` and `device_removed`, then `cleared the wa session so the next boot can pair again`, then QR codes.
+
+**Why it happens**
+
+- WhatsApp has not been used for 14 days on the phone that owns the bot's number. WhatsApp then [logs out every linked device](https://faq.whatsapp.com/378279804439436).
+- WhatsApp ended the link itself. It gives no reason, and there is nothing to fix on this side.
+- Someone removed the device under *Linked devices* on that phone, or the number was registered again on another phone.
+
+**How to recover**
+
+1. Open the deploy logs and find the newest QR code. A new one is printed every 20 to 60 seconds, each with a link that shows the same code as an image.
+2. In WhatsApp on the phone that owns the bot's number, open *Linked devices*, tap *Link a device* and scan it.
+3. Wait for `whatsapp socket open` in the logs. `/ready` goes back to `200`.
+
+While it waits for a scan the process restarts about every half hour, logging `budget exhausted (408)`. That is expected and stops once the code is scanned.
+
+**What is lost**
+
+- Commands sent while the bot was logged out are not replayed. Ask people to send them again.
+- Digests and prayer reminders that fell in the gap are skipped, not sent late.
+- Personal reminders (`#remind`) wait, and go out as soon as the bot is back.
+
+**How to make it rarer**
+
+Open WhatsApp on that phone at least once a week. That rules out the 14-day logout. The other kind cannot be prevented, only noticed quickly, which is what a monitor on `/ready` is for.
+
+The time this cost nineteen hours: [2026-10-03 postmortem](docs/incidents/2026-10-03-whatsapp-device-removed.md).
 
 </details>
 
@@ -527,7 +574,7 @@ The bot started on [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web
 
 **The browser was most of the bill.** The bot idled at 0.75–0.85 GB of RAM, roughly three quarters of it Chromium. That was steady state, not a leak — memory returned to the same level within hours of every restart. Leaner launch flags and a nightly restart bought 15–25% and then stopped helping, because the footprint *was* the browser.
 
-**The browser was also every outage.** Both incidents this project has had trace to it:
+**The browser was also every outage up to then.** Both incidents before the migration trace to it:
 
 - [July 8](docs/incidents/2026-07-08-chromium-launch-failure.md) — an image rebuild pulled a Chromium seven major versions past what puppeteer supported. A partial start then upgraded the browser profile stored on the persistent volume to a format the pinned build could no longer read, so pinning the version alone didn't fix it.
 - [July 25](docs/incidents/2026-07-25-whatsapp-logout-inject-crash.md) — WhatsApp logged the device out, which is routine. whatsapp-web.js responded by re-running its page injection, which threw from an un-awaited handler. Node exited and nothing brought it back. Down most of a day.
@@ -547,6 +594,8 @@ What changed:
 Two things worth recording honestly. A long-running bug where the nightly Quran reminder silently stopped firing turned out not to be in the Quran module at all — it was the group-participant lookup underneath it, and it disappeared with the migration after three rounds of fixes aimed at the wrong layer. And the migration itself nearly shipped a silent data bug by assuming user IDs were phone numbers; checking the actual table before cutover is what caught it, which is why [Identity](#identity) now leads the docs.
 
 Baileys is unofficial too, so the account-ban risk is unchanged. That was accepted rather than solved.
+
+Nor did the migration stop WhatsApp from logging the bot out. On [October 3](docs/incidents/2026-10-03-whatsapp-device-removed.md) it removed the linked device again. The process handled it the way the July fixes meant it to: it dropped the dead session, restarted and printed a QR code, and the monitor had the outage within three minutes. The bot was still down for nineteen and a half hours, because the last step is a person scanning that code. Closing that gap is the open problem.
 
 ---
 
