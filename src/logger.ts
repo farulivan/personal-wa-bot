@@ -6,7 +6,21 @@ const level =
     ? 'debug'
     : (process.env.LOG_LEVEL ?? 'info');
 
-export const rootLogger = pino({ level, base: null });
+/**
+ * The level is written as its name. Pino's default is a number (`50` for an
+ * error), and Railway matches on `debug`, `info`, `warn` and `error`, so it
+ * filed every line we wrote under `info`. That included the one line that
+ * explained the 2026-10-03 outage, which Baileys had logged as an error.
+ *
+ * Child loggers inherit this, so the Baileys logger is covered as well.
+ */
+export const loggerOptions: pino.LoggerOptions = {
+  level,
+  base: null,
+  formatters: { level: (label) => ({ level: label }) },
+};
+
+export const rootLogger = pino(loggerOptions);
 
 export type RequestLogger = pino.Logger;
 

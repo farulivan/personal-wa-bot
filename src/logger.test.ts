@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import pino from 'pino';
+import { loggerOptions } from './logger.js';
 
 /**
  * These assert the pino behaviour the logger helpers depend on, rather than the
@@ -71,5 +72,50 @@ describe('error serialization', () => {
     const err = out.err as Record<string, unknown>;
     expect(err.message).toBe('outer: inner');
     expect(String(err.stack)).toContain('caused by: Error: inner');
+  });
+});
+
+/**
+ * Builds a logger from the options production uses, pointed at an array instead
+ * of stdout. The threshold is opened up so the quieter levels are captured too.
+ */
+function captureWithProductionOptions(
+  write: (logger: pino.Logger) => void
+): Record<string, unknown>[] {
+  const lines: string[] = [];
+  const logger = pino(
+    { ...loggerOptions, level: 'trace' },
+    { write: (chunk: string) => void lines.push(chunk) }
+  );
+
+  write(logger);
+
+  return lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
+describe('level names', () => {
+  it('writes the level as its name, which is what Railway matches on', () => {
+    const out = captureWithProductionOptions((logger) => {
+      logger.debug('a debug line');
+      logger.info('an info line');
+      logger.warn('a warning');
+      logger.error('an error');
+    });
+
+    expect(out.map((line) => line.level)).toEqual(['debug', 'info', 'warn', 'error']);
+  });
+
+  it('keeps the name on a child logger, which is how Baileys logs', () => {
+    // The same child the transport hands to Baileys, logging the line that
+    // explained the 2026-10-03 outage and was filed as info.
+    const [line] = captureWithProductionOptions((logger) =>
+      logger
+        .child({ component: 'baileys' }, { level: 'warn' })
+        .error({ reasonNode: { tag: 'conflict' } }, 'stream errored out')
+    );
+
+    expect(line.level).toBe('error');
+    expect(line.component).toBe('baileys');
+    expect(line.msg).toBe('stream errored out');
   });
 });
