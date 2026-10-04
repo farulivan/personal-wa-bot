@@ -58,6 +58,10 @@ The ban risk is unchanged: Baileys is as unofficial as whatsapp-web.js. That is 
 
 **Never call `sock.logout()`.** It unlinks the Baileys device and forces a QR re-scan, and it is exactly the kind of call that ends up in a cleanup script. Ending the socket (`sock.end`) is the correct way to disconnect.
 
+**When WhatsApp logs the device out.** The server sends a `stream:error` with code 401 and `<conflict type="device_removed"/>`. Reconnecting cannot help, so the reconnect policy deletes `baileys_auth` and exits, and the next boot prints a QR code. Until someone scans it the bot is down: `/ready` answers 503, and the process restarts about every half hour as QR timeouts use up the reconnect budget. That last part is noise rather than a fault, and the postmortem lists it for fixing.
+
+Two causes are known, and neither is in the code. WhatsApp logs out every linked device once the phone that owns the account has gone 14 days without WhatsApp being used on it, which applies to its own clients too and is avoided by opening WhatsApp on that phone regularly. WhatsApp can also end a link on its own without giving a reason, which cannot be avoided, only noticed quickly. It happened on 2026-10-03 ([postmortem](../incidents/2026-10-03-whatsapp-device-removed.md)). The steps for linking again are in the [README](../../README.md#troubleshooting).
+
 **On rollback.** Scanning the Baileys QR linked a *new* device rather than unlinking the whatsapp-web.js one, so during the migration a rollback cost nothing: the old session was still on the volume and still valid. That property expired on 2026-08-16, when `<volume>/session` and `<volume>/session.bak` were deleted — which is expected and fine, since it existed to de-risk a cutover that is over. A rollback now costs a QR re-scan.
 
 Since the migration merged to `main` on 2026-08-15, rolling back means reverting the merge or redeploying an older image, and it costs a QR re-scan. There is still no data migration in either direction.

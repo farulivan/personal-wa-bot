@@ -159,6 +159,8 @@ main()
 
 **Why `/ready` asks the transport every time** rather than latching a boolean at startup: a socket that drops or wedges after boot has to be visible to the monitor. `hasStarted` only records that we got there once; `transport.isConnected()` is the live answer. Any other path returns a flat `200 OK`, which says nothing more than "the process is running" — which is exactly what was true throughout the [2026-07-25 outage](incidents/2026-07-25-whatsapp-logout-inject-crash.md).
 
+**What a logout does to this sequence.** When WhatsApp ends the bot's link, the transport deletes the saved session and the process exits. The next boot runs steps 1–11 as usual and then waits at step 12 with a QR code in the logs. `onSocketReady` never fires, so no scheduler starts, and `/ready` answers 503 until someone scans. That is why a logout skips digests instead of delaying them. It happened on [2026-10-03](incidents/2026-10-03-whatsapp-device-removed.md); the steps for getting back are in the [README](../README.md#troubleshooting).
+
 ---
 
 ## Message Flow
