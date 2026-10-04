@@ -1,7 +1,6 @@
 import fs from 'fs';
 import makeWASocket, {
   Browsers,
-  DisconnectReason,
   makeCacheableSignalKeyStore,
   proto,
   useMultiFileAuthState,
@@ -227,7 +226,7 @@ export function createBaileysTransport(deps: BaileysTransportDeps): BaileysTrans
       return;
     }
 
-    if (statusCode === DisconnectReason.restartRequired) {
+    if (decision.spends === 'restartRequired') {
       consecutiveRestartRequired += 1;
     } else {
       consecutiveFailures += 1;

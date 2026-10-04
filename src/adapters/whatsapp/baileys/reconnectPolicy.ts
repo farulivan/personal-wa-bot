@@ -1,7 +1,10 @@
 import { DisconnectReason } from '@whiskeysockets/baileys';
 
+/** Which of the two budgets a reconnect uses up. */
+export type ReconnectBudget = 'failure' | 'restartRequired';
+
 export type ReconnectDecision =
-  | { action: 'reconnect'; delayMs: number; reason: string }
+  | { action: 'reconnect'; delayMs: number; reason: string; spends: ReconnectBudget }
   | { action: 'exit'; wipeAuth: boolean; reason: string };
 
 /** How many consecutive transient failures we ride out before giving up. */
@@ -48,7 +51,12 @@ export function decideReconnect(input: ReconnectInput): ReconnectDecision {
     case DisconnectReason.restartRequired:
       return consecutiveRestartRequired >= MAX_CONSECUTIVE_RESTART_REQUIRED
         ? { action: 'exit', wipeAuth: false, reason: 'restartRequired loop' }
-        : { action: 'reconnect', delayMs: 250, reason: 'restartRequired 515' };
+        : {
+            action: 'reconnect',
+            delayMs: 250,
+            reason: 'restartRequired 515',
+            spends: 'restartRequired',
+          };
 
     // 428 connectionClosed, 408 connectionLost/timedOut, 500 badSession,
     // 503 unavailableService, 440 connectionReplaced, and plain Errors.
@@ -65,6 +73,7 @@ export function decideReconnect(input: ReconnectInput): ReconnectDecision {
         action: 'reconnect',
         delayMs: backoffMs(consecutiveFailures),
         reason: `transient ${statusCode ?? 'unknown'}`,
+        spends: 'failure',
       };
   }
 }

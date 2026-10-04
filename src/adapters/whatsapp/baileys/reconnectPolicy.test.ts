@@ -53,6 +53,7 @@ describe('decideReconnect — restartRequired (515)', () => {
       action: 'reconnect',
       delayMs: 250,
       reason: 'restartRequired 515',
+      spends: 'restartRequired',
     });
   });
 
@@ -60,6 +61,7 @@ describe('decideReconnect — restartRequired (515)', () => {
     expect(decide(DisconnectReason.restartRequired, MAX_CONSECUTIVE_FAILURES + 5)).toMatchObject({
       action: 'reconnect',
       delayMs: 250,
+      spends: 'restartRequired',
     });
   });
 
@@ -89,8 +91,8 @@ describe('decideReconnect — transient codes', () => {
   ];
 
   for (const [label, statusCode] of transient) {
-    it(`reconnects on ${label}`, () => {
-      expect(decide(statusCode)).toMatchObject({ action: 'reconnect' });
+    it(`reconnects on ${label}, and spends the failure budget`, () => {
+      expect(decide(statusCode)).toMatchObject({ action: 'reconnect', spends: 'failure' });
     });
 
     it(`exits on ${label} once the budget is exhausted`, () => {
