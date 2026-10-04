@@ -521,6 +521,7 @@ The bot is a linked device on a WhatsApp account, the same as WhatsApp Web on a 
 
 - Nobody gets a reply, and `GET /ready` answers `503 NOT_READY`.
 - The logs show `stream errored out` with code `401` and `device_removed`, then `cleared the wa session so the next boot can pair again`, then QR codes.
+- That `cleared the wa session` line also says when the session was linked (`linkedAt`) and how many days ago (`sessionAgeDays`). Note both down before the logs expire. An age of almost exactly 14 days means WhatsApp has not been used on the phone since the scan.
 
 **Why it happens**
 
