@@ -5,6 +5,7 @@ import {
   decideReconnect,
   MAX_CONSECUTIVE_FAILURES,
   MAX_CONSECUTIVE_RESTART_REQUIRED,
+  SCAN_RETRY_DELAY_MS,
 } from './reconnectPolicy.js';
 
 function decide(statusCode: number | undefined, failures = 0, restarts = 0) {
@@ -12,6 +13,17 @@ function decide(statusCode: number | undefined, failures = 0, restarts = 0) {
     statusCode,
     consecutiveFailures: failures,
     consecutiveRestartRequired: restarts,
+    awaitingScan: false,
+  });
+}
+
+/** The same decision for a socket that had a QR code up when it closed. */
+function decideAtQrScreen(statusCode: number | undefined, failures = 0) {
+  return decideReconnect({
+    statusCode,
+    consecutiveFailures: failures,
+    consecutiveRestartRequired: 0,
+    awaitingScan: true,
   });
 }
 
@@ -53,6 +65,7 @@ describe('decideReconnect — restartRequired (515)', () => {
       action: 'reconnect',
       delayMs: 250,
       reason: 'restartRequired 515',
+      spends: 'restartRequired',
     });
   });
 
@@ -60,6 +73,7 @@ describe('decideReconnect — restartRequired (515)', () => {
     expect(decide(DisconnectReason.restartRequired, MAX_CONSECUTIVE_FAILURES + 5)).toMatchObject({
       action: 'reconnect',
       delayMs: 250,
+      spends: 'restartRequired',
     });
   });
 
@@ -89,8 +103,8 @@ describe('decideReconnect — transient codes', () => {
   ];
 
   for (const [label, statusCode] of transient) {
-    it(`reconnects on ${label}`, () => {
-      expect(decide(statusCode)).toMatchObject({ action: 'reconnect' });
+    it(`reconnects on ${label}, and spends the failure budget`, () => {
+      expect(decide(statusCode)).toMatchObject({ action: 'reconnect', spends: 'failure' });
     });
 
     it(`exits on ${label} once the budget is exhausted`, () => {
@@ -120,6 +134,65 @@ describe('decideReconnect — transient codes', () => {
   it('reconnects on the last attempt before the budget runs out', () => {
     expect(decide(DisconnectReason.connectionClosed, MAX_CONSECUTIVE_FAILURES - 1)).toMatchObject({
       action: 'reconnect',
+    });
+  });
+});
+
+describe('decideReconnect — waiting for a QR scan', () => {
+  it('keeps waiting when the QR codes run out, and spends nothing', () => {
+    expect(decideAtQrScreen(DisconnectReason.timedOut)).toEqual({
+      action: 'reconnect',
+      delayMs: SCAN_RETRY_DELAY_MS,
+      reason: 'waiting for scan',
+      spends: 'none',
+    });
+  });
+
+  it('keeps waiting however long nobody scans', () => {
+    // The 2026-10-03 outage was 19 hours of this. Each run of ten used to
+    // take the process down, 36 times over.
+    for (const failures of [MAX_CONSECUTIVE_FAILURES, MAX_CONSECUTIVE_FAILURES + 500]) {
+      expect(decideAtQrScreen(DisconnectReason.timedOut, failures)).toMatchObject({
+        action: 'reconnect',
+        spends: 'none',
+      });
+    }
+  });
+
+  it('still counts a 408 as a failure when no QR code was up', () => {
+    // A timeout before any code appears means WhatsApp could not be reached,
+    // and a paired socket that times out has lost its connection.
+    expect(decide(DisconnectReason.timedOut)).toMatchObject({
+      action: 'reconnect',
+      spends: 'failure',
+    });
+    expect(decide(DisconnectReason.timedOut, MAX_CONSECUTIVE_FAILURES)).toMatchObject({
+      action: 'exit',
+    });
+  });
+
+  it('still counts any other error at the QR screen as a failure', () => {
+    const others = [
+      DisconnectReason.connectionClosed,
+      DisconnectReason.unavailableService,
+      undefined,
+    ];
+
+    for (const statusCode of others) {
+      expect(decideAtQrScreen(statusCode)).toMatchObject({
+        action: 'reconnect',
+        spends: 'failure',
+      });
+      expect(decideAtQrScreen(statusCode, MAX_CONSECUTIVE_FAILURES)).toMatchObject({
+        action: 'exit',
+      });
+    }
+  });
+
+  it('leaves the restart that follows a scan alone', () => {
+    expect(decideAtQrScreen(DisconnectReason.restartRequired)).toMatchObject({
+      action: 'reconnect',
+      spends: 'restartRequired',
     });
   });
 });

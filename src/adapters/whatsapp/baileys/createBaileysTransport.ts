@@ -1,7 +1,6 @@
 import fs from 'fs';
 import makeWASocket, {
   Browsers,
-  DisconnectReason,
   makeCacheableSignalKeyStore,
   proto,
   useMultiFileAuthState,
@@ -69,6 +68,9 @@ export function createBaileysTransport(deps: BaileysTransportDeps): BaileysTrans
   let consecutiveFailures = 0;
   let consecutiveRestartRequired = 0;
   let stallTimer: NodeJS.Timeout | undefined;
+  // True once the current socket has put up a QR code, which means it is
+  // unpaired and waiting for a scan. Cleared on every connect.
+  let awaitingScan = false;
   // The current socket's credentials. Baileys updates this object in place, so
   // reading it at log time also sees a pairing that happened after connect.
   let creds: AuthenticationCreds | undefined;
@@ -114,6 +116,7 @@ export function createBaileysTransport(deps: BaileysTransportDeps): BaileysTrans
   async function connect(): Promise<void> {
     const { state, saveCreds } = await useMultiFileAuthState(deps.authDir);
     creds = state.creds;
+    awaitingScan = false;
 
     const sock = makeWASocket({
       auth: {
@@ -189,6 +192,7 @@ export function createBaileysTransport(deps: BaileysTransportDeps): BaileysTrans
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
+      awaitingScan = true;
       renderQr(qr);
     }
 
@@ -217,6 +221,7 @@ export function createBaileysTransport(deps: BaileysTransportDeps): BaileysTrans
       statusCode,
       consecutiveFailures,
       consecutiveRestartRequired,
+      awaitingScan,
     });
 
     if (decision.action === 'exit') {
@@ -227,9 +232,9 @@ export function createBaileysTransport(deps: BaileysTransportDeps): BaileysTrans
       return;
     }
 
-    if (statusCode === DisconnectReason.restartRequired) {
+    if (decision.spends === 'restartRequired') {
       consecutiveRestartRequired += 1;
-    } else {
+    } else if (decision.spends === 'failure') {
       consecutiveFailures += 1;
     }
 

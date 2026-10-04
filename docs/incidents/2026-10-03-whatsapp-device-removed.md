@@ -3,7 +3,7 @@
 **Date:** 2026-10-03
 **Duration:** 19 h 36 min — logged out at 14:28 WIB, linked again at 10:04 the next morning
 **Severity:** total outage — bot deaf to every chat, scheduled messages skipped
-**Status:** resolved — a QR re-scan restored service; the trigger is narrowed to two candidates and the follow-ups are open
+**Status:** resolved — a QR re-scan restored service; the trigger is narrowed to two candidates and every action item is closed
 
 ## Summary
 
@@ -33,7 +33,7 @@ Times in WIB (UTC+7), Saturday 3 October into Sunday 4 October.
 - **Sat 14:28:32** — Railway restarts the process. Migrations run, the health server comes up, and the first QR code is in the logs a second later.
 - **Sat 14:30:31** — UptimeRobot's poll of `/ready` gets a 503. The poll at 14:25 had been a 200. Its three retries have all failed by 14:31:16.
 - **Sat 14:31 to Sun 10:03** — The bot waits for a scan. Each connection attempt shows six QR codes over 160 seconds, then times out with a 408. After ten retries the reconnect budget is spent, the process exits and Railway starts it again. That happens 36 times, about every 32 minutes, and puts 2,380 QR codes in the logs. The nightly restart at 03:00 fires as usual.
-- **Sun 10:04:44** (`03:04:44Z`) — QR code scanned. One `515` restart, which always follows a pairing, then the socket opens as device 20 and the schedulers start.
+- **Sun 10:04:34** (`03:04:34Z`) — QR code scanned. One `515` restart, which always follows a pairing, and ten seconds later the socket opens as device 20 and the schedulers start.
 - **Sun 10:05:31** — `/ready` answers 200 to the monitor.
 
 ## Root cause
@@ -82,7 +82,7 @@ What was left needs three things in the same place: someone who has seen the ale
 
 - [x] Open WhatsApp on the phone that owns the bot's number at least once a week. That closes the 14-day explanation whether or not it was the cause, and it turns the next logout into evidence for the other one. Acknowledged on 2026-10-04: this is a habit to keep, not a change to ship.
 - [x] ~~Make the down alert harder to miss: a push notification or a chat message alongside the email.~~ — **decided against.** The email was enough. I knew about the outage the same day.
-- [ ] Stop counting "nobody has scanned yet" as a failure. Waiting for a scan should not spend the reconnect budget and restart the process every half hour. Tracked in [#95](https://github.com/farulivan/personal-wa-bot/issues/95).
+- [x] Stop counting "nobody has scanned yet" as a failure. Waiting for a scan should not spend the reconnect budget and restart the process every half hour. Done for [#95](https://github.com/farulivan/personal-wa-bot/issues/95): a timeout while a QR code is up is now `waiting for scan`, and it spends nothing.
 - [x] Emit level names from the logger, so Railway can tell an error from an info line. Done for [#93](https://github.com/farulivan/personal-wa-bot/issues/93): pino now writes `error` where it wrote `50`.
 - [x] Record when the session was linked, and log its age at boot and at the moment it is wiped, so the next logout comes with a number. Done for [#94](https://github.com/farulivan/personal-wa-bot/issues/94): the link time is read from the credentials, and both `whatsapp socket open` and the wipe line carry it.
 - [x] Write down what a logout looks like and how to recover, where someone running the bot will look: the README ([Quick Start](../../README.md#quick-start) and [Troubleshooting](../../README.md#troubleshooting)), the runbook notes in [ADR 0005](../adr/0005-whatsapp-transport.md), the [architecture guide](../architecture.md#boot-sequence) and the glossary in [CONTEXT.md](../../CONTEXT.md).

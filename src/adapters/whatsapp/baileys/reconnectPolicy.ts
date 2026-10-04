@@ -1,7 +1,17 @@
 import { DisconnectReason } from '@whiskeysockets/baileys';
 
+/** Which budget a reconnect uses up, if any. */
+export type ReconnectBudget = 'failure' | 'restartRequired' | 'none';
+
+/**
+ * The pause before asking for a fresh set of QR codes. Short, so whoever opens
+ * the logs to scan is not kept waiting, but not zero: an unpaired bot can sit
+ * here for hours.
+ */
+export const SCAN_RETRY_DELAY_MS = 5_000;
+
 export type ReconnectDecision =
-  | { action: 'reconnect'; delayMs: number; reason: string }
+  | { action: 'reconnect'; delayMs: number; reason: string; spends: ReconnectBudget }
   | { action: 'exit'; wipeAuth: boolean; reason: string };
 
 /** How many consecutive transient failures we ride out before giving up. */
@@ -15,6 +25,15 @@ export type ReconnectInput = {
   /** Reset to 0 whenever the connection reaches 'open'. */
   consecutiveFailures: number;
   consecutiveRestartRequired: number;
+  /**
+   * The socket that just closed had put up a QR code: it was unpaired and
+   * waiting for someone to scan.
+   *
+   * This is deliberately not "the session is unpaired". An unpaired socket
+   * that times out before any code appears could not reach WhatsApp, and that
+   * is a real failure with the same status code.
+   */
+  awaitingScan: boolean;
 };
 
 /**
@@ -26,9 +45,24 @@ export type ReconnectInput = {
  * past the QR. Never exiting recreates the 2026-07-25 outage: process alive,
  * /ready lying, bot silently dead. So we reconnect on a budget, and let a
  * budget that runs out become a clean non-zero exit.
+ *
+ * Waiting for a QR scan is the one state the budget does not apply to.
  */
 export function decideReconnect(input: ReconnectInput): ReconnectDecision {
-  const { statusCode, consecutiveFailures, consecutiveRestartRequired } = input;
+  const { statusCode, consecutiveFailures, consecutiveRestartRequired, awaitingScan } = input;
+
+  // Baileys shows six QR codes and then closes with a 408. Nobody scanning is
+  // not a failure: the bot is unpaired, and waiting is the only correct thing
+  // it can do. Counted as one, it spent the whole budget every half hour on
+  // 2026-10-03 and took the process down 36 times for nothing.
+  if (awaitingScan && statusCode === DisconnectReason.timedOut) {
+    return {
+      action: 'reconnect',
+      delayMs: SCAN_RETRY_DELAY_MS,
+      reason: 'waiting for scan',
+      spends: 'none',
+    };
+  }
 
   switch (statusCode) {
     // Reconnecting cannot help: the registration itself is gone. Keeping the
@@ -48,7 +82,12 @@ export function decideReconnect(input: ReconnectInput): ReconnectDecision {
     case DisconnectReason.restartRequired:
       return consecutiveRestartRequired >= MAX_CONSECUTIVE_RESTART_REQUIRED
         ? { action: 'exit', wipeAuth: false, reason: 'restartRequired loop' }
-        : { action: 'reconnect', delayMs: 250, reason: 'restartRequired 515' };
+        : {
+            action: 'reconnect',
+            delayMs: 250,
+            reason: 'restartRequired 515',
+            spends: 'restartRequired',
+          };
 
     // 428 connectionClosed, 408 connectionLost/timedOut, 500 badSession,
     // 503 unavailableService, 440 connectionReplaced, and plain Errors.
@@ -65,6 +104,7 @@ export function decideReconnect(input: ReconnectInput): ReconnectDecision {
         action: 'reconnect',
         delayMs: backoffMs(consecutiveFailures),
         reason: `transient ${statusCode ?? 'unknown'}`,
+        spends: 'failure',
       };
   }
 }
