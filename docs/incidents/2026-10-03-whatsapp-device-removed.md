@@ -33,7 +33,7 @@ Times in WIB (UTC+7), Saturday 3 October into Sunday 4 October.
 - **Sat 14:28:32** — Railway restarts the process. Migrations run, the health server comes up, and the first QR code is in the logs a second later.
 - **Sat 14:30:31** — UptimeRobot's poll of `/ready` gets a 503. The poll at 14:25 had been a 200. Its three retries have all failed by 14:31:16.
 - **Sat 14:31 to Sun 10:03** — The bot waits for a scan. Each connection attempt shows six QR codes over 160 seconds, then times out with a 408. After ten retries the reconnect budget is spent, the process exits and Railway starts it again. That happens 36 times, about every 32 minutes, and puts 2,380 QR codes in the logs. The nightly restart at 03:00 fires as usual.
-- **Sun 10:04:44** (`03:04:44Z`) — QR code scanned. One `515` restart, which always follows a pairing, then the socket opens as device 20 and the schedulers start.
+- **Sun 10:04:34** (`03:04:34Z`) — QR code scanned. One `515` restart, which always follows a pairing, and ten seconds later the socket opens as device 20 and the schedulers start.
 - **Sun 10:05:31** — `/ready` answers 200 to the monitor.
 
 ## Root cause
