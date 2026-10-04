@@ -6,7 +6,7 @@ import makeWASocket, {
   proto,
   useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
-import type { WASocket } from '@whiskeysockets/baileys';
+import type { AuthenticationCreds, WASocket } from '@whiskeysockets/baileys';
 import qrcode from 'qrcode-terminal';
 import { debug, error, log, rootLogger } from '../../../logger.js';
 import { handleDisconnect } from '../../../processGuards.js';
@@ -16,6 +16,8 @@ import { createBaileysMessageSender } from './baileysMessageSender.js';
 import { BaileysGroupMembershipAdapter } from './baileysGroupMembership.js';
 import { createGroupMetadataCache } from './groupMetadata.js';
 import { decideReconnect } from './reconnectPolicy.js';
+import { sessionAgeFields, sessionLinkedAt } from './sessionAge.js';
+import type { SessionAgeFields } from './sessionAge.js';
 
 /** A socket stuck short of 'open' this long is wedged in a way the ladder cannot see. */
 const STALL_TIMEOUT_MS = 10 * 60_000;
@@ -47,10 +49,12 @@ function renderQr(qr: string): void {
   log('\n');
 }
 
-function wipeAuthDir(authDir: string): void {
+// The session's age goes on this line because the wipe deletes the only other
+// record of it, and it is the first thing a postmortem will ask for.
+function wipeAuthDir(authDir: string, sessionAge: SessionAgeFields): void {
   try {
     fs.rmSync(authDir, { recursive: true, force: true });
-    log({ authDir }, 'cleared the wa session so the next boot can pair again');
+    log({ authDir, ...sessionAge }, 'cleared the wa session so the next boot can pair again');
   } catch (err) {
     error({ err, authDir }, 'failed to clear the wa session');
   }
@@ -65,6 +69,13 @@ export function createBaileysTransport(deps: BaileysTransportDeps): BaileysTrans
   let consecutiveFailures = 0;
   let consecutiveRestartRequired = 0;
   let stallTimer: NodeJS.Timeout | undefined;
+  // The current socket's credentials. Baileys updates this object in place, so
+  // reading it at log time also sees a pairing that happened after connect.
+  let creds: AuthenticationCreds | undefined;
+
+  function sessionAge(): SessionAgeFields {
+    return sessionAgeFields(sessionLinkedAt(creds ?? {}), new Date());
+  }
 
   function armStallWatchdog(): void {
     clearTimeout(stallTimer);
@@ -102,6 +113,7 @@ export function createBaileysTransport(deps: BaileysTransportDeps): BaileysTrans
 
   async function connect(): Promise<void> {
     const { state, saveCreds } = await useMultiFileAuthState(deps.authDir);
+    creds = state.creds;
 
     const sock = makeWASocket({
       auth: {
@@ -185,7 +197,7 @@ export function createBaileysTransport(deps: BaileysTransportDeps): BaileysTrans
       consecutiveFailures = 0;
       consecutiveRestartRequired = 0;
       clearTimeout(stallTimer);
-      log({ botId: socket?.user?.id }, 'whatsapp socket open');
+      log({ botId: socket?.user?.id, ...sessionAge() }, 'whatsapp socket open');
       deps.onReady();
       return;
     }
@@ -209,7 +221,7 @@ export function createBaileysTransport(deps: BaileysTransportDeps): BaileysTrans
 
     if (decision.action === 'exit') {
       if (decision.wipeAuth) {
-        wipeAuthDir(deps.authDir);
+        wipeAuthDir(deps.authDir, sessionAge());
       }
       handleDisconnect(decision.reason);
       return;
