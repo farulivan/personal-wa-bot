@@ -28,6 +28,8 @@ It runs as a single Node process against one PostgreSQL database, deployed on Ra
 - **Leaderboard** — a ranking of the group for the day (or month), built only from people who are actually members of the digest group.
 - **WA user ID** — the id WhatsApp addresses someone by, and what we key every row on. WhatsApp uses either a phone number or a **LID** depending on the chat, and ours are LIDs — long numbers with no relation to the person's phone number. `users.id` holds this; `users.phone_number` is separate metadata that does *not* match it.
 - **Allowlist** — `ALLOWED_WA_IDS`. Only these WA user IDs can run commands — IDs, not phone numbers. An empty allowlist means nobody can, which is the safe default.
+- **Linked device** — what the bot is to WhatsApp: a second device attached to an account that lives on a phone, the same as WhatsApp Web on a laptop. *Linking* it means scanning a QR code from that phone. WhatsApp can end the link, and does so on its own once that phone has gone 14 days without WhatsApp being used on it. The bot is then deaf until someone scans again (see the [2026-10-03 postmortem](docs/incidents/2026-10-03-whatsapp-device-removed.md)).
+- **Session** — the keys the bot saves once it is linked (`baileys_auth/`), which let it reconnect without another scan. A logout makes them useless, so the bot deletes them and asks for a new QR code.
 - **Source chat** — where a reminder was created. It's delivered back to that same chat, group or direct, not only to the person who set it.
 - **Due / claimed reminder** — a reminder is *due* when `scheduled_at <= now` and it hasn't been sent or deleted. The scheduler *claims* a batch of due reminders atomically before sending them (see [ADR 0001](docs/adr/0001-reminder-delivery-semantics.md)).
 
