@@ -482,7 +482,7 @@ pnpm format           # Format with Prettier
 - **Remind scheduler:** runs independently after WA client is ready, polls every 30s.
 - **Sholat reminders:** a 30s ticker reads the cached schedule (warming it on a miss, so a restart at any time of day recovers) and posts at each fardhu time to chats that opted in via `#sholat reminder on`. DMs are self-serve; in groups only those listed in `DIGEST_GROUP_IDS` may opt in.
 - **Digest/Quran scheduler:** runs only when `DIGEST_GROUP_IDS` is configured.
-- **Reconnects:** an ordinary disconnect is retried in-process on a bounded backoff. Only a logout, a restricted account, or a run of failures that exhausts the budget takes the process down for the platform to restart. While the socket is down both tickers stop, so a reminder is never claimed and dropped.
+- **Reconnects:** an ordinary disconnect is retried in-process on a bounded backoff. Only a logout, a restricted account, or a run of failures that exhausts the budget takes the process down for the platform to restart. Waiting for a QR scan is not a failure and spends none of that budget. While the socket is down both tickers stop, so a reminder is never claimed and dropped.
 - **Logout:** when WhatsApp ends the bot's link, the saved session is deleted and the process restarts at the QR screen. `/ready` answers `503` until someone scans the code. Digests and prayer reminders that fall in the gap are skipped; personal reminders wait and go out once the bot is back. See [Troubleshooting](#troubleshooting).
 - **Nightly restart:** the coarse backstop for a socket wedged in a way the reconnect ladder cannot see. The bot exits cleanly at 03:00 (user timezone) and the platform brings it back. It is scheduled even when the client is stuck at the QR screen. The deploy config must relaunch on clean exits — `railway.json` uses `restartPolicyType: ALWAYS`, docker-compose uses `unless-stopped`.
 - **Health endpoint:** the bot serves `GET /ready` on `PORT` — `200 READY` when the WhatsApp socket is open, `503 NOT_READY` otherwise. An external uptime monitor polls it every 5 minutes and emails on failure, so an outage surfaces in minutes rather than whenever someone notices. Monitor `/ready` specifically: any other path returns `200 OK` while the process is merely alive, which stays true when the socket is dead — the exact shape of the [2026-07-25 outage](docs/incidents/2026-07-25-whatsapp-logout-inject-crash.md).
@@ -535,7 +535,7 @@ The bot is a linked device on a WhatsApp account, the same as WhatsApp Web on a 
 2. In WhatsApp on the phone that owns the bot's number, open *Linked devices*, tap *Link a device* and scan it.
 3. Wait for `whatsapp socket open` in the logs. `/ready` goes back to `200`.
 
-While it waits for a scan the process restarts about every half hour, logging `budget exhausted (408)`. That is expected and stops once the code is scanned.
+While it waits for a scan the bot stays up and keeps printing codes, logging `waiting for scan` between sets. `/ready` answers `503` the whole time.
 
 **What is lost**
 
