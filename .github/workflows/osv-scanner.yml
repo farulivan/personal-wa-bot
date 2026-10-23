@@ -1,0 +1,51 @@
+name: OSV-Scanner
+
+# A second opinion on the lockfile, next to Dependabot and dependency review.
+# OSV merges more advisory sources than GitHub does, including the OpenSSF list
+# of known-malicious packages, and it tends to see advisories first: on
+# 2026-10-23 it reported four reviewed advisories that Dependabot had not raised
+# alerts for yet, two of them 15 days old.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # Every morning at 06:17 WIB, for advisories published after a merge.
+  schedule:
+    - cron: '17 23 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  # Scans the base branch and the PR, and fails only on what the PR adds. An
+  # advisory that lands on a package already on main shows up in the daily scan
+  # instead of failing whichever PR happens to be open.
+  osv-scan-pr:
+    if: github.event_name == 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+    permissions:
+      actions: read
+      contents: read
+      # Results go to Security > Code scanning.
+      security-events: write
+    with:
+      scan-args: |-
+        --lockfile=pnpm-lock.yaml
+
+  # Scans the whole lockfile on main. A failed scheduled run emails me.
+  osv-scan:
+    if: github.event_name != 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    with:
+      scan-args: |-
+        --lockfile=pnpm-lock.yaml

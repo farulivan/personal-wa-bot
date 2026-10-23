@@ -1,0 +1,7 @@
+# Advisories OSV-Scanner reports that I've read and accepted, each with the
+# reason it can't reach this bot. Every entry expires, so it gets read again.
+
+[[IgnoredVulns]]
+id = "GHSA-67mh-4wv8-2f99"
+ignoreUntil = 2027-04-23
+reason = "esbuild 0.18.20 comes via drizzle-kit's deprecated @esbuild-kit/esm-loader, and drizzle-kit's latest release still depends on it. The advisory needs esbuild --serve, which nothing here runs. Dismissed as Dependabot alert #1 for the same reason."
