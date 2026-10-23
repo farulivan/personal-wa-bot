@@ -1,11 +1,25 @@
 packages: []
 
+# pnpm 10 runs no dependency's install scripts unless told to, and none is
+# allowed. These are the packages that ship one, each read and left off:
 ignoredBuiltDependencies:
+  # A preinstall that exits when Node is older than 20. The image runs 24.
+  - '@whiskeysockets/baileys'
+  # A postinstall that warns when a dependent asks for the wrong version range.
+  - protobufjs
   # Testcontainers brings these in through ssh2. Their build scripts only compile
   # optional native crypto for reaching Docker over SSH, which the tests never do.
   - cpu-features
-  - esbuild
   - ssh2
+  # Checks its platform binary and downloads it if missing. pnpm already installs
+  # that binary as an optional dependency.
+  - esbuild
+
+# On by default from pnpm 11. Without it, a dependency that gains an install
+# script only gets a warning in the install log. With it, the install fails until
+# someone reads the script and lists the package above. ChainDrop spread this way
+# in August 2026: patch releases that quietly added a preinstall.
+strictDepBuilds: true
 
 # Both of these are defaults from pnpm 11 onwards; set here so pnpm 10 enforces
 # them too. A version must be a day old before it resolves, since most hijacked
