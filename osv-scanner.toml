@@ -5,3 +5,18 @@
 id = "GHSA-67mh-4wv8-2f99"
 ignoreUntil = 2027-04-23
 reason = "esbuild 0.18.20 comes via drizzle-kit's deprecated @esbuild-kit/esm-loader, and drizzle-kit's latest release still depends on it. The advisory needs esbuild --serve, which nothing here runs. Dismissed as Dependabot alert #1 for the same reason."
+
+# The next two are only fixed in minimatch 11 and glob 14, with no backports, and
+# nothing here accepts those majors yet. When they expire, check eslint/eslint#21463
+# for ESLint, and whether Testcontainers has moved off archiver 7, which
+# testcontainers/testcontainers-node#1425 explains is harder than a version bump.
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-01-31
+reason = "minimatch is dev only, through ESLint, typescript-eslint and Testcontainers' archiver. The advisory needs optimizationLevel 2 or higher and a pattern an attacker controls. ESLint and typescript-eslint stay on the default level with patterns from my own config, 5.1.9 doesn't have the affected code, and 9.0.9 only runs under a glob.sync that archiver never calls. Delete this once pnpm-lock.yaml has no minimatch below 11.0.1."
+
+[[IgnoredVulns]]
+id = "GHSA-3g3m-2fjr-6pw4"
+ignoreUntil = 2027-01-31
+reason = "glob 10.5.0 is dev only, through Testcontainers' archiver. The advisory needs a caller that passes an AbortSignal. The only call is a glob.sync in archiver-utils that archiver never reaches, and nothing gives it a signal. Delete this once pnpm-lock.yaml has no glob below 14.0.2."
